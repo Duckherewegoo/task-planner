@@ -1,0 +1,150 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "task-planner"
+version = "2.1.1"
+description = "基于 LangGraph 与大语言模型的自主任务规划引擎，支持动态 DAG 编排、多模态意图识别与全流程可观测性评估（异步版）。"
+requires-python = ">=3.10"
+license = { text = "GPL-3.0-or-later" }
+authors = [
+    { name = "JiangDake", email = "1145151910@example.com" },
+]
+readme = "README.md"
+keywords = ["llm-agent", "task-planning", "langgraph", "dag", "orchestration"]
+
+dependencies = [
+    # ── 核心异步依赖 ──
+    "langgraph>=1.2.11",
+    "openai>=1.0.0",
+    "python-dotenv>=1.0.0",
+    "httpx>=0.27.0",
+    "pydantic>=2.0.0",
+
+    # ── 数据库（异步驱动）──
+    "motor>=3.6.0",
+    "pymongo>=4.5.0",
+
+    # ── 流程图（Dash 前端 + 导出）──
+    "dash>=2.14.0",
+    "dash-cytoscape>=0.3.0",
+    "plotly>=5.18.0",
+    "networkx>=3.2",
+    "matplotlib>=3.8.0",
+    "pyvis>=0.3.2",
+    "cairosvg>=2.7.0",
+    "lxml>=5.0.0",
+    "pydot>=3.0.0",
+    "Pillow>=11.0.0",
+    "wcwidth>=0.2.14",
+]
+
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+]
+
+[project.optional-dependencies]
+# ── UI 界面 ──
+gradio = [
+    "gradio>=6.0.0",
+]
+# ── LLM 提供商 ──
+dashscope = [
+    "dashscope>=1.20.0",
+]
+# ── 高性能 JSON ──
+orjson = [
+    "orjson>=3.10.0",
+]
+# ── 评估套件依赖 ──
+eval = [
+    "gradio>=6.0.0",
+    "python-Levenshtein>=0.25.0",   # 字符串相似度计算
+    "pyyaml>=6.0.0",                # YAML 数据集加载
+]
+# ── 开发依赖 ──
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=5.0.0",
+    "black>=24.0.0",
+    "isort>=5.13.0",
+    "ruff>=0.8.0",
+    "pyright>=1.1.390",
+    "mypy>=1.13.0",
+    "python-Levenshtein>=0.25.0",   # 评估套件需要
+    "pyyaml>=6.0.0",                # 评估套件需要
+]
+
+[project.urls]
+Homepage = "https://github.com/Duckherewegoo/task-planner"
+Repository = "https://github.com/Duckherewegoo/task-planner"
+Issues = "https://github.com/Duckherewegoo/task-planner/issues"
+
+[project.scripts]
+task-planner = "task_planner.main.dash_app:main"
+task-planner-gradio = "task_planner.abandon.gradio_app:main"   # ⚠️ 已废弃，保留向后兼容
+task-planner-eval = "tests.eval_suite.run_evaluation:main"
+
+[tool.setuptools.packages.find]
+where = ["src", "tests"]
+include = ["task_planner*", "tests*"]
+# ✅ 新增 tests 目录，使评估套件可导入
+
+# ══════════════════════════════════════════════════
+# 工具链配置
+# ══════════════════════════════════════════════════
+
+[tool.black]
+line-length = 100
+target-version = ["py310", "py311", "py312"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "C4", "UP", "RUF"]
+ignore = ["E501", "B008"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.pyright]
+typeCheckingMode = "strict"
+pythonVersion = "3.10"
+extraPaths = ["src", "tests"]
+# ✅ 新增 tests 路径，使 pyright 能检查评估代码
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-v --cov=task_planner --cov-report=term-missing --tb=short"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks integration tests requiring external services",
+    "eval: marks evaluation suite tests",
+]
+
+[tool.coverage.run]
+source = ["task_planner"]
+omit = ["*/tests/*", "*/abandon/*", "*/__pycache__/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+]

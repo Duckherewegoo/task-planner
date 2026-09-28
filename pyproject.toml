@@ -95,9 +95,9 @@ task-planner-gradio = "task_planner.abandon.gradio_app:main"   # ⚠️ 已废�
 task-planner-eval = "tests.eval_suite.run_evaluation:main"
 
 [tool.setuptools.packages.find]
-where = ["src", "tests"]
-include = ["task_planner*", "tests*"]
-# ✅ 新增 tests 目录，使评估套件可导入
+where = ["src"]
+include = ["task_planner*"]
+
 
 # ══════════════════════════════════════════════════
 # 工具链配置
@@ -127,13 +127,16 @@ extraPaths = ["src", "tests"]
 # ✅ 新增 tests 路径，使 pyright 能检查评估代码
 
 [tool.pytest.ini_options]
+asyncio_mode = "auto"
 testpaths = ["tests"]
-pythonpath = ["src"]
-addopts = "-v --cov=task_planner --cov-report=term-missing --tb=short"
+# ✅ 默认排除 eval marker：日常 pytest 只跑单元/集成测试（快、免费）
+#    跑 eval 需要显式：pytest -m eval
+addopts = "-v --tb=short -m 'not eval'"
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks integration tests requiring external services",
-    "eval: marks evaluation suite tests",
+    "eval: marks evaluation suite tests (REAL LLM by default, use USE_MOCK_LLM=true to skip)",
+    "unit: marks pure unit tests (no I/O, no Agent, no DB)",
 ]
 
 [tool.coverage.run]

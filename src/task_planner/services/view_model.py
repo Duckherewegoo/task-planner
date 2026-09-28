@@ -1,13 +1,37 @@
-FRONTEND_FIELDS = (
-    "task_id", "svg", "flowchart_html", "direct_response",
-    "status_text", "steps", "error", "cancel_requested",
-    "current_node_index", "node_results", "needs_planning", "view_mode",
-    "nodes", "edges",
+"""
+view_model.py — 领域状态 → 前端 DTO 的投影层
+
+把「哪些字段要给前端看」这个关注点从 state.py / config.py 收敛到这里。
+前端新增字段、v2 API 变更，都在这一层完成。
+"""
+from __future__ import annotations
+
+from typing import Any
+
+
+# 面向前端的字段白名单（除 nodes/edges 单独处理外）
+FRONTEND_FIELDS: tuple[str, ...] = (
+    "task_id",
+    "svg",
+    "flowchart_html",
+    "direct_response",
+    "status_text",
+    "steps",
+    "error",
+    "cancel_requested",
+    "current_node_index",
+    "node_results",
+    "needs_planning",
+    "view_mode",
 )
 
-# 优化方案：预计算字段集合，避免重复元组遍历
-_FRONTEND_KEYS = frozenset(FRONTEND_FIELDS)
 
-def to_frontend_view(self) -> dict:
-    # 如果 self 本身是 dict-like 对象，可直接用交集操作
-    return {k: v for k, v in self.items() if k in _FRONTEND_KEYS}
+def project_to_frontend(state: dict[str, Any]) -> dict[str, Any]:
+    """
+    从完整 TaskState 投影出前端视图。
+    新增/删除前端字段时，只改这个函数。
+    """
+    view = {k: state.get(k) for k in FRONTEND_FIELDS}
+    view["nodes"] = state.get("nodes") or []
+    view["edges"] = state.get("edges") or []
+    return view

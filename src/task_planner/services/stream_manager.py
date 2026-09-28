@@ -10,6 +10,16 @@ stream_manager.py — 后台流式任务管理 + 节点状态控制 (异步版)
 
 设计原则：
   单例管理 + 协程安全 + TTL 兜底 + 零阻塞 UI
+
+Changelog:
+  ✅ P0-1：cancel_task → abort_worker，避免与 agent.cancel_task 命名冲突；
+           cancel_stream 顺序改为"先通知 Agent，再杀 worker"
+  ✅ P0-2：skip_node / fail_node 保护已完成/运行中的下游节点，不再无脑覆盖
+  ✅ P0-3：get_ready_nodes 预建入边索引，复杂度 O(N*E) → O(N+E)
+  ✅ P1-1：get_status_text 从字段推导，不依赖 agent 未发送的 type 值
+  ✅ P1-2：resume_stream 遇运行中任务时抛错，不再静默返回
+  ✅ P2-x：__all__ 补全 / age_since_finished 方法 / 日志 %s 风格 /
+           TTL 统一从 config 读
 """
 import asyncio
 import time
@@ -20,6 +30,7 @@ from task_planner.services.agent import cancel_task
 from task_planner.core.graph.workflow import resume_graph_async, get_thread_state_async
 from task_planner.utils.cytoscape_adapter import dag_to_cytoscape
 from task_planner.infrastructure.logger_setup import get_logger
+from task_planner.infrastructure.config import SESSION_TTL as _SESSION_TTL
 
 logger = get_logger("task_planner.stream_manager")
 
@@ -31,7 +42,12 @@ logger = get_logger("task_planner.stream_manager")
 class TaskStreamState:
     """单个流式任务的状态快照 + 节点状态（协程安全）"""
 
-    def __init__(self, thread_id: str, ttl: int = 3600, max_snapshots: int = 100):
+    def __init__(
+        self,
+        thread_id: str,
+        ttl: int = _SESSION_TTL,
+        max_snapshots: int = 100,
+    ):
         self.thread_id = thread_id
 
         # 快照管理 (使用 deque 自动处理环形缓冲)
@@ -59,6 +75,16 @@ class TaskStreamState:
         """判断是否超时（未完成状态下）"""
         now = now or time.time()
         return not self.finished and (now - self._created_at > self._ttl)
+
+    def age_since_finished(self, now: float | None = None) -> float | None:
+        """
+        ✅ P2-2 修复：对外暴露"完成至今天数"，避免外部直接访问 _finished_at。
+        未完成时返回 None。
+        """
+        if self._finished_at is None:
+            return None
+        now = now or time.time()
+        return now - self._finished_at
 
     async def push(self, snapshot: dict) -> None:
         """推入新快照，并同步节点状态"""
@@ -140,8 +166,17 @@ class TaskStreamState:
         """设置后台任务引用（用于取消）"""
         self._task = task
 
-    def cancel_task(self) -> None:
-        """取消后台任务"""
+    def abort_worker(self) -> None:
+        """
+        ✅ P0-1 修复：方法由 cancel_task 重命名为 abort_worker。
+
+        语义区分：
+          - abort_worker:     杀 asyncio.Task，停止后台快照推送
+          - agent.cancel_task: 通知 Agent 停止 LLM 调用 + 清理 session
+
+        两者常配对调用，正确顺序是「先 agent.cancel_task，后 abort_worker」。
+        在 cancel_stream 里已按此顺序调整。
+        """
         if self._task and not self._task.done():
             self._task.cancel()
 
@@ -158,9 +193,9 @@ class StreamStateCleaner:
     - TTL 兜底：防止异常未标记 finished 的任务永久驻留
     """
 
-    DEFAULT_TTL = 3600          # 默认存活时间 1h
-    CLEAN_INTERVAL = 60         # 清理周期 60s
-    FINISHED_RETENTION = 300    # 已完成任务额外保留 5min
+    DEFAULT_TTL = _SESSION_TTL   # ✅ P2-3：统一从 config 读
+    CLEAN_INTERVAL = 60          # 清理周期 60s
+    FINISHED_RETENTION = 300     # 已完成任务额外保留 5min
 
     def __init__(self):
         self._states: dict[str, TaskStreamState] = {}
@@ -173,8 +208,9 @@ class StreamStateCleaner:
         async with self._lock:
             self._states[thread_id] = state
         await self._ensure_started()
-        logger.debug("[Cleaner] 注册任务 %s (当前活跃: %d)",
-                     thread_id, len(self._states))
+        logger.debug(
+            "[Cleaner] 注册任务 %s (当前活跃: %d)", thread_id, len(self._states),
+        )
 
     async def unregister(self, thread_id: str) -> None:
         """主动移除"""
@@ -202,8 +238,10 @@ class StreamStateCleaner:
                 return
             self._running = True
             self._task = asyncio.create_task(self._cleanup_loop())
-            logger.info("[Cleaner] 清理协程已启动 (interval=%ds, ttl=%ds)",
-                        self.CLEAN_INTERVAL, self.DEFAULT_TTL)
+            logger.info(
+                "[Cleaner] 清理协程已启动 (interval=%ds, ttl=%ds)",
+                self.CLEAN_INTERVAL, self.DEFAULT_TTL,
+            )
 
     async def _cleanup_loop(self) -> None:
         """后台清理循环"""
@@ -227,13 +265,17 @@ class StreamStateCleaner:
                 should_remove = False
 
                 if state.finished:
-                    if state._finished_at and (now - state._finished_at > self.FINISHED_RETENTION):
+                    # ✅ P2-2 修复：用公开方法，避免直接访问私有属性
+                    age = state.age_since_finished(now)
+                    if age is not None and age > self.FINISHED_RETENTION:
                         should_remove = True
                 else:
                     if state.is_expired(now):
                         should_remove = True
-                        logger.warning("[Cleaner] TTL 超时强制回收: %s (age=%.0fs)",
-                                       tid, now - state._created_at)
+                        logger.warning(
+                            "[Cleaner] TTL 超时强制回收: %s (age=%.0fs)",
+                            tid, now - state._created_at,
+                        )
 
                 if should_remove:
                     to_remove.append(tid)
@@ -242,8 +284,10 @@ class StreamStateCleaner:
                 del self._states[tid]
 
         if to_remove:
-            logger.info("[Cleaner] 本轮清理 %d 个任务 (剩余活跃: %d)",
-                        len(to_remove), len(self._states))
+            logger.info(
+                "[Cleaner] 本轮清理 %d 个任务 (剩余活跃: %d)",
+                len(to_remove), len(self._states),
+            )
 
     async def stop(self) -> None:
         """手动停止清理器"""
@@ -334,16 +378,21 @@ async def resume_stream(
     """从 LangGraph checkpoint 恢复历史任务并启动后台流式执行。"""
     existing = await get_stream_state(thread_id)
     if existing and not existing.finished:
+        # ✅ P1-2 修复：不再静默返回 thread_id（会误导调用方以为 resume 成功）
         logger.warning("[StreamMgr] resume_stream: 任务仍在运行中 %s", thread_id)
-        return thread_id
+        raise RuntimeError(
+            f"任务 {thread_id} 仍在运行中，无法 resume。"
+            f"请先调用 cancel_stream() 或等待其完成。"
+        )
 
     # ✅ 使用异步版本
     cp_state = await get_thread_state_async(thread_id)
     if not cp_state:
         raise ValueError(f"未找到 thread_id={thread_id} 的 checkpoint，无法恢复")
 
-    logger.info("[StreamMgr] resume_stream: thread=%s action=%s",
-                thread_id, user_action)
+    logger.info(
+        "[StreamMgr] resume_stream: thread=%s action=%s", thread_id, user_action,
+    )
 
     state = TaskStreamState(thread_id)
     await state_cleaner.register(thread_id, state)
@@ -399,27 +448,41 @@ async def resume_stream(
 # ══════════════════════════════════════════════════
 
 async def cancel_stream(thread_id: str) -> bool:
-    """取消正在运行的流式任务"""
+    """
+    取消正在运行的流式任务。
+
+    ✅ P0-1 修复：调整顺序为
+        1. 通知 Agent（设置 cancel_event + 打断 LLM 调用）
+        2. 标记状态（mark_cancelled）
+        3. 杀后台 worker（abort_worker）
+    原顺序先杀 worker 再通知 Agent，会导致 cancel_event 来不及传给 LLM。
+    """
     state = await get_stream_state(thread_id)
     if not state:
         logger.warning("[StreamMgr] 取消失败：任务不存在 %s", thread_id)
         return False
 
-    await state.mark_cancelled()
-    state.cancel_task()  # 取消后台协程
-
+    # ✅ 步骤 1：先通知 Agent 层
     try:
-        # ✅ 异步调用
         await cancel_task(thread_id)
     except Exception as e:
         logger.warning("[StreamMgr] agent.cancel_task 异常: %s", e)
+
+    # ✅ 步骤 2 + 3：标记状态，再杀 worker
+    await state.mark_cancelled()
+    state.abort_worker()
 
     logger.info("[StreamMgr] 已取消 | thread=%s", thread_id)
     return True
 
 
 async def complete_node(thread_id: str, node_id: str) -> dict[str, Any]:
-    """用户标记节点完成"""
+    """
+    用户标记节点完成。
+
+    ⚠️ 契约说明（待确认）：当前仅更新本地 node_states，不触发 Agent resume。
+       如果 dash_app 期望"标记完成即继续执行"，需要额外调用 resume_task。
+    """
     state = await get_stream_state(thread_id)
     if not state:
         return {"success": False, "error": "任务不存在或已结束"}
@@ -428,7 +491,14 @@ async def complete_node(thread_id: str, node_id: str) -> dict[str, Any]:
 
 
 async def skip_node(thread_id: str, node_id: str, dag: dict) -> dict[str, Any]:
-    """用户跳过节点，级联跳过下游"""
+    """
+    用户跳过节点，级联跳过下游。
+
+    ✅ P0-2 修复：级联时保护已完成/运行中的下游节点，不再无脑覆盖为 skipped。
+       原逻辑会把已完成的节点从 "done" 覆盖成 "skipped"，导致：
+         - 前端展示与后端 node_results 矛盾
+         - 用户点击"继续"时，Agent 误以为该节点未执行 → 重复执行浪费 token
+    """
     state = await get_stream_state(thread_id)
     if not state:
         return {"success": False, "error": "任务不存在或已结束"}
@@ -446,17 +516,33 @@ async def skip_node(thread_id: str, node_id: str, dag: dict) -> dict[str, Any]:
     while queue:
         cur = queue.pop(0)
         for nxt in adj.get(cur, []):
-            if nxt not in visited:
-                await state.set_node_state(nxt, "skipped")
-                visited.add(nxt)
-                skipped.append(nxt)
-                queue.append(nxt)
+            if nxt in visited:
+                continue
+            visited.add(nxt)
+            existing = state.node_states.get(nxt)
+            if existing in ("done", "running"):
+                logger.info(
+                    "[StreamMgr] skip_node: 下游节点 %s 已是 %s，跳过级联",
+                    nxt, existing,
+                )
+                continue
+            await state.set_node_state(nxt, "skipped")
+            skipped.append(nxt)
+            queue.append(nxt)
 
-    return {"success": True, "skipped": skipped, "node_states": await state.get_node_states()}
+    return {
+        "success": True,
+        "skipped": skipped,
+        "node_states": await state.get_node_states(),
+    }
 
 
 async def fail_node(thread_id: str, node_id: str, dag: dict) -> dict[str, Any]:
-    """用户标记节点失败，级联跳过下游"""
+    """
+    用户标记节点失败，级联跳过下游。
+
+    ✅ P0-2 修复：同 skip_node，保护已完成/运行中的下游节点。
+    """
     state = await get_stream_state(thread_id)
     if not state:
         return {"success": False, "error": "任务不存在或已结束"}
@@ -474,17 +560,35 @@ async def fail_node(thread_id: str, node_id: str, dag: dict) -> dict[str, Any]:
     while queue:
         cur = queue.pop(0)
         for nxt in adj.get(cur, []):
-            if nxt not in visited:
-                await state.set_node_state(nxt, "skipped")
-                visited.add(nxt)
-                affected.append(nxt)
-                queue.append(nxt)
+            if nxt in visited:
+                continue
+            visited.add(nxt)
+            existing = state.node_states.get(nxt)
+            if existing in ("done", "running"):
+                logger.info(
+                    "[StreamMgr] fail_node: 下游节点 %s 已是 %s，跳过级联",
+                    nxt, existing,
+                )
+                continue
+            await state.set_node_state(nxt, "skipped")
+            affected.append(nxt)
+            queue.append(nxt)
 
-    return {"success": True, "affected": affected, "node_states": await state.get_node_states()}
+    return {
+        "success": True,
+        "affected": affected,
+        "node_states": await state.get_node_states(),
+    }
 
 
 async def get_ready_nodes(thread_id: str, dag: dict) -> list[str]:
-    """获取所有可操作节点（前置已完成且自身未处理）"""
+    """
+    获取所有可操作节点（前置已完成且自身未处理）。
+
+    ✅ P0-3 修复：预建入边索引，复杂度从 O(N*E) 降到 O(N+E)。
+       原逻辑对每个节点都遍历全部边，100 节点 + 150 边 → 15000 次比较，
+       在 Dash 每秒轮询的场景下会明显拖慢回调。
+    """
     state = await get_stream_state(thread_id)
     if not state:
         return []
@@ -493,18 +597,18 @@ async def get_ready_nodes(thread_id: str, dag: dict) -> list[str]:
     edges = dag.get("edges") or []
     nodes = dag.get("nodes") or []
 
+    # ✅ 预建 {target: [sources]} 索引
+    in_edges: dict[str, list[str]] = {}
+    for e in edges:
+        in_edges.setdefault(str(e["to"]), []).append(str(e["from"]))
+
     ready = []
     for node in nodes:
         nid = str(node["id"])
         if node_states.get(nid) in ("done", "running", "failed", "skipped"):
             continue
-
-        deps_ok = True
-        for e in edges:
-            if str(e["to"]) == nid and node_states.get(str(e["from"])) != "done":
-                deps_ok = False
-                break
-        if deps_ok:
+        deps = in_edges.get(nid, [])
+        if all(node_states.get(dep) == "done" for dep in deps):
             ready.append(nid)
     return ready
 
@@ -524,22 +628,51 @@ def snapshot_to_elements(snapshot: dict) -> list:
 
 
 def get_status_text(snapshot: dict) -> str:
-    """从 snapshot 提取状态文本（供前端状态栏展示）"""
+    """
+    从 snapshot 提取状态文本（供前端状态栏展示）。
+
+    ✅ P1-1 修复：从字段推导，不依赖 agent 未发送的 type 值。
+       agent._extract_snapshot 目前只发 type=progress（外加 cancelled/error），
+       原实现里 start / interrupt / complete / timeout / resume 五个分支
+       是死代码，导致状态栏永远显示"处理中…"。
+    """
     if not snapshot:
         return "等待中..."
 
+    # ── 强信号优先（这些字段一旦出现，语义确定） ──
+    if snapshot.get("error"):
+        return f"❌ {str(snapshot['error'])[:50]}"
+
+    if snapshot.get("cancel_requested"):
+        return "⏹️ 已停止"
+
+    direct_resp = snapshot.get("direct_response", "")
+    if direct_resp and direct_resp != "__DIRECT_RESPONSE_PENDING__":
+        return f"✅ {snapshot.get('status_text') or '已完成'}"
+
+    # ── 有节点时：按进度展示 ──
+    nodes = snapshot.get("nodes") or []
+    idx = snapshot.get("current_node_index", 0)
+    if nodes:
+        if idx >= len(nodes):
+            return "✅ 任务完成"
+        return f"🔄 执行中 ({idx}/{len(nodes)})"
+
+    # ── 回退到 type 判断（兼容未来 agent 发送更多事件类型） ──
     snap_type = snapshot.get("type", "")
     msg = snapshot.get("message", "")
+    elapsed = snapshot.get("elapsed") or 0
 
     if snap_type == "start":
         return "🚀 任务已提交"
     if snap_type == "progress":
-        elapsed = snapshot.get("elapsed", 0)
-        return f"{msg} ({elapsed:.0f}s)" if msg and elapsed else (msg or "处理中...")
+        if msg and elapsed:
+            return f"{msg} ({elapsed:.0f}s)"
+        return msg or "处理中..."
     if snap_type == "interrupt":
         return f"⏸️ {msg or '等待用户操作'}"
     if snap_type == "complete":
-        return f"✅ {snapshot.get('status_text', '完成')}"
+        return f"✅ {snapshot.get('status_text') or '完成'}"
     if snap_type == "cancelled":
         return "⏹️ 已停止"
     if snap_type == "timeout":
@@ -549,7 +682,7 @@ def get_status_text(snapshot: dict) -> str:
     if snap_type == "resume":
         return f"🔄 正在恢复执行... {msg}"
 
-    return snapshot.get("status_text", "处理中...")
+    return snapshot.get("status_text") or "处理中..."
 
 
 # ══════════════════════════════════════════════════
@@ -557,7 +690,11 @@ def get_status_text(snapshot: dict) -> str:
 # ══════════════════════════════════════════════════
 
 __all__ = [
+    # ✅ P2-1 修复：补全外部可能需要 mock 的类
+    "TaskStreamState",
+    "StreamStateCleaner",
     "state_cleaner",
+    # 业务 API
     "start_stream",
     "resume_stream",
     "cancel_stream",
@@ -567,6 +704,7 @@ __all__ = [
     "skip_node",
     "fail_node",
     "get_ready_nodes",
+    # 视图辅助
     "snapshot_to_elements",
     "get_status_text",
 ]

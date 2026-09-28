@@ -7,7 +7,7 @@ import asyncio
 import hashlib
 import json
 import re
-from typing import Any, TypedDict
+from typing import Any, Optional, TypedDict, cast
 
 from langchain_core.runnables import RunnableConfig
 
@@ -23,7 +23,11 @@ from task_planner.infrastructure.llm_client import (
     generate_plan,
     recognize_intent,
     refine_node,
-    _render_template, 
+    # ✅ 修复 P0-1：补上缺失的三个符号
+    execute_node_llm,
+    LLMCancelledError,
+    LLMTimeoutError,
+    _render_template,
     _extract_json as _parse_json,
 )
 from task_planner.infrastructure.logger_setup import get_logger, set_req_id
@@ -53,7 +57,11 @@ class SafeNodeView(TypedDict, total=False):
 
 def sanitize_node_for_user(node: dict[str, Any]) -> SafeNodeView:
     """过滤掉内部 debug/meta 字段"""
-    return {k: v for k, v in node.items() if k in USER_VISIBLE_NODE_FIELDS}  # type: ignore
+    # ✅ 修复 P1：用 cast 替代 type: ignore
+    return cast(
+        SafeNodeView,
+        {k: v for k, v in node.items() if k in USER_VISIBLE_NODE_FIELDS},
+    )
 
 
 def sanitize_nodes_for_user(nodes: list[dict[str, Any]]) -> list[SafeNodeView]:
@@ -69,19 +77,24 @@ def _sanitize_input(text: str, *, audit_log: bool = True) -> str:
     for pattern, replacement in _SENSITIVE_PATTERNS:
         sanitized = pattern.sub(replacement, sanitized)
     if audit_log and sanitized != text:
-        logger.info("[Audit] Input redacted | hash=%s | sanitized_len=%d",
-                    original_hash, len(sanitized))
+        logger.info(
+            "[Audit] Input redacted | hash=%s | sanitized_len=%d",
+            original_hash,
+            len(sanitized),
+        )
     return sanitized
-
-
-
 
 
 # ══════════════════════════════════════════════════
 #  获取取消事件（从 ContextVar）
 # ══════════════════════════════════════════════════
 def _get_cancel_event(config: RunnableConfig | None = None) -> asyncio.Event | None:
-    """从 ContextVar 获取 asyncio.Event（如不存在则返回 None）"""
+    """
+    从 ContextVar 获取 asyncio.Event（如不存在则返回 None）。
+
+    config 参数保留以兼容 LangGraph 节点签名，以及未来可能的扩展
+    （例如从 config 直接取 cancel 信号）。
+    """
     return cancel_event_var.get()
 
 
@@ -102,6 +115,7 @@ async def intent_node(state: TaskState, config: RunnableConfig) -> dict[str, Any
         "user_input": user_input,
         "intent": intent,
         "needs_planning": intent.get("needs_planning", False),
+        # ✅ 注：无 reducer 方案下，这里是「读旧 + 追加」的手动累积，保持原样
         "steps": state.get("steps", []) + [f"意图识别: planning={intent.get('needs_planning')}"],
     }
 
@@ -121,14 +135,18 @@ async def plan_node(state: TaskState, config: RunnableConfig) -> dict[str, Any]:
     edges_raw = list(plan.get("edges", []))
 
     if not nodes_raw:
-        logger.error("[Graph] plan_node 产出空计划! raw_plan=%s (req=%s)",
-                     str(plan)[:500], rid)
+        logger.error(
+            "[Graph] plan_node 产出空计划! raw_plan=%s (req=%s)",
+            str(plan)[:500], rid,
+        )
         raise ValueError(
             f"规划失败：LLM 未返回有效节点。请检查 planner prompt 或模型输出格式。(req={rid})"
         )
 
-    logger.info("[Graph] plan_node: %d nodes, %d edges (req=%s)",
-                len(nodes_raw), len(edges_raw), rid)
+    logger.info(
+        "[Graph] plan_node: %d nodes, %d edges (req=%s)",
+        len(nodes_raw), len(edges_raw), rid,
+    )
 
     return {
         "plan": plan,
@@ -147,7 +165,6 @@ async def refine_node_fn(state: TaskState, config: RunnableConfig) -> dict[str, 
     intent = state["intent"]
     cancel_event = _get_cancel_event(config)
 
-    # 异步细化单个节点
     async def _refine_one(n: dict[str, Any]) -> dict[str, Any]:
         if cancel_event and cancel_event.is_set():
             logger.info("[Graph] 节点%s细化跳过(已取消, req=%s)", n.get("id"), rid)
@@ -169,18 +186,18 @@ async def refine_node_fn(state: TaskState, config: RunnableConfig) -> dict[str, 
             n["details"] = f"细化失败: {e}"
         return n
 
-    # 并发执行所有细化任务（但受取消信号控制）
     tasks = []
     for n in nodes_raw:
         if cancel_event and cancel_event.is_set():
-            logger.info("[Graph] refine 提前终止，已提交 %d/%d (req=%s)",
-                        len(tasks), len(nodes_raw), rid)
+            logger.info(
+                "[Graph] refine 提前终止，已提交 %d/%d (req=%s)",
+                len(tasks), len(nodes_raw), rid,
+            )
             break
         tasks.append(_refine_one(dict(n)))
 
     results = await asyncio.gather(*tasks, return_exceptions=True)
 
-    # 处理异常结果（若某个细化抛出异常，已在 _refine_one 中捕获，不会传播到这里）
     refined = []
     for i, res in enumerate(results):
         if isinstance(res, Exception):
@@ -190,7 +207,6 @@ async def refine_node_fn(state: TaskState, config: RunnableConfig) -> dict[str, 
         else:
             refined.append(res)
 
-    # 如果中途取消，剩余未提交的节点直接标记取消
     if cancel_event and cancel_event.is_set():
         for i in range(len(refined), len(nodes_raw)):
             fallback = dict(nodes_raw[i])
@@ -205,23 +221,47 @@ async def refine_node_fn(state: TaskState, config: RunnableConfig) -> dict[str, 
 
 
 async def save_node(state: TaskState, config: RunnableConfig) -> dict[str, Any]:
-    """入库节点（异步）"""
+    """
+    入库节点（异步）。
+
+    ✅ 降级策略：DB 不可用时不再让整个图崩溃，而是：
+       - 生成一个本地 task_id（uuid 前缀标记）
+       - 记录 warning 日志
+       - 继续后续节点（render / execute）
+
+    这样评估、CI、本地 demo 无需 MongoDB 也能跑通。
+    """
+    import uuid
+
     rid = set_req_id()
     logger.info("[Graph] save_node (req=%s)", rid)
 
-    task_doc, plan_doc = await create_task_with_plan(
-        raw_query=state["user_input"],
-        intent_info=state["intent"],
-        plan_data={"nodes": state["nodes"], "edges": state["edges"]},
-        req_id=rid,
-    )
-    task_id = task_doc["task_id"]
+    try:
+        task_doc, plan_doc = await create_task_with_plan(
+            raw_query=state["user_input"],
+            intent_info=state["intent"],
+            plan_data={"nodes": state["nodes"], "edges": state["edges"]},
+            req_id=rid,
+        )
+        task_id = task_doc["task_id"]
+        logger.info("[Graph] save_node 入库成功: %s", task_id)
+        return {
+            "task_id": task_id,
+            "steps": state.get("steps", []) + [f"已入库: {task_id}"],
+        }
 
-    return {
-        "task_id": task_id,
-        "steps": state.get("steps", []) + [f"已入库: {task_id}"],
-    }
-
+    except Exception as e:
+        # ✅ 降级：DB 不可用时用本地 ID 继续
+        fallback_id = f"local-{uuid.uuid4().hex[:12]}"
+        logger.warning(
+            "[Graph] save_node DB 写入失败，降级为本地 ID: %s | err=%s",
+            fallback_id, e,
+        )
+        return {
+            "task_id": fallback_id,
+            "steps": state.get("steps", []) + [f"⚠️ 未入库(降级): {fallback_id}"],
+            "error": "",   # 不污染 error 字段，图继续执行
+        }
 
 async def render_node(state: TaskState, config: RunnableConfig) -> dict[str, Any]:
     """渲染流程图（CPU 密集，仍用 to_thread）"""
@@ -230,7 +270,6 @@ async def render_node(state: TaskState, config: RunnableConfig) -> dict[str, Any
 
     from task_planner.utils.flowchart_pro import flowchart_pro
 
-    # ✅ 保留 to_thread（CPU 密集或同步 I/O 仍在 to_thread 中）
     html = await asyncio.to_thread(
         flowchart_pro.render_interactive,
         state["nodes"],
@@ -245,7 +284,8 @@ async def render_node(state: TaskState, config: RunnableConfig) -> dict[str, Any
     }
 
 
-async def execute_node(state: TaskState, config: RunnableConfig) -> dict:
+async def execute_node(state: TaskState, config: RunnableConfig) -> dict[str, Any]:
+    # ✅ 修复 P1：返回类型统一为 dict[str, Any]
     """执行节点（异步 + interrupt + 异常分级响应）"""
     rid = set_req_id()
     logger.info("[Graph] execute_node (req=%s)", rid)
@@ -288,7 +328,6 @@ async def execute_node(state: TaskState, config: RunnableConfig) -> dict:
     success = result["status"] == "success"
     detail = result["detail"]
 
-    # ⏰ 超时 / ❌ 业务失败 → 正常走 interrupt 流程，让用户决定重试或跳过
     status_code = 2 if success else 3
     await update_node_status(state["task_id"], nid, status_code, details=detail)
 
@@ -309,7 +348,6 @@ async def execute_node(state: TaskState, config: RunnableConfig) -> dict:
         "node_info": user_visible_node,
         "next_index": idx + 1,
         "total_nodes": len(nodes),
-        # ✅ 新增：将 retryable 透传给前端，前端可据此展示"重试"按钮
         "retryable": result.get("retryable", False),
     }
 
@@ -326,7 +364,9 @@ async def execute_node(state: TaskState, config: RunnableConfig) -> dict:
     }
 
     if action == UserAction.MODIFY and modified_input:
-        updates["user_input"] = _sanitize_input(modified_input)
+        # ✅ 修复 P0-3：MODIFY 分支重置所有"上一轮残留"状态，避免 steps 里旧日志污染前端
+        cleaned = _sanitize_input(modified_input)
+        updates["user_input"] = cleaned
         updates["current_node_index"] = 0
         updates["node_results"] = []
         updates["nodes"] = []
@@ -335,8 +375,18 @@ async def execute_node(state: TaskState, config: RunnableConfig) -> dict:
         updates["plan"] = {}
         updates["intent"] = {}
         updates["task_id"] = ""
+        # 清空所有视图残留
+        updates["steps"] = [f"需求已修改，重新规划: {cleaned[:50]}"]
+        updates["direct_response"] = ""
+        updates["error"] = ""
+        updates["status_text"] = "🔄 重新规划中"
+        updates["cancel_requested"] = False
+        updates["user_action"] = None
+        updates["svg"] = ""
+        updates["flowchart_html"] = ""
 
     return updates
+
 
 async def direct_answer_node(state: TaskState, config: RunnableConfig) -> dict[str, Any]:
     """直接回答（异步）"""
@@ -346,7 +396,6 @@ async def direct_answer_node(state: TaskState, config: RunnableConfig) -> dict[s
     cancel_event = _get_cancel_event(config)
     answer = await direct_chat(state["user_input"], rid, cancel_event=cancel_event)
 
-    # ✅ 直接 await
     try:
         await create_direct_answer_task(
             raw_query=state["user_input"],
@@ -372,7 +421,6 @@ async def cancel_node(state: TaskState, config: RunnableConfig) -> dict[str, Any
     logger.info("[Graph] cancel_node")
     if state.get("task_id"):
         try:
-            # ✅ 直接 await
             await mark_task_failed(state["task_id"], error="用户取消")
         except (RuntimeError, TimeoutError) as e:
             logger.warning("[Graph] cancel_node: mark_task_failed failed: %s", e)
@@ -418,7 +466,6 @@ def route_after_render(state: TaskState) -> str:
 #  辅助异步函数
 # ══════════════════════════════════════════════════
 
-# 重构后的 nodes.py (_execute_single_node)
 async def _execute_single_node(
     node: dict[str, Any],
     user_input: str,
@@ -428,7 +475,7 @@ async def _execute_single_node(
 ) -> dict[str, Any]:
     """
     执行单个节点：构建 Prompt + 委托 LLM 调用 + 异常分级响应
-    
+
     Returns:
         {
             "status": "success" | "failed" | "timeout" | "cancelled",
@@ -443,7 +490,7 @@ async def _execute_single_node(
     name = str(node.get("name", f"步骤{nid}"))
     meta = dict(node.get("meta", {}) or {})
 
-    # ── 1. Prompt 构建（从 llm_client 下沉至此） ────────────────
+    # ── 1. Prompt 构建 ───────────────────────────────────────────
     prompt = _render_template(
         EXECUTE_NODE_PROMPT, rid,
         user_input=user_input,
@@ -474,36 +521,29 @@ async def _execute_single_node(
         return {
             "status": status,
             "detail": detail,
-            "retryable": not success,  # 业务失败可重试，成功不可重试
+            "retryable": not success,
             "node_id": nid,
             "node_name": name,
         }
 
     except LLMCancelledError:
-        # 🛑 用户主动取消 → 立即向上抛出，触发整个图的优雅停止
-        # 不标记为 failed，不触发重试，不执行后续节点
+        # 🛑 用户主动取消 → 立即向上抛出，触发整个图优雅停止
         logger.info("[Node] ⏹️ 节点%s [%s] 被用户取消 (req=%s)", nid, name, rid)
         raise
 
     except LLMTimeoutError as e:
         # ⏰ 超时 → 标记为 timeout，图级别可选择重试该节点或跳过
-        # 注意：execute_node_llm 内部已对单次超时做了重试，
-        # 能到达这里的超时是「重试耗尽后的最终超时」
         logger.warning("[Node] ⏰ 节点%s [%s] 最终超时: %s (req=%s)", nid, name, e, rid)
         return {
             "status": "timeout",
-            "detail": f"⏰ 执行超时，请稍后重试",
+            "detail": "⏰ 执行超时，请稍后重试",
             "retryable": True,
             "node_id": nid,
             "node_name": name,
         }
 
-    # 💡 LLMClientError / LLMResponseError 已在 execute_node_llm 内部
-    #    降级为 (False, "错误信息")，不会传播到这里。
-    #    如果未来需要图级别感知这些错误，可在此处追加 except 分支。
-
     except Exception as e:
-        # 🔥 真正的未知异常（非 LLM 相关，如 JSON 序列化崩溃等）
+        # 🔥 真正的未知异常（非 LLM 相关）
         logger.exception("[Node] 🔥 节点%s [%s] 未知异常 (req=%s)", nid, name, rid)
         return {
             "status": "failed",

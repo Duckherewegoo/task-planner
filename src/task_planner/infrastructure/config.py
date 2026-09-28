@@ -9,11 +9,19 @@ config.py — 全局配置中心（生产最终版改版）
   ✅ Prompt 模板（JSON 大括号全部 {{}} 转义）
 
 Changelog:
-修复致命 NameError Bug
-引入 _env() 防御性解析器
-安全与正则预编译优化
-清理冗余导入与统一风格
-100% 向后兼容
+  - 修复致命 NameError Bug
+  - 引入 _env() 防御性解析器
+  - 安全与正则预编译优化
+  - 清理冗余导入与统一风格
+  - 100% 向后兼容
+  - ✅ P0-1 修复：DEBUG 默认值改为 False（生产优先）
+  - ✅ P0-2 修复：NODE_STATUS_CODE_MAP 4→timeout、补 5→skipped
+  - ✅ P0-3 修复：_env() 里跨行 f-string 改为 logger 占位符（兼容 Python < 3.12）
+  - ✅ P1-2 修复：移除 WERKZEUG_RUN_MAIN 硬编码
+  - ✅ P1-3 修复：敏感词正则加词边界，减少误伤
+  - ✅ P1-1 修复：INTENT_PROMPT 的 category 白名单补 consultation
+  - ✅ 修复：GRADIO_PORT 与 DASH_PORT 默认值冲突
+  - ✅ 统一：logger 全部改为 %s 延迟格式化风格
 """
 
 import os
@@ -26,15 +34,22 @@ from string import Template
 # =============================================================================
 # 0. 项目根目录与基础环境加载
 # =============================================================================
-_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+from pathlib import Path
+
+# config.py = <root>/src/task_planner/infrastructure/config.py
+#   parents[0] = infrastructure/
+#   parents[1] = task_planner/
+#   parents[2] = src/
+#   parents[3] = <root>/
 
 try:
     from dotenv import load_dotenv
-    load_dotenv()  # 自动从项目根找 .env 文件加载
+    from pathlib import Path
+    _PROJECT_ROOT = Path(__file__).resolve().parents[3]
+    # 显式指定，无论从哪个目录跑都能找到同一个 .env
+    load_dotenv(_PROJECT_ROOT / ".env", override=False)
 except ImportError:
-    pass
-
-logger = logging.getLogger(__name__)
+    passlogger = logging.getLogger(__name__)
 
 # =============================================================================
 # 1. 环境变量解析工具 (Robust Env Parser)
@@ -55,19 +70,23 @@ def _env(key: str, default: Any = None, cast: Callable = str) -> Any:
             return val.strip().lower() in ("true", "1", "yes", "on", "y")
         return cast(val)
     except (ValueError, TypeError):
-        logger.warning(f"环境变量 {key}='{val}' 无法转换为 {
-                       cast.__name__}，已回退至默认值: {default}")
+        # ✅ P0-3 修复：改为 %s 占位符风格，兼容 Python < 3.12
+        logger.warning(
+            "环境变量 %s='%s' 无法转换为 %s，已回退至默认值: %s",
+            key, val, cast.__name__, default,
+        )
         return default
 
 
 # =============================================================================
 # 2. 日志
 # =============================================================================
-DEBUG = _env("DEBUG", True, bool)
+# ✅ P0-1 修复：DEBUG 默认 False（生产安全优先）
+DEBUG = _env("DEBUG", False, bool)
 LOG_DIR = _env("LOG_DIR", os.path.join(_PROJECT_ROOT, "logs"))
 LOG_FILE = _env("LOG_FILE", "task_planner.log")
 LOG_MAX_DAYS = _env("LOG_MAX_DAYS", 7, int)
-LOG_CONSOLE_LEVEL = "DEBUG" if DEBUG else "INFO"
+LOG_CONSOLE_LEVEL = _env("LOG_CONSOLE_LEVEL", "DEBUG" if DEBUG else "INFO")
 
 # =============================================================================
 # 3. DashScope
@@ -102,6 +121,8 @@ LLM_MAX_RETRIES = _env("LLM_MAX_RETRIES", 3, int)
 LLM_RETRY_BACKOFF = _env("LLM_RETRY_BACKOFF", 2, int)
 LLM_TASK_TOTAL_TIMEOUT = _env("LLM_TASK_TOTAL_TIMEOUT", 300, int)
 MAX_TASK_RETRIES = _env("MAX_TASK_RETRIES", 3, int)
+# 评估套件：单 case 延迟接受阈值（秒）
+LATENCY_ACCEPTANCE_THRESHOLD = _env("LATENCY_ACCEPTANCE_THRESHOLD", 10.0, float)
 
 # 单节点执行超时（秒）—— 防止一个节点卡死拖垮全局
 # ⚠️ 若 LLM_NODE_ENABLE_THINKING=true，实际耗时可能接近 LLM_THINKING_BUDGET / tokens_per_sec
@@ -111,10 +132,11 @@ LLM_NODE_TIMEOUT = _env("LLM_NODE_TIMEOUT", 60, int)
 # ✅ 自动校正：当节点启用思考模式时，确保 timeout 不低于全局 LLM_TIMEOUT
 if LLM_NODE_ENABLE_THINKING and LLM_NODE_TIMEOUT < LLM_TIMEOUT:
     warnings.warn(
-        f"[Config] LLM_NODE_TIMEOUT({LLM_NODE_TIMEOUT}s) < LLM_TIMEOUT({
-            LLM_TIMEOUT}s) 且节点思考模式已开启，"
-        f"自动将 LLM_NODE_TIMEOUT 提升至 {LLM_TIMEOUT}s",
-        UserWarning
+        "[Config] LLM_NODE_TIMEOUT({}s) < LLM_TIMEOUT({}s) 且节点思考模式已开启，"
+        "自动将 LLM_NODE_TIMEOUT 提升至 {}s".format(
+            LLM_NODE_TIMEOUT, LLM_TIMEOUT, LLM_TIMEOUT
+        ),
+        UserWarning,
     )
     LLM_NODE_TIMEOUT = LLM_TIMEOUT
 
@@ -136,10 +158,14 @@ ENABLE_MCP = _env("ENABLE_MCP", False, bool)
 # 9. DASH
 # =============================================================================
 DASH_HOST = _env("DASH_HOST", "0.0.0.0")
-DASH_PORT = _env("DASH_PORT", 7860, int)
+# ✅ 修复：原默认 7860 与 GRADIO_PORT 冲突，改为 8050（Dash 官方默认端口）
+DASH_PORT = _env("DASH_PORT", 8050, int)
 
-# GOOOD addon
-WERKZEUG_RUN_MAIN = True
+# ⚠️ P1-2 修复：删除 WERKZEUG_RUN_MAIN = True
+#    Werkzeug reloader 会用这个环境变量区分父/子进程。硬编码 True 会导致：
+#      - 父进程误以为自己是子进程，不启动 HTTP 服务器
+#      - 热重载（debug=True）失效
+#    如果你需要传递"是否开发模式"，请使用上面的 DEBUG 变量。
 
 # =============================================================================
 # 10. 渲染 / 导出
@@ -154,6 +180,9 @@ RENDER_HEIGHT = _env("RENDER_HEIGHT", 600, int)
 RENDER_EDGE_WIDTH = _env("RENDER_EDGE_WIDTH", 2.0, float)
 RENDER_EDGE_LABEL_FONT_SIZE = _env("RENDER_EDGE_LABEL_FONT_SIZE", 10, int)
 RENDER_SHOW_EDGE_LABELS = _env("RENDER_SHOW_EDGE_LABELS", True, bool)
+
+# ── 流程图特性开关 ──
+FLOWCHART_CYCLE_DETECTION = _env("FLOWCHART_CYCLE_DETECTION", True, bool)
 
 FONT_FACE = (
     "'Noto Sans CJK SC', 'WenQuanYi Zen Hei', 'Microsoft YaHei', "
@@ -208,9 +237,15 @@ CYTO_STYLESHEET: List[Dict[str, Any]] = [
     {"selector": ".state-skipped", "style": {
         "background-color": "#f3f4f6", "border-color": "#9ca3af", "opacity": 0.5,
     }},
+    # ✅ 补齐 state-timeout（NODE_STATUS_CODE_MAP[4] = "timeout" 对应的样式）
+    #    配色取自 STATUS_COLOR[4] / STATUS_BORDER[4]，与后端状态语义一致
+    {"selector": ".state-timeout", "style": {
+        "background-color": "#f3e5f5", "border-color": "#9c27b0",
+        "border-style": "dashed", "border-width": 3,
+    }},
     {"selector": ".state-blocked", "style": {
         "background-color": "#f9fafb", "border-color": "#d1d5db", "opacity": 0.6,
-    }},
+    }},    
     {
         "selector": "edge",
         "style": {
@@ -319,7 +354,7 @@ TASK_STATUS = {
     "SUCCESS": 2,
     "FAILED": 3,
     "TIMEOUT": 4,
-    "SKIPPED": 5,          # ← 新增
+    "SKIPPED": 5,
 }
 
 # =============================================================================
@@ -356,7 +391,7 @@ EDGE_TYPE_STYLE = {
 }
 
 # =============================================================================
-# 14. 状态颜色与样式映射 (⚠️ 修复原代码 NameError：必须在 NODE_COLORS 之前定义)
+# 14. 状态颜色与样式映射 (⚠️ 必须在 NODE_COLORS 之前定义)
 # =============================================================================
 # 状态 → 中文描述
 STATUS_TEXT = {
@@ -365,7 +400,7 @@ STATUS_TEXT = {
     2: "✅ 成功",
     3: "❌ 失败",
     4: "⏰ 超时",
-    5: "⏭️ 已跳过"
+    5: "⏭️ 已跳过",
 }
 
 # 状态 → 节点背景色
@@ -375,7 +410,7 @@ STATUS_COLOR = {
     2: "#e8f5e9",
     3: "#ffebee",
     4: "#f3e5f5",
-    5: "#f5f5f5"
+    5: "#f5f5f5",
 }
 
 # 状态 → 边框色
@@ -385,7 +420,7 @@ STATUS_BORDER = {
     2: "#10b981",
     3: "#ef4444",
     4: "#9c27b0",
-    5: "#9e9e9e"
+    5: "#9e9e9e",
 }
 
 # 状态 → 图标
@@ -395,7 +430,7 @@ STATUS_ICONS = {
     2: "✅",
     3: "❌",
     4: "⏰",
-    5: "⏭️"
+    5: "⏭️",
 }
 
 NODE_TEXT_COLORS = {
@@ -467,7 +502,7 @@ EMPTY_STATES = {}
 EMPTY_BAR_STYLE = {
     "width": "0%", "height": "100%",
     "background": "linear-gradient(90deg, #10b981, #34d399)",
-    "borderRadius": "6px"
+    "borderRadius": "6px",
 }
 EMPTY_BAR_MINI_STYLE = {"width": "0%",
                         "height": "100%", "background": "transparent"}
@@ -533,13 +568,15 @@ NODE_STYLES: Dict[int, Dict[str, str]] = {
 }
 # 允许手动干预（done/skip/fail）的节点状态集合
 NODE_OPERABLE_STATES = {"pending", "running", "failed"}
-# 后端状态码 → 前端节点状态映射（跨模块共享的业务契约）
+
+# ✅ P0-2 修复：后端状态码 → 前端节点状态映射（与 TASK_STATUS 对齐）
 NODE_STATUS_CODE_MAP = {
     0: "pending",
     1: "running",
     2: "done",
     3: "failed",
-    4: "skipped",
+    4: "timeout",     # ✅ 修正：原为 "skipped"，与 TASK_STATUS 定义冲突
+    5: "skipped",     # ✅ 补齐：原缺失，导致 status_code=5 时前端拿到 undefined
 }
 
 # 节点操作配置：定义每种操作的下游行为和提示文案
@@ -675,6 +712,8 @@ MAX_INPUT_LENGTH = 2000
 MAX_CACHE_INPUT_BYTES = 10 * 1024 * 1024  # 10 MB
 THINK_RE = re.compile(r'<' + r'think>.*?<' + r'/think>', re.DOTALL)
 
+# ✅ P1-3 修复：所有 "词 + 分隔符" 型 pattern 加 (?<![a-zA-Z_]) 前缀，
+#    避免 my_password=xxx 被误伤。
 SENSITIVE_PATTERNS_CONFIG = [
     {"pattern": r'sk-[a-zA-Z0-9]{20,}', "replacement": '[REDACTED_API_KEY]'},
     {"pattern": r'AKIA[A-Z0-9]{16,}', "replacement": '[REDACTED_AWS_KEY]'},
@@ -682,13 +721,13 @@ SENSITIVE_PATTERNS_CONFIG = [
         "replacement": '[REDACTED_GITHUB_TOKEN]'},
     {"pattern": r'xox[bpr]-[a-zA-Z0-9-]+',
         "replacement": '[REDACTED_SLACK_TOKEN]'},
-    {"pattern": (r'password\s*[:=]\s*\S{1,200}', re.IGNORECASE),
+    {"pattern": (r'(?<![a-zA-Z_])password\s*[:=]\s*\S{1,200}', re.IGNORECASE),
      "replacement": 'password=[REDACTED]'},
-    {"pattern": (r'token\s*[:=]\s*\S{1,200}', re.IGNORECASE),
+    {"pattern": (r'(?<![a-zA-Z_])token\s*[:=]\s*\S{1,200}', re.IGNORECASE),
      "replacement": 'token=[REDACTED]'},
-    {"pattern": (r'api_key\s*[:=]\s*\S{1,200}', re.IGNORECASE),
+    {"pattern": (r'(?<![a-zA-Z_])api_key\s*[:=]\s*\S{1,200}', re.IGNORECASE),
      "replacement": 'api_key=[REDACTED]'},
-    {"pattern": (r'secret\s*[:=]\s*\S{1,200}', re.IGNORECASE),
+    {"pattern": (r'(?<![a-zA-Z_])secret\s*[:=]\s*\S{1,200}', re.IGNORECASE),
      "replacement": 'secret=[REDACTED]'},
     {"pattern": r'\b1[3-9]\d{9}\b', "replacement": '[REDACTED_PHONE]'},
     {"pattern": r'\b\d{17}[\dXx]\b', "replacement": '[REDACTED_ID_CARD]'},
@@ -744,6 +783,8 @@ HINT_TEMPLATES = {
 # =============================================================================
 # 保持原版 Template 语法 ($var)
 
+# ✅ P1-1 修复：category 白名单补上 "consultation"
+#    否则 LLM 永远不会输出 consultation，Post-check 的硬编码分流会掩盖真实的意图识别。
 INTENT_PROMPT = Template("""你是一个高精度的任务意图路由器。
 分析用户输入，判断是否需要启动 DAG 任务规划引擎。
 
@@ -752,7 +793,7 @@ INTENT_PROMPT = Template("""你是一个高精度的任务意图路由器。
 JSON 必须严格符合以下 schema：
 {
   "needs_planning": boolean,
-  "category": "cooking" | "engineering" | "logistics" | "learning" | "life_admin" | "creative" | "other",
+  "category": "cooking" | "engineering" | "logistics" | "learning" | "life_admin" | "creative" | "consultation" | "other",
   "summary": "string (≤30字，一句话概括核心意图)",
   "complexity": "simple" | "medium" | "complex"
 }
@@ -760,7 +801,7 @@ JSON 必须严格符合以下 schema：
 ⚠️ 输出格式硬约束：你必须且只能返回一个合法 JSON 对象。
 禁止包含任何思考过程、解释说明、Markdown 标记或代码块围栏。
 直接以 { 开头，以 } 结尾。
-</output_format >
+</output_format>
 
 <decision_tree>
 严格按优先级执行，命中即停止，禁止跨级覆盖：
@@ -794,7 +835,8 @@ P2[可执行多步骤任务] → needs_planning = true
 P3[兜底] → needs_planning = false
   不确定时倾向 false。"怎么做X"默认 false，除非追加"帮我一步步做/给我完整执行方案"。
 </decision_tree>
-<examples >
+
+<examples>
 输入："steam上游戏价格状态有11种，购买意愿4种，资金状况5种，请直接教我如何在这些组合下做到购买利益最大化，不要生成流程图"
 输出：{"needs_planning": false, "category": "life_admin", "summary": "Steam购买策略咨询（用户拒绝规划）", "complexity": "simple"}
 
@@ -816,18 +858,21 @@ P3[兜底] → needs_planning = false
 输入："steam上游戏价格状态有11种，购买意愿4种，资金状况5种，请任务规划助手明示如何在这些组合下做到购买利益最大化"
 输出：{"needs_planning": true, "category": "life_admin", "summary": "Steam多场景购买决策方案", "complexity": "complex"}
 
+输入："帮我咨询一下租房合同里有哪些坑"
+输出：{"needs_planning": false, "category": "consultation", "summary": "租房合同风险咨询", "complexity": "simple"}
+
 输入："你好呀"
 输出：{"needs_planning": false, "category": "other", "summary": "用户问候", "complexity": "simple"}
-</examples >
+</examples>
 
-<user_input >
+<user_input>
 ${user_input}
-</user_input > """)
+</user_input>""")
 
 PLANNER_PROMPT = Template("""你是一个专业的任务规划架构师。
 将用户需求分解为原子化、可验证的 DAG 节点。
 
-<output_format >
+<output_format>
 你必须且只能返回一个合法 JSON 对象，不要包含任何其他文字、Markdown、注释或解释。
 JSON 必须严格符合以下 schema：
 {
@@ -843,9 +888,9 @@ JSON 必须严格符合以下 schema：
 - id 从 1 开始连续编号
 - nodes 不可为空数组
 - edges 中 from / to 必须引用已存在的 node id
-</output_format >
+</output_format>
 
-<planning_principles >
+<planning_principles>
 1. 原子性：一个节点 = 一个可独立验证的动作
    ✅ "选购五花肉" | ❌ "买肉并切块"
 
@@ -860,21 +905,21 @@ JSON 必须严格符合以下 schema：
    - 烹饪：选材∥备料 → 预处理 → 烹饪 → 收尾
    - 工程：调研 → 设计 → 实现 → 测试 → 部署
    - 学习：资料收集∥大纲制定 → 分模块学习 → 总结输出
-</planning_principles >
+</planning_principles>
 
 <context>
 任务类别：${category}（若无则填"通用"）
 意图摘要：${summary}（若无则从 user_input 中提取核心动词+宾语）
 </context>
 
-<user_input >
+<user_input>
 ${user_input}
-</user_input > """)
+</user_input>""")
 
 NODE_REFINE_PROMPT = Template("""你是一个任务执行细节专家。
 为单个节点补充可直接执行的行动规范。
 
-<output_format >
+<output_format>
 你必须且只能返回一个合法 JSON 对象，不要包含任何其他文字、Markdown、注释或解释。
 JSON 必须严格符合以下 schema：
 {
@@ -887,9 +932,9 @@ JSON 必须严格符合以下 schema：
   }
 }
 所有字段必须存在且不为 null。
-</output_format >
+</output_format>
 
-<refinement_standards >
+<refinement_standards>
 1. detail 必须可盲执行：
    - 烹饪：用量(g/ml)、火候、时间(min)、状态标志("筷子可插入")
    - 工程：命令、参数、预期输出、错误码处理
@@ -902,19 +947,19 @@ JSON 必须严格符合以下 schema：
 3. retry_policy 必须可操作：
    ✅ "网络超时重试3次，间隔5s；API返回403则终止并报错"
    ❌ "失败就重试"
-</refinement_standards >
+</refinement_standards>
 
-<context >
+<context>
 任务领域：${category}
-</context >
+</context>
 
-<node_info >
+<node_info>
 ${node_json}
-</node_info >
+</node_info>
 
-<user_input >
+<user_input>
 ${user_input}
-</user_input >""")
+</user_input>""")
 
 EXECUTE_NODE_PROMPT = Template("""你是任务执行引擎。对以下节点做执行推理。
 
@@ -938,9 +983,9 @@ SKIP_PLANNING_PATTERNS = [
     re.compile(r"(?:跳过|别|莫).{0,4}(?:规划|画图|拆解|流程)"),
     re.compile(r"不[需要]?(?:要|用).{0,4}画.{0,4}图"),
 ]
+
 # =============================================================================
-# 19. 异步并发控制（新增）
+# 19. 异步并发控制
 # =============================================================================
 LLM_MAX_CONCURRENT = _env("LLM_MAX_CONCURRENT", 10, int)   # 同时最多进行的 LLM 调用数
 LLM_CONNECTION_POOL_SIZE = _env("LLM_CONNECTION_POOL_SIZE", 20, int)  # 连接池大小（httpx 内部）
-

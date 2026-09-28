@@ -5,6 +5,8 @@ llm_client.py — 异步 LLM 调用封装（OpenAI 兼容版）
 import json
 import re
 import asyncio
+import random
+from json import JSONDecoder
 from typing import Any, Optional
 from openai import AsyncOpenAI
 
@@ -48,13 +50,32 @@ class LLMResponseError(LLMClientError):
     """LLM 返回内容异常（空响应、JSON 解析失败、格式不符等）"""
     pass
 
+
 # ============================================================
 #  客户端单例（异步懒加载）
 # ============================================================
 _client: Optional[AsyncOpenAI] = None
-_client_lock = asyncio.Lock()
 _dashscope_available = False
-_semaphore = asyncio.Semaphore(LLM_MAX_CONCURRENT)  # 并发控制
+
+# ✅ P0-3 修复：懒加载 Lock/Semaphore，避免模块级创建时绑定错误的事件循环
+_client_lock: Optional[asyncio.Lock] = None
+_semaphore: Optional[asyncio.Semaphore] = None
+
+
+def _get_client_lock() -> asyncio.Lock:
+    """懒加载协程锁（首次调用时绑定当前事件循环）"""
+    global _client_lock
+    if _client_lock is None:
+        _client_lock = asyncio.Lock()
+    return _client_lock
+
+
+def _get_semaphore() -> asyncio.Semaphore:
+    """懒加载并发信号量（首次调用时绑定当前事件循环）"""
+    global _semaphore
+    if _semaphore is None:
+        _semaphore = asyncio.Semaphore(LLM_MAX_CONCURRENT)
+    return _semaphore
 
 
 async def get_llm_client() -> Optional[AsyncOpenAI]:
@@ -63,7 +84,7 @@ async def get_llm_client() -> Optional[AsyncOpenAI]:
     if _client is not None:
         return _client
 
-    async with _client_lock:
+    async with _get_client_lock():
         if _client is not None:
             return _client
 
@@ -94,8 +115,6 @@ async def get_llm_client() -> Optional[AsyncOpenAI]:
 
     return _client
 
-
-
 # ============================================================
 #  工具函数（与同步版本保持一致，但无需改动）
 # ============================================================
@@ -105,77 +124,50 @@ async def get_llm_client() -> Optional[AsyncOpenAI]:
 _THINK_RE = THINK_RE
 
 
+# ✅ P0-1 修复：用标准库 json.JSONDecoder.raw_decode，
+#    正确处理字符串转义、嵌套花括号、Unicode 等所有边界情况。
+#    不再自己维护引号状态机。
+# ✅ P0-1 修复（v2）：用标准库 raw_decode + 尾部锚点校验
+_JSON_DECODER = JSONDecoder()
+
+
 def _extract_tail_json(text: str) -> str | None:
     """
     从含纯文本思考过程的响应中提取尾部 JSON。
-    使用锚点跳跃 + 引号状态机，避免 O(n) 盲扫和字符串内花括号误判。
+
+    策略：
+      1. 定位最后一个 '}' 作为目标锚点
+      2. 从右向左扫描 '{'，用 raw_decode 尝试解析
+      3. 只有当解析结果的结束位置**恰好覆盖到最后一个 '}'**时，才算尾部 JSON
+         （这能正确跳过嵌套的内层对象，找到最外层）
+      4. 全部尝试失败 → None
+
+    为什么用 raw_decode：
+      - 正确处理字符串转义、嵌套花括号、Unicode
+      - 不再自己维护引号状态机（历史 bug 根源）
     """
     if not text:
         return None
 
-    # 1. 锚点定位：直接跳到最后一个 }，跳过整个思考过程的无效遍历
-    search_end = len(text)
+    last_rbrace = text.rfind('}')
+    if last_rbrace == -1:
+        return None
+    target_end = last_rbrace + 1
+
+    pos = target_end
     while True:
-        json_end = text.rfind('}', 0, search_end)
-        if json_end == -1:
+        start = text.rfind('{', 0, pos)
+        if start == -1:
             return None
-
-        # 2. 从锚点向前搜索匹配的 {，带引号状态感知
-        brace_depth = 0
-        in_string = False
-        escape_next = False
-        json_start = -1
-
-        for i in range(json_end, -1, -1):
-            ch = text[i]
-
-            # 转义字符处理：\" 不应切换引号状态
-            if escape_next:
-                escape_next = False
-                continue
-            if ch == '\\' and in_string:
-                escape_next = True
-                continue
-
-            # 引号状态切换（仅在非转义时生效）
-            if ch == '"':
-                in_string = not in_string
-                continue
-
-            # 字符串内的花括号不参与结构匹配
-            if in_string:
-                continue
-
-            # 结构括号计数
-            if ch == '}':
-                brace_depth += 1
-            elif ch == '{':
-                brace_depth -= 1
-                if brace_depth == 0:
-                    json_start = i
-                    break
-
-        # 3. 验证提取结果
-        if json_start != -1 and json_end > json_start:
-            candidate = text[json_start:json_end + 1]
-            try:
-                json.loads(candidate)
-                logger.debug("[LLM] 尾部JSON提取成功 (锚点跳跃), len=%d", len(candidate))
-                return candidate
-            except json.JSONDecodeError:
-                # 4. 失败恢复：当前 } 不是有效 JSON 结尾，向前找下一个 } 重试
-                logger.debug("[LLM] 尾部JSON候选验证失败，向前搜索下一个锚点")
-                search_end = json_end  # rfind 下次搜索范围缩小
-                continue
-        else:
-            # 括号不平衡，当前锚点无效，继续向前搜索
-            search_end = json_end
-            continue
-
-    # 所有锚点均失败
-    return None
-
-
+        try:
+            obj, end = _JSON_DECODER.raw_decode(text, start)
+            # ✅ 关键校验：必须解析到尾部锚点，否则是内层对象，跳过
+            if isinstance(obj, dict) and end == target_end:
+                logger.debug("[LLM] 尾部JSON提取成功, len=%d", end - start)
+                return text[start:end]
+        except json.JSONDecodeError:
+            pass
+        pos = start
 def _clean_json_str(text: str) -> str:
     """更稳健的 JSON 提取：兼容 thinking 标签、纯文本思考、markdown 代码块"""
     if not text or not isinstance(text, str):
@@ -262,12 +254,20 @@ def _extract_json(raw: str) -> dict:
         return {}
 
 
+# ✅ P0-2 修复：返回 key 与 refine_node 期望的契约对齐
+#    （name / details / meta），而不是 content。
 def _normalize_llm_output(raw: dict, expected_keys: list[str]) -> dict:
     """
     将 LLM 返回的不同格式归一化为统一 schema。
-    兼容 {"success": true, "result": "..."} 和 {"name": "...", "detail": "..."} 两种格式。
+
+    兼容多种上游格式：
+    - {"result": "...", "notes": "..."}          (executor 风格)
+    - {"detail": "...", "meta": {...}}           (refine 单数风格)
+    - {"name": "...", "details": "...", ...}     (目标契约，快速路径)
+
+    最终输出始终对齐 expected_keys（通常为 name/details/meta）。
     """
-    # 0. 入口类型守卫：防止上游 JSON 解析出 list/str 导致后续 .keys() 崩溃
+    # 0. 入口类型守卫
     if not isinstance(raw, dict):
         logger.error(
             "[LLM] _normalize_llm_output 输入非 dict, 已拦截: type=%s, value=%s",
@@ -275,42 +275,55 @@ def _normalize_llm_output(raw: dict, expected_keys: list[str]) -> dict:
         )
         return {}
 
-    # P0: 如果已经是目标格式（符合契约），直接透传（快速路径）
+    # 快速路径：已经是目标格式
     if all(k in raw for k in expected_keys):
         return raw
 
-    # P1: 兼容 executor 的 success/result 包装
+    # P1: 兼容 {"result": "...", "notes": "..."}  → 映射到 name/details/meta
     if "result" in raw:
         result_val = raw["result"]
         if isinstance(result_val, str):
-            normalized = {"content": result_val}
+            meta = raw.get("meta", {})
+            if not isinstance(meta, dict):
+                logger.warning(
+                    "[LLM] 'meta' 字段非 dict, 已重置为空字典: type=%s",
+                    type(meta).__name__
+                )
+                meta = {}
             if "notes" in raw:
-                normalized["meta"] = {"notes": raw["notes"]}
-            return normalized
+                meta["notes"] = raw["notes"]
+            return {
+                "name": raw.get("name", ""),   # LLM 给了 name 就用，否则留给上游兜底
+                "details": result_val,          # ✅ 关键：用 details 而非 content
+                "meta": meta,
+            }
         else:
-            # 风险修复：result 存在但非字符串时，记录日志而非静默跳过
             logger.warning(
-                "[LLM] _normalize_llm_output 'result' 字段非字符串, 跳过P1适配: type=%s",
+                "[LLM] 'result' 字段非字符串, 跳过 P1 适配: type=%s",
                 type(result_val).__name__
             )
 
-    # P2: 兼容 refine 的 name/detail/meta 格式
+    # P2: 兼容 {"detail": "...", "meta": {...}}  → 映射到 name/details/meta
     if "detail" in raw:
         meta = raw.get("meta", {})
-        # 风险修复：防止 LLM 返回 "meta": "some string" 导致下游操作 meta 时报 TypeError
         if not isinstance(meta, dict):
             logger.warning(
-                "[LLM] _normalize_llm_output 'meta' 字段非 dict, 已重置为空字典: type=%s",
+                "[LLM] 'meta' 字段非 dict, 已重置为空字典: type=%s",
                 type(meta).__name__
             )
             meta = {}
-        return {"content": raw["detail"], "meta": meta}
+        return {
+            "name": raw.get("name", ""),
+            "details": raw["detail"],
+            "meta": meta,
+        }
 
     # P3: 兜底透传
     logger.warning(
         "[LLM] _normalize_llm_output 无法识别的输出格式: keys=%s", list(raw.keys())
     )
     return raw
+
 # ============================================================
 #  异步核心调用
 # ============================================================
@@ -426,9 +439,35 @@ async def _async_call_llm(
             last_error = e
 
         # 重试前等待
-        wait = LLM_RETRY_BACKOFF ** attempt
+        # ✅ P1 修复：区分瞬态/非瞬态错误；非瞬态直接抛，不浪费重试
+        except (asyncio.TimeoutError, TimeoutError):
+            last_error = LLMTimeoutError(f"请求超时 ({timeout}s)", req_id)
+        except Exception as e:
+            err_str = str(e).lower()
+            err_name = type(e).__name__
+
+            # 4xx 类错误（认证失败、参数错误）重试没意义
+            non_retryable = (
+                "401" in err_str or "403" in err_str or "400" in err_str
+                or "authentication" in err_str
+                or "invalid_api_key" in err_str
+                or "permission" in err_str
+            )
+            if non_retryable:
+                logger.error(
+                    "[LLMClient] ❌ 非瞬态错误, 不重试: %s: %s (req=%s)",
+                    err_name, e, req_id,
+                )
+                raise LLMClientError(f"LLM 调用失败(不可重试): {e}", req_id) from e
+
+            last_error = e
+
+        # ✅ P1 修复：退避加全抖动（full jitter），避免高并发惊群
+        base_wait = LLM_RETRY_BACKOFF ** attempt
+        wait = random.uniform(0, base_wait)
+
         logger.warning(
-            "[LLMClient] ⚠️ %s 失败 (attempt=%d/%d, wait=%ds, err=%s, req=%s)",
+            "[LLMClient] ⚠️ %s 失败 (attempt=%d/%d, wait=%.1fs, err=%s, req=%s)",
             model, attempt, LLM_MAX_RETRIES, wait, last_error, req_id,
         )
 
@@ -439,7 +478,8 @@ async def _async_call_llm(
         else:
             logger.error("[LLMClient] ❌ %s 最终失败: %s (req=%s)", model, last_error, req_id)
             if isinstance(last_error, LLMTimeoutError):
-                raise last_error from last_error
+                # ✅ 不要 `from last_error`（自己 cause 自己），用 from None
+                raise last_error from None
             raise LLMClientError(f"LLM 调用最终失败: {last_error}", req_id) from last_error
 
     raise LLMClientError("LLM 调用最终失败", req_id)
@@ -498,7 +538,7 @@ async def direct_chat(
     """直接对话接口（异步）"""
     if USE_MOCK_LLM:
         return f"{MOCK_RESPONSE_PREFIX}{user_input}"
-    async with _semaphore:  # 并发限制
+    async with _get_semaphore():  # 并发限制
         return await _async_call_llm(
             model=LLM_INTENT_MODEL,
             prompt=user_input,
@@ -777,7 +817,7 @@ async def execute_node_llm(
         return True, "✅ Mock执行完成"
 
     try:
-        async with _semaphore:
+        async with _get_semaphore():
             raw = await _async_call_llm(
                 model=LLM_NODE_MODEL, prompt=prompt,
                 enable_thinking=LLM_NODE_ENABLE_THINKING,

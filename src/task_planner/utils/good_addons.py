@@ -2,7 +2,7 @@
 # ╔══════════════════════════════════════════════════════════════════════╗
 # ║  good_addons.py v6.0 — Enterprise Runtime Enhancement Layer        ║
 # ║  Pyright strict | PEP-8 compliant | Python 3.9+                    ║
-# ║  License: MIT                                                       ║
+# ║  License: GPLv3                                                       ║
 # ╚══════════════════════════════════════════════════════════════════════╝
 """
 good_addons v6.1 — 企业级 Python 运行时增强层。

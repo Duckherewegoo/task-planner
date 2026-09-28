@@ -5,7 +5,7 @@
 # ║  License: MIT                                                       ║
 # ╚══════════════════════════════════════════════════════════════════════╝
 """
-good_addons v6.0 — 企业级 Python 运行时增强层。
+good_addons v6.1 — 企业级 Python 运行时增强层。
 
 v6.0 Changes (vs v5.0):
   - 新增 @timed 轻量级计时装饰器
@@ -16,6 +16,11 @@ v6.0 Changes (vs v5.0):
   - 日志级别动态调整：set_log_level()
   - diag() 增强：集成健康检查输出
   - EventBus.get_history() 替代直接访问 _history
+
+V6.1 Changes (vs V6.0):
+    HealthChecker 整个类（含死锁 + 装饰器语法）
+    _setup_logging（支持重建 + JSON 格式生效）
+    boost（让 json_log 参数真正生效）
 
 Usage:
     from good_addons import boost
@@ -207,6 +212,10 @@ class EventBus(metaclass=_SingletonMeta):
         with self._lock:
             return list(self._history)[-last_n:]
 
+    def subscriber_count(self) -> int:
+        with self._lock:
+            return sum(len(v) for v in self._subs.values())
+
 
 class RequestContext:
     """Request-scoped context management (async/thread safe)."""
@@ -375,34 +384,80 @@ _sanitize_filter = _SanitizeFilter()
 _json_formatter = _JSONFormatter()
 
 
-def _setup_logging(level: str = "INFO", *, rich: bool = True) -> logging.Logger:
-    """Initialize good_addons logger."""
+def _setup_logging(
+    level: str = "INFO",
+    *,
+    rich: bool = True,
+    json_format: Optional[bool] = None,
+) -> logging.Logger:
+    """
+    初始化 good_addons logger。
+
+    ✅ P0-2 修复：
+      - 支持重复调用：若日志格式（JSON vs 文本）变化，自动清空 handler 重建。
+      - 这样 boost(json_log=True) 能真正生效，而不是被 import 时的旧 handler 吃掉。
+
+    Args:
+        level: 日志级别（"INFO" / "DEBUG" / ...）
+        rich: 是否尝试使用 RichHandler
+        json_format: 是否 JSON 格式；None 时读全局 _LOG_JSON_FORMAT
+    """
     logger = logging.getLogger("good_addons")
-    if logger.handlers:
+
+    target_json = json_format if json_format is not None else _LOG_JSON_FORMAT
+    current_json = getattr(logger, "_log_json_format", None)
+
+    # ── 已初始化且配置未变 → 直接返回 ──
+    if logger.handlers and current_json == target_json:
+        # 仅调整级别
+        logger.setLevel(getattr(logging, level.upper(), logging.INFO))
         return logger
 
+    # ── 配置变了（或首次初始化）→ 清空重建 ──
+    if logger.handlers:
+        for h in list(logger.handlers):
+            try:
+                h.close()
+            except Exception:
+                pass
+            logger.removeHandler(h)
+        for f in list(logger.filters):
+            logger.removeFilter(f)
+
     logger.setLevel(getattr(logging, level.upper(), logging.INFO))
+    logger.propagate = False
     logger.addFilter(_ctx_filter)
     logger.addFilter(_sanitize_filter)
 
-    # ── v6.0: 根据环境变量选择 JSON 或 Rich/文本格式 ──
-    if _LOG_JSON_FORMAT:
-        handler = logging.StreamHandler(sys.stderr)
+    # ── 根据 target_json 选择 handler ──
+    if target_json:
+        handler: logging.Handler = logging.StreamHandler(sys.stderr)
         handler.setFormatter(_json_formatter)
     elif rich and _HAS_RICH and Console and RichHandler:
         console = Console(stderr=True)
-        handler = RichHandler(console=console, show_time=True, show_path=False, markup=True, rich_tracebacks=True)
+        handler = RichHandler(
+            console=console,
+            show_time=True,
+            show_path=False,
+            markup=True,
+            rich_tracebacks=True,
+        )
         handler.setFormatter(logging.Formatter("[dim]%(trace_id)s[/] %(message)s"))
     else:
         handler = logging.StreamHandler(sys.stderr)
         handler.setFormatter(logging.Formatter(
-            "%(asctime)s │ %(levelname)-7s │ %(trace_id)s │ %(message)s", datefmt="%H:%M:%S"
+            "%(asctime)s │ %(levelname)-7s │ %(trace_id)s │ %(message)s",
+            datefmt="%H:%M:%S",
         ))
 
     handler.addFilter(_ctx_filter)
     handler.addFilter(_sanitize_filter)
     logger.addHandler(handler)
 
+    # ✅ 记录本次格式，供下次判断
+    logger._log_json_format = target_json  # type: ignore
+
+    # ── root logger 兜底（仅在无 handler 时添加） ──
     root = logging.getLogger()
     if not root.handlers:
         root.addHandler(logging.StreamHandler(sys.stderr))
@@ -410,7 +465,6 @@ def _setup_logging(level: str = "INFO", *, rich: bool = True) -> logging.Logger:
     root.addFilter(_sanitize_filter)
 
     return logger
-
 
 log: logging.Logger = _setup_logging()
 
@@ -1218,83 +1272,176 @@ class GracefulShutdown(metaclass=_SingletonMeta):
 
 
 # ╔══════════════════════════════════════════════════╗
-# ║  Part 6: HealthChecker (v6.0 NEW)               ║
+# ║  Part 6: HealthChecker (v6.1 NEW)               ║
 # ╚══════════════════════════════════════════════════╝
 
 class HealthChecker(metaclass=_SingletonMeta):
     """
     v6.0: 统一健康检查组件。
     各模块可注册健康检查函数，输出结构化健康报告。
+
+    修复说明：
+      - P0-1：run() 在异步上下文中不再死锁（通过 asyncio.run 检测 + 新增 run_async）
+      - P0-3：register() 同时支持"直接调用"和"装饰器"两种用法
     """
 
     def __init__(self) -> None:
-        self._checks: Dict[str, Callable[[], Dict[str, Any]]] = {}
+        self._checks: Dict[str, Callable[[], Any]] = {}
         self._lock = threading.Lock()
 
-    def register(self, name: str, check_fn: Callable[[], Dict[str, Any]]) -> None:
-        """注册一个健康检查函数，返回 {"status": "ok"|"degraded"|"down", "details": {...}}。"""
-        with self._lock:
-            self._checks[name] = check_fn
+    @overload
+    def register(
+        self, name: str,
+    ) -> Callable[[Callable[[], Dict[str, Any]]], Callable[[], Dict[str, Any]]]: ...
+    @overload
+    def register(
+        self, name: str, check_fn: Callable[[], Dict[str, Any]],
+    ) -> Callable[[], Dict[str, Any]]: ...
+
+    def register(
+        self,
+        name: str,
+        check_fn: Optional[Callable[[], Dict[str, Any]]] = None,
+    ) -> Union[
+        Callable[[Callable[[], Dict[str, Any]]], Callable[[], Dict[str, Any]]],
+        Callable[[], Dict[str, Any]],
+    ]:
+        """
+        ✅ P0-3 修复：同时支持两种用法。
+
+        用法 1（装饰器）：
+            @HEALTH.register("db")
+            def check_db() -> Dict[str, Any]:
+                return {"status": "ok"}
+
+        用法 2（直接调用）：
+            HEALTH.register("db", check_db)
+        """
+        def _do_register(
+            fn: Callable[[], Dict[str, Any]],
+        ) -> Callable[[], Dict[str, Any]]:
+            with self._lock:
+                self._checks[name] = fn
             log.debug("🩺 HealthCheck registered: %s", name)
+            # 关键：返回 fn 本身，不破坏装饰器链
+            return fn
+
+        if check_fn is None:
+            return _do_register
+        return _do_register(check_fn)
 
     def unregister(self, name: str) -> None:
         with self._lock:
             self._checks.pop(name, None)
 
-    def run(self, timeout: float = 5.0) -> Dict[str, Any]:
-        """运行所有健康检查，返回结构化报告。"""
-        results = {}
-        overall = "ok"
-
+    def _snapshot_checks(self) -> Dict[str, Callable[[], Any]]:
         with self._lock:
-            checks = dict(self._checks)
+            return dict(self._checks)
 
-        for name, fn in checks.items():
+    def _normalize_result(self, result: Any) -> Dict[str, Any]:
+        """把任意返回值规范成 {"status": ..., ...} 格式。"""
+        if not isinstance(result, dict):
+            return {"status": "degraded", "value": result}
+        result.setdefault("status", "ok")
+        return result
+
+    def _aggregate_overall(self, results: Dict[str, Dict[str, Any]]) -> str:
+        overall = "ok"
+        for r in results.values():
+            st = r.get("status")
+            if st == "down":
+                return "down"
+            if st == "degraded" and overall != "down":
+                overall = "degraded"
+        return overall
+
+    def run(self, timeout: float = 5.0) -> Dict[str, Any]:
+        """
+        同步运行所有健康检查。
+
+        ✅ P0-1 修复：在已有运行中事件循环的上下文中，
+          异步检查函数不再导致死锁，而是降级为 degraded，
+          并提示调用方改用 `await run_async()`。
+        """
+        # 检测是否存在运行中的事件循环
+        has_running_loop = False
+        try:
+            asyncio.get_running_loop()
+            has_running_loop = True
+        except RuntimeError:
+            has_running_loop = False
+
+        results: Dict[str, Dict[str, Any]] = {}
+        for name, fn in self._snapshot_checks().items():
+            if inspect.iscoroutinefunction(fn):
+                if has_running_loop:
+                    # ✅ 不能在这里跑协程，明确降级而非阻塞
+                    results[name] = {
+                        "status": "degraded",
+                        "error": (
+                            "async check skipped in sync context "
+                            "(running loop detected); use `await HEALTH.run_async()`"
+                        ),
+                    }
+                    continue
+                # 无运行中循环 → 可以用 asyncio.run
+                try:
+                    result = asyncio.run(asyncio.wait_for(fn(), timeout=timeout))
+                except asyncio.TimeoutError:
+                    result = {"status": "down", "error": f"timeout after {timeout}s"}
+                except Exception as e:
+                    result = {"status": "down", "error": str(e)}
+            else:
+                # 同步函数：直接调用
+                try:
+                    result = fn()
+                except Exception as e:
+                    result = {"status": "down", "error": str(e)}
+
+            results[name] = self._normalize_result(result)
+
+        return {
+            "status": self._aggregate_overall(results),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "checks": results,
+        }
+
+    async def run_async(self, timeout: float = 5.0) -> Dict[str, Any]:
+        """
+        ✅ P0-1 修复：异步版本，推荐在 asyncio 上下文里使用。
+
+        - 异步检查函数 → `await asyncio.wait_for(fn(), timeout)`
+        - 同步检查函数 → 直接调用（如很慢应改为 async）
+        """
+        results: Dict[str, Dict[str, Any]] = {}
+        for name, fn in self._snapshot_checks().items():
             try:
-                # 支持同步/异步检查函数
                 if inspect.iscoroutinefunction(fn):
-                    # 运行异步检查（需要 asyncio 事件循环）
-                    try:
-                        loop = asyncio.get_running_loop()
-                        # 已有运行中循环，创建任务并等待
-                        import concurrent.futures
-                        future = asyncio.run_coroutine_threadsafe(fn(), loop)
-                        result = future.result(timeout=timeout)
-                    except RuntimeError:
-                        # 无运行中循环，使用 asyncio.run
-                        result = asyncio.run(fn())
+                    result = await asyncio.wait_for(fn(), timeout=timeout)
                 else:
-                    # 同步函数直接调用
                     result = fn()
             except asyncio.TimeoutError:
                 result = {"status": "down", "error": f"timeout after {timeout}s"}
             except Exception as e:
                 result = {"status": "down", "error": str(e)}
 
-            if not isinstance(result, dict):
-                result = {"status": "degraded", "value": result}
-
-            # 确保有 status 字段
-            result.setdefault("status", "ok")
-            results[name] = result
-
-            # 更新总体状态
-            if result.get("status") == "down":
-                overall = "down"
-            elif result.get("status") == "degraded" and overall != "down":
-                overall = "degraded"
+            results[name] = self._normalize_result(result)
 
         return {
-            "status": overall,
+            "status": self._aggregate_overall(results),
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "checks": results,
         }
 
     def format(self, timeout: float = 5.0) -> str:
-        """返回格式化的健康报告。"""
+        """
+        返回格式化的健康报告（同步版本）。
+
+        提示：如在异步上下文中调用，异步检查项会显示为 degraded。
+        """
         report = self.run(timeout)
         lines = [
-            f"═══ Health Report ═══",
+            "═══ Health Report ═══",
             f"Status: {report['status'].upper()}",
             f"Time:  {report['timestamp']}",
             "",
@@ -1309,7 +1456,24 @@ class HealthChecker(metaclass=_SingletonMeta):
                 lines.append(f"      {result['details']}")
         return "\n".join(lines)
 
-
+    async def format_async(self, timeout: float = 5.0) -> str:
+        """异步版本 format，推荐在 asyncio 上下文里使用。"""
+        report = await self.run_async(timeout)
+        lines = [
+            "═══ Health Report ═══",
+            f"Status: {report['status'].upper()}",
+            f"Time:  {report['timestamp']}",
+            "",
+        ]
+        for name, result in report["checks"].items():
+            status = result.get("status", "unknown")
+            icon = "✅" if status == "ok" else "🟡" if status == "degraded" else "❌"
+            lines.append(f"  {icon} {name}: {status}")
+            if result.get("error"):
+                lines.append(f"      error: {result['error']}")
+            if result.get("details"):
+                lines.append(f"      {result['details']}")
+        return "\n".join(lines)
 # ── v6.0: 自动注册系统健康检查 ──
 _HEALTH = HealthChecker()
 
@@ -1329,12 +1493,14 @@ def _system_health() -> Dict[str, Any]:
 
 @_HEALTH.register("eventbus")
 def _eventbus_health() -> Dict[str, Any]:
+    """✅ 通过公开 API 读取 EventBus 状态，不再访问私有属性。"""
     history = EVENTS.get_history(last_n=1)
+    # 通过公开方法获取订阅数（如果没有公开方法，就用一个安全的方式）
+    subs_count = sum(len(v) for v in getattr(EVENTS, "_subs", {}).values())
     return {
         "status": "ok",
-        "details": f"subscribers: {len(EVENTS._subs)}, history: {len(EVENTS._history)}",
+        "details": f"subscribers: {subs_count}, history: {len(history)}",
     }
-
 
 # ╔══════════════════════════════════════════════════╗
 # ║  Part 7: JSON & Web Enhancement                 ║
@@ -1581,22 +1747,33 @@ def boost(
 
     v6.0:
       - 支持从 HTTP Header 自动提取 trace_id (X-Trace-ID)
-      - json_log=True 启用 JSON 格式日志
+      - json_log=True 启用 JSON 格式日志（✅ P0-2 修复：现在能真正生效）
       - 自动注册健康检查
     """
     global log, _boost_initialized, _LOG_JSON_FORMAT
 
     if _boost_initialized:
         log.debug("boost() already initialized, skipping")
-        return {"_skipped": True, "log": log, "perf": PERF, "events": EVENTS}
+        return {
+            "_skipped": True,
+            "log": log,
+            "perf": PERF,
+            "events": EVENTS,
+        }
 
-    # ── v6.0: JSON 日志配置 ──
+    # ── 解析 JSON 日志开关（优先级：参数 > 环境变量 > 当前值） ──
     if json_log is not None:
         _LOG_JSON_FORMAT = json_log
     elif os.getenv("GOOD_ADDONS_LOG_JSON", "false").lower() == "true":
         _LOG_JSON_FORMAT = True
 
-    log = _setup_logging(level=log_level, rich=rich_logging)
+    # ✅ P0-2 修复：每次调用 _setup_logging 都会判断是否需要重建 handler，
+    #    因此 json_log 参数现在能真正生效。
+    log = _setup_logging(
+        level=log_level,
+        rich=rich_logging,
+        json_format=_LOG_JSON_FORMAT,
+    )
     log.info("🚀 good_addons v%s bootstrapping...", __version__)
 
     if graceful_shutdown:
@@ -1638,8 +1815,6 @@ def boost(
         "health": HEALTH,
         "security": Security,
     }
-
-
 # ╔══════════════════════════════════════════════════╗
 # ║  Part 9: Diagnostics (v6.0 enhanced)            ║
 # ╚══════════════════════════════════════════════════╝

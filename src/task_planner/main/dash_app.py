@@ -54,8 +54,6 @@ from task_planner.infrastructure.config import (
     DEBUG,
     EDGE_TYPE_HARD,
     NODE_OPERABLE_STATES,
-    PULSE_CSS,
-    PROGRESS_CSS,
     MAX_CACHE_INPUT_BYTES,
     BAR_DONE,
     NODE_ACTION_CONFIG,
@@ -74,6 +72,7 @@ from task_planner.infrastructure.config import (
     BUTTON_STYLE_SECONDARY,
     SECTION_HEADER_STYLE,
     ZOOM_TOOLBAR_STYLE,
+    WERKZEUG_RUN_MAIN,
 )
 from task_planner.infrastructure.logger_setup import get_logger
 
@@ -81,10 +80,102 @@ logger = get_logger("task_planner.dash_app")
 
 cyto.load_extra_layouts()
 
-try:
-    init_db()
-except Exception as e:
-    logger.warning("[Dash] 数据库初始化失败: %s", e)
+
+# ✅ P0-1 修复：init_db 是 async，必须用 asyncio.run 或延迟到 main() 里执行。
+#    这里用 asyncio.run 保证模块导入后 DB 一定初始化；
+#    失败时不静默吞掉，而是明确告警（DB 是强依赖，不初始化后续必崩）。
+def _bootstrap_db() -> None:
+    """模块导入时执行一次 DB 初始化。"""
+    from task_planner.core.database import init_db
+    try:
+        asyncio.run(init_db())
+        logger.info("[Dash] ✅ 数据库初始化完成")
+    except Exception as e:
+        logger.warning("[Dash] ⚠️ 数据库初始化失败，将在首次请求时重试: %s", e)
+
+
+_bootstrap_db()
+
+# ══════════════════════════════════════════════════
+#  历史回调的结果容器（✅ P0-5 修复：原代码引用了未定义的类）
+# ══════════════════════════════════════════════════
+
+@dataclass
+class HistorySelectResult:
+    """
+    on_history_select 回调的返回结果聚合。
+    通过 to_tuple() 展开为 Dash 多输出元组。
+
+    输出顺序必须与 @callback 装饰器声明的 Output 顺序完全一致：
+      1. history-flowchart.elements
+      2. history-detail.children
+      3. history-flowchart.pan
+      4. global-status.children
+      5. dag-store.data
+      6. history-replan-btn.disabled
+      7. history-edit-plan-btn.disabled
+      8. history-resume-btn.disabled
+      9. history-retry-btn.disabled
+      10. history-action-status.children
+      11. history-dag-store.data
+      12. history-node-states-store.data
+    """
+    elements: Any = None
+    detail: Any = None
+    pan: Any = None
+    global_status: Any = None
+    dag_store: Any = None
+    replan_disabled: Any = True
+    edit_disabled: Any = True
+    resume_disabled: Any = True
+    retry_disabled: Any = True
+    action_status: Any = None
+    history_dag_store: Any = None
+    history_node_states: Any = None
+
+    def to_tuple(self) -> tuple:
+        return (
+            self.elements if self.elements is not None else no_update,
+            self.detail if self.detail is not None else no_update,
+            self.pan if self.pan is not None else no_update,
+            self.global_status if self.global_status is not None else no_update,
+            self.dag_store if self.dag_store is not None else no_update,
+            self.replan_disabled,
+            self.edit_disabled,
+            self.resume_disabled,
+            self.retry_disabled,
+            self.action_status if self.action_status is not None else no_update,
+            self.history_dag_store if self.history_dag_store is not None else no_update,
+            self.history_node_states if self.history_node_states is not None else no_update,
+        )
+
+
+@dataclass
+class HistoryTapNodeResult:
+    """
+    on_history_tap_node 回调的返回结果聚合。
+
+    输出顺序（与装饰器一致）：
+      1. history-node-detail.children
+      2. history-selected-node-store.data
+      3. history-node-done-btn.disabled
+      4. history-node-skip-btn.disabled
+      5. history-node-fail-btn.disabled
+    """
+    detail: Any = None
+    selected_node: Any = None
+    done_disabled: bool = True
+    skip_disabled: bool = True
+    fail_disabled: bool = True
+
+    def to_tuple(self) -> tuple:
+        return (
+            self.detail if self.detail is not None else no_update,
+            self.selected_node if self.selected_node is not None else no_update,
+            self.done_disabled,
+            self.skip_disabled,
+            self.fail_disabled,
+        )
 
 app = dash.Dash(
     __name__,
@@ -94,41 +185,52 @@ app = dash.Dash(
 )
 os.environ["DASH_DISABLE_VERSION_CHECK"] = DASH_DISABLE_VERSION_CHECK
 
-@app.server.errorhandler(Exception)
-def handle_exception(e):
-    logger.exception("❌ Unhandled exception in request")
-    raise  # 重新抛出，让 Dash 正常返回 500
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #  TOOLS
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-def _resolve_dag_data(history_task_ids, dag_store, node_states_store=None):
+async def _resolve_dag_data(
+    history_task_ids,
+    dag_store,
+    node_states_store=None,
+):
     """
     统一的数据源解析引擎（双源适配器）。
     优先级契约：历史持久化数据 > 当前内存 Store。
-    
+
+    ✅ P0-2 修复：改为 async def，内部 await load_task_with_plan。
+
     Returns:
         tuple: (nodes, edges, node_states, task_id_str)
         若数据为空则返回 (None, None, None, None)
     """
-    # 统一 task_id 解析
+    from task_planner.core.database import load_task_with_plan
+
     task_id = None
     if history_task_ids:
-        task_id = history_task_ids[0] if isinstance(history_task_ids, list) else history_task_ids
+        task_id = (
+            history_task_ids[0]
+            if isinstance(history_task_ids, list)
+            else history_task_ids
+        )
 
     if task_id:
         try:
-            data = load_task_with_plan(task_id)  # 同步函数，但这里在异步回调中会被 await，但此函数本身是同步，将在调用处处理
+            # ✅ 正确 await
+            data = await load_task_with_plan(task_id)
         except Exception as e:
-            logger.error("[Export] 加载历史任务失败 task=%s: %s", task_id, e, exc_info=True)
+            logger.error(
+                "[Export] 加载历史任务失败 task=%s: %s",
+                task_id, e, exc_info=True,
+            )
             data = None
 
         if data:
             plan = data.get("plan") or {}
             nodes = plan.get("nodes") or []
             edges = plan.get("edges") or []
-            node_states = data.get("node_states", node_states_store)
+            node_states = data.get("node_states") or node_states_store
             task_id_str = str(task_id)[-8:]
             return nodes, edges, node_states, task_id_str
         else:
@@ -139,7 +241,6 @@ def _resolve_dag_data(history_task_ids, dag_store, node_states_store=None):
     nodes = (dag_store or {}).get("nodes") or []
     edges = (dag_store or {}).get("edges") or []
     return nodes, edges, node_states_store, "current"
-
 
 def _make_filename(content_type: str, task_id_str: str, ext: str) -> str:
     timestamp = time.strftime("%Y%m%d_%H%M%S")
@@ -191,20 +292,27 @@ def update_node_and_render(dag: dict, node_states: dict, nid: str, target_status
     return new_states, elements, status_msg
 
 
-def _load_and_fill_query(task_ids, action_label: str) -> tuple:
+async def _load_and_fill_query(task_ids, action_label: str) -> tuple:
     """
     统一的历史任务回填引擎。
-    供 replan / resume 复用，仅通过 action_label 区分提示文案。
+
+    ✅ P0-3 修复：改为 async def，内部 await load_task_with_plan。
     """
+    from task_planner.core.database import load_task_with_plan
+
     task_id = extract_first_task_id(task_ids)
 
     if not task_id:
         return "⚠️ 请先选择历史任务", no_update, no_update
 
     try:
-        data = load_task_with_plan(task_id)  # 同步，但调用方会 await
+        # ✅ 正确 await
+        data = await load_task_with_plan(task_id)
     except Exception as e:
-        logger.error("[HistoryAction] %s 加载失败 task=%s: %s", action_label, task_id, e, exc_info=True)
+        logger.error(
+            "[HistoryAction] %s 加载失败 task=%s: %s",
+            action_label, task_id, e, exc_info=True,
+        )
         return "❌ 任务数据加载失败，请稍后重试", no_update, no_update
 
     if not data:
@@ -219,9 +327,11 @@ def _load_and_fill_query(task_ids, action_label: str) -> tuple:
     else:
         msg = f"🔄 [{action_label}] 已回填原始需求（{len(raw_query)}字），请确认后点击「开始规划」"
 
-    logger.info("[HistoryAction] %s 回填成功 task=%s query_len=%d", action_label, task_id, len(raw_query))
+    logger.info(
+        "[HistoryAction] %s 回填成功 task=%s query_len=%d",
+        action_label, task_id, len(raw_query),
+    )
     return msg, "tab-new", raw_query
-
 
 def _auto_unlock_downstream(dag, node_states, changed_nid, new_state, allowed_edge_types=None):
     """
@@ -332,8 +442,7 @@ def _generate_html_export(nodes, edges, task_id):
 
 # ── 布局 ──
 def build_layout() -> html.Div:
-    return html.Div([
-        html.Style(PULSE_CSS + PROGRESS_CSS, type="text/css"),
+    return html.Div([ 
         dcc.Interval(id="stream-interval", interval=500, disabled=True, n_intervals=0),
         dcc.Store(id="thread-id-store", data=""),
         dcc.Store(id="stream-active", data=False),
@@ -1224,7 +1333,8 @@ async def on_reset_node(n_clicks, selected_nid, dag, node_states, task_id):
     has_task = bool(task_id)
     if has_task:
         try:
-            db_ok = reset_node_status(task_id, nid_int)  # 同步函数，在异步中用 to_thread 可选，但这里是小操作，不阻塞
+            db_ok = await reset_node_status(task_id, nid_int)  
+
         except Exception as e:
             logger.error("[Reset] DB 重置失败 task=%s node=%s: %s", task_id, nid_int, e, exc_info=True)
 
@@ -1282,7 +1392,7 @@ async def load_history_list(n_clicks, tab_value):
         return no_update, no_update
 
     try:
-        tasks = await asyncio.to_thread(list_tasks, 50)  # list_tasks 是同步的，用 to_thread
+        tasks = await list_tasks(50)
     except Exception as e:
         logger.error("[History] 加载任务列表失败: %s", e, exc_info=True)
         return [], "❌ 加载失败，请检查后端服务"
@@ -1290,7 +1400,7 @@ async def load_history_list(n_clicks, tab_value):
     if not tasks:
         return [], "暂无历史记录"
 
-    sorted_tasks = sorted(tasks, key=lambda t: t.get("created_at", ""), reverse=True)
+    sorted_tasks = sorted(tasks, key=lambda t: t.get("created", ""), reverse=True)    
     options = []
     for t in sorted_tasks:
         raw_title = t.get("title") or ""
@@ -1326,7 +1436,7 @@ async def on_history_select(task_ids):
     task_id = task_ids[0] if isinstance(task_ids, list) else task_ids
 
     try:
-        data = await asyncio.to_thread(load_task_with_plan, task_id)  # 同步函数用 to_thread
+        data = await load_task_with_plan(task_id)
     except Exception as e:
         logger.error("[History] 加载任务失败 task=%s: %s", task_id, e, exc_info=True)
         return HistorySelectResult(
@@ -1453,14 +1563,14 @@ async def on_delete(n_clicks, task_ids):
     ids = task_ids if isinstance(task_ids, list) else [task_ids]
 
     try:
-        count = await asyncio.to_thread(batch_delete_tasks, ids)  # 同步函数用 to_thread
+        count = await batch_delete_tasks(ids)
         logger.info("[History] 删除成功 tasks=%s count=%d", ids, count)
     except Exception as e:
         logger.error("[History] 删除失败 tasks=%s: %s", ids, e, exc_info=True)
         return no_update, no_update, "❌ 删除失败，请稍后重试或联系管理员"
 
     try:
-        tasks = await asyncio.to_thread(list_tasks, 50)
+        tasks = await list_tasks(50)
         options = build_history_dropdown_options(tasks)
     except Exception as e:
         logger.error("[History] 删除后刷新列表失败: %s", e, exc_info=True)
@@ -1478,7 +1588,7 @@ async def on_delete(n_clicks, task_ids):
     prevent_initial_call=True,
 )
 async def on_history_replan(n_clicks, task_ids):
-    msg, tab, query = _load_and_fill_query(task_ids, action_label="重新规划")
+    msg, tab, query = await _load_and_fill_query(task_ids, action_label="重新规划")
     return msg, tab, query
 
 
@@ -1569,7 +1679,7 @@ def on_history_node_fail(n_clicks, selected_nid, dag, node_states):
     prevent_initial_call=True,
 )
 async def on_history_resume(n_clicks, task_ids):
-    msg, tab, query = _load_and_fill_query(task_ids, action_label="继续执行")
+    msg, tab, query = await _load_and_fill_query(task_ids, action_label="继续执行")
     return msg, tab, query
 
 
@@ -1637,7 +1747,9 @@ _DATA_EXPORT_STRATEGIES = {
     prevent_initial_call=True,
 )
 async def on_export_data(n_clicks, history_task_ids, dag_store, fmt):
-    nodes, edges, _, task_id_str = _resolve_dag_data(history_task_ids, dag_store)
+    nodes, edges, node_states, task_id_str = await _resolve_dag_data(
+        history_task_ids, dag_store, node_states
+    )
 
     if not nodes:
         logger.warning("[Export] 没有节点数据可导出 (format=%s)", fmt)
@@ -1672,7 +1784,7 @@ async def on_export_data(n_clicks, history_task_ids, dag_store, fmt):
     prevent_initial_call=True,
 )
 async def on_export_image(n_clicks, history_task_ids, dag_store, node_states, image_format):
-    nodes, edges, node_states, task_id_str = _resolve_dag_data(
+    nodes, edges, node_states, task_id_str = await _resolve_dag_data(
         history_task_ids, dag_store, node_states
     )
 
@@ -1768,7 +1880,6 @@ def _validate_port(port_value) -> int:
 
 
 def main() -> None:
-    from task_planner.infrastructure.config import CSP_POLICY as csp
     host = DASH_HOST
     debug = DEBUG
 
@@ -1786,7 +1897,7 @@ def main() -> None:
     )
 
     mode = "debug" if debug else "production"
-    is_reloader = os.environ.get("WERKZEUG_RUN_MAIN") == "true"
+    is_reloader = WERKZEUG_RUN_MAIN == "true"
     process_tag = " [reloader]" if is_reloader else ""
 
     logger.info(

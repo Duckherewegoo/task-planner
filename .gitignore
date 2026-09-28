@@ -20,3 +20,8 @@ __pycache__/
 .ruff_cache/
 .mypy_cache/
 
+logs/
+*.log
+*.bak
+*.egg-info/
+tmp/

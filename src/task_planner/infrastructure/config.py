@@ -87,7 +87,7 @@ LOG_DIR = _env("LOG_DIR", os.path.join(_PROJECT_ROOT, "logs"))
 LOG_FILE = _env("LOG_FILE", "task_planner.log")
 LOG_MAX_DAYS = _env("LOG_MAX_DAYS", 7, int)
 LOG_CONSOLE_LEVEL = _env("LOG_CONSOLE_LEVEL", "DEBUG" if DEBUG else "INFO")
-
+DASH_DISABLE_VERSION_CHECK = _env("DASH_DISABLE_VERSION_CHECK", "True", str)
 # =============================================================================
 # 3. DashScope
 # =============================================================================
@@ -319,6 +319,8 @@ CYTO_STYLESHEET: List[Dict[str, Any]] = [
         "border-width": 4, "border-color": "#f59e0b"}},
 ]
 
+#===已废弃（在main/assets/custom.css）另外实现===#
+"""
 PULSE_CSS = (
     "@keyframes pulse {"
     "0% { box-shadow: 0 0 0 0 rgba(59,130,246,0.5); }"
@@ -344,6 +346,8 @@ PROGRESS_CSS = (
     "transition: none !important;"
     "}"
 )
+"""
+#============================================#
 
 # =============================================================================
 # 12. 任务状态枚举（全模块共用）
@@ -530,6 +534,44 @@ BASE_BTN_STYLE = {
     "marginRight": "6px",
     "fontWeight": "bold",
     "fontSize": "13px",
+}
+
+# ── 按钮样式（派生自 BASE_BTN_STYLE） ──
+BUTTON_STYLE_PRIMARY = {
+    **BASE_BTN_STYLE,
+    "backgroundColor": "#1a73e8",
+    "color": "white",
+}
+
+BUTTON_STYLE_DANGER = {
+    **BASE_BTN_STYLE,
+    "backgroundColor": "#ef4444",
+    "color": "white",
+}
+
+BUTTON_STYLE_SECONDARY = {
+    **BASE_BTN_STYLE,
+    "backgroundColor": "#e2e8f0",
+    "color": "#475569",
+}
+
+# ── 章节标题样式 ──
+SECTION_HEADER_STYLE = {
+    "fontSize": "14px",
+    "fontWeight": "bold",
+    "color": "#1e293b",
+    "marginBottom": "8px",
+}
+
+# ── 缩放工具栏按钮样式 ──
+ZOOM_TOOLBAR_STYLE = {
+    "backgroundColor": "white",
+    "border": "1px solid #d1d5db",
+    "borderRadius": "6px",
+    "padding": "6px 12px",
+    "cursor": "pointer",
+    "fontSize": "13px",
+    "color": "#475569",
 }
 
 # 状态颜色映射
@@ -989,3 +1031,7 @@ SKIP_PLANNING_PATTERNS = [
 # =============================================================================
 LLM_MAX_CONCURRENT = _env("LLM_MAX_CONCURRENT", 10, int)   # 同时最多进行的 LLM 调用数
 LLM_CONNECTION_POOL_SIZE = _env("LLM_CONNECTION_POOL_SIZE", 20, int)  # 连接池大小（httpx 内部）
+
+# GOOOD addon
+WERKZEUG_RUN_MAIN = _env("WERKZEUG_RUN_MAIN", True, bool)
+

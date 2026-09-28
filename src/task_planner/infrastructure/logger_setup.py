@@ -1,24 +1,43 @@
 """
-logger_setup.py — 异步友好的日志系统（生产终极版）
+logger_setup.py — 异步友好的日志系统（生产终极版 v2）
 ═══════════════════════════════════════════════════════════════════
 设计原则：
   ✅ 非阻塞写入：通过 QueueHandler + QueueListener 将 I/O 操作移至后台线程
   ✅ 协程安全：使用 ContextVar 自动注入 req_id，支持 asyncio 上下文
   ✅ 可靠稳定：队列积压时提供背压控制，防止内存泄漏
   ✅ 灵活扩展：可轻松接入远程日志、结构化日志等
-  ✅ 易于理解：单一职责，清晰注释
+
+Changelog:
+  ✅ P0-1：只对根 logger（"task_planner"）挂 handler，
+           子 logger 用 propagate=True 向上冒泡，
+           不再每个模块创建一个后台线程。
+  ✅ P0-2：ReqIdFilter 只在 record 没有 req_id 时才补默认值，
+           不再覆盖主线程注入的 req_id（修复 [req=-] 问题）。
+  ✅ P0-3：set_req_id 的 ContextVar 语义在文档中说明；
+           提供 propagate_req_id() 辅助函数用于跨 Task 场景。
+  ✅ P1-1：移除未使用的 _logger_initialized。
+  ✅ P1-2：保留 root logger 的 WARNING 级别兜底，
+           第三方库日志仍可见（但默认过滤 WARNING 以下）。
+  ✅ P1-3：shutdown_logging 用 print 记录（listener 已停）。
+  ✅ P1-4：显式确保 task_planner.* 相关 logger 都是 ReqIdLogger。
+  ✅ P1-5：QueueHandler 队列满时记录 stderr 警告，不再静默丢弃。
 """
 
 import logging
 import logging.handlers
 import os
+import sys
 import uuid
 import queue
 import threading
+import contextvars
 from contextvars import ContextVar
-from typing import Optional
+from typing import Optional, Callable
 
-# 从 config 导入配置（不要循环依赖）
+
+# ================================================================
+#  0. 从 config 导入配置
+# ================================================================
 from task_planner.infrastructure.config import (
     DEBUG,
     LOG_CONSOLE_LEVEL,
@@ -27,6 +46,7 @@ from task_planner.infrastructure.config import (
     LOG_MAX_DAYS,
 )
 
+
 # ================================================================
 #  1. 上下文变量：自动传递 req_id
 # ================================================================
@@ -34,7 +54,13 @@ _req_id_var: ContextVar[str] = ContextVar("req_id", default="-")
 
 
 def set_req_id(rid: Optional[str] = None) -> str:
-    """设置当前协程/线程的 req_id，返回设置的值"""
+    """
+    设置当前协程/线程的 req_id。
+
+    ⚠️ ContextVar 是 Task-local 的：在 asyncio.create_task / asyncio.gather
+       创建的子协程里，默认读不到父协程设置的 req_id。
+       如需跨 Task 传播，请用 propagate_req_id()。
+    """
     rid = rid or _make_req_id()
     _req_id_var.set(rid)
     return rid
@@ -50,21 +76,43 @@ def _make_req_id() -> str:
     return uuid.uuid4().hex[:8]
 
 
+def propagate_req_id() -> contextvars.Context:
+    """
+    复制当前上下文的 Context 对象。
+    在创建子 Task 时用它包一层，让子 Task 也读得到 req_id。
+
+    用法：
+        ctx = propagate_req_id()
+        await asyncio.gather(
+            asyncio.create_task(ctx.run(node_a)),
+            asyncio.create_task(ctx.run(node_b)),
+        )
+    """
+    return contextvars.copy_context()
+
+
 # ================================================================
-#  2. 自定义 Logger & Filter：自动注入 req_id
+#  2. 自定义 Logger & Filter
 # ================================================================
 class ReqIdFilter(logging.Filter):
-    """为每条日志附加 req_id 属性（供格式化使用）"""
+    """
+    ✅ P0-2 修复：
+      原实现在后台线程执行 filter 时无条件覆盖 record.req_id，
+      导致主线程 makeRecord 阶段注入的 req_id 被覆盖为 ContextVar 的 default "-"。
+
+      现在：只有 record 没带 req_id 时才补默认值。
+    """
 
     def filter(self, record: logging.LogRecord) -> bool:
-        record.req_id = _req_id_var.get()
+        if not getattr(record, "req_id", None):
+            record.req_id = _req_id_var.get()
         return True
 
 
 class ReqIdLogger(logging.Logger):
     """
-    自定义 Logger：在 makeRecord 阶段强制将 req_id 注入 extra，
-    确保即使某些场景下 Filter 未被调用，也能携带 req_id。
+    自定义 Logger：在 makeRecord 阶段注入 req_id。
+    这是 req_id 注入的**主要**路径（在调用方线程执行，ContextVar 值正确）。
     """
 
     def makeRecord(
@@ -83,63 +131,75 @@ class ReqIdLogger(logging.Logger):
         extra = dict(extra) if extra else {}
         extra.setdefault("req_id", _req_id_var.get())
         return super().makeRecord(
-            name,
-            level,
-            fn,
-            lno,
-            msg,
-            args,
-            exc_info,
-            func=func,
-            extra=extra,
-            sinfo=sinfo,
+            name, level, fn, lno, msg, args, exc_info,
+            func=func, extra=extra, sinfo=sinfo,
         )
 
 
 # ================================================================
 #  3. 日志系统初始化（幂等，线程安全）
 # ================================================================
-_logger_initialized = False
 _init_lock = threading.Lock()
+_initialized = False
+_queue_listener: Optional[logging.handlers.QueueListener] = None
+_log_queue: Optional[queue.Queue] = None
 
 
-def setup_logger(name: str = "task_planner") -> ReqIdLogger:
+# 根 logger 名（所有子模块都是它的子 logger）
+_ROOT_LOGGER_NAME = "task_planner"
+
+
+class _SafeQueueHandler(logging.handlers.QueueHandler):
     """
-    初始化日志系统（幂等）。
-    返回一个 ReqIdLogger 实例，所有日志将自动包含 req_id。
+    ✅ P1-5 修复：队列满时记录 stderr 警告，不再静默丢弃。
     """
-    global _logger_initialized
 
-    # 注册自定义 Logger 类（仅需一次）
+    def enqueue(self, record: logging.LogRecord) -> None:
+        try:
+            self.queue.put_nowait(record)
+        except queue.Full:
+            # 直接写 stderr，避免递归调用 logger
+            sys.stderr.write(
+                f"[logger_setup] 日志队列已满，丢弃日志: {record.name} {record.getMessage()[:80]}\n"
+            )
+
+
+def setup_logger(name: str = _ROOT_LOGGER_NAME) -> ReqIdLogger:
+    """
+    获取或创建 logger（幂等）。
+
+    ✅ P0-1 修复：
+      只在根 logger（"task_planner"）上挂 handler 和 QueueListener。
+      其他 name（如 "task_planner.db"）作为子 logger，propagate=True 向上冒泡。
+    """
+    global _initialized, _queue_listener, _log_queue
+
+    # 确保 logger 类已注册（仅需一次）
     logging.setLoggerClass(ReqIdLogger)
 
+    # 首次调用时初始化根 logger
+    if not _initialized:
+        with _init_lock:
+            if not _initialized:
+                _init_root_logger()
+                _initialized = True
+
+    # 返回请求的 logger（可能不是根 logger）
     logger = logging.getLogger(name)
-    # 防止重复添加 Handler
-    if logger.handlers:
-        return logger  # type: ignore
-
-    with _init_lock:
-        if logger.handlers:  # double-check
-            return logger  # type: ignore
-        _init_logger_handlers(logger)
-        _logger_initialized = True
-
-    logger.info("🔧 日志系统初始化完成 (异步队列模式已启用)")
     return logger  # type: ignore
 
 
-def _init_logger_handlers(logger: ReqIdLogger) -> None:
+def _init_root_logger() -> None:
     """
-    配置日志处理器：
-      - 控制台 Handler（根据 DEBUG 决定级别）
-      - 文件 Handler（按天轮转，保留 LOG_MAX_DAYS 天）
-      - 所有 Handler 通过 QueueHandler 解耦，实现非阻塞写入
+    初始化根 logger 的 handlers + QueueListener（只做一次）。
     """
-    # 基础配置
-    logger.setLevel(logging.DEBUG)  # 全局最低级别，由各 Handler 细化
-    logger.propagate = False
+    global _queue_listener, _log_queue
 
-    # 统一格式
+    root_logger = logging.getLogger(_ROOT_LOGGER_NAME)
+    root_logger.setLevel(logging.DEBUG)   # 全局最低级别
+    root_logger.propagate = False         # 不再向上（Python root）传播
+
+    # ── 格式 ──
     fmt = (
         "%(asctime)s | %(levelname)-7s | %(name)s [%(filename)s:%(lineno)d] "
         "| [req=%(req_id)s] %(message)s"
@@ -147,14 +207,13 @@ def _init_logger_handlers(logger: ReqIdLogger) -> None:
     datefmt = "%Y-%m-%d %H:%M:%S"
     formatter = logging.Formatter(fmt, datefmt=datefmt)
 
-    # ---------- 创建目标 Handler（实际执行 I/O） ----------
-    # 控制台
+    # ── 目标 Handler（实际执行 I/O） ──
     console_level = logging.DEBUG if DEBUG else logging.WARNING
     console_handler = logging.StreamHandler()
     console_handler.setLevel(console_level)
     console_handler.setFormatter(formatter)
+    console_handler.addFilter(ReqIdFilter())
 
-    # 文件（按天轮转，始终 DEBUG 级别）
     os.makedirs(LOG_DIR, exist_ok=True)
     log_path = os.path.join(LOG_DIR, LOG_FILE)
     file_handler = logging.handlers.TimedRotatingFileHandler(
@@ -166,59 +225,66 @@ def _init_logger_handlers(logger: ReqIdLogger) -> None:
     )
     file_handler.setLevel(logging.DEBUG)
     file_handler.setFormatter(formatter)
+    file_handler.addFilter(ReqIdFilter())
 
-    # ---------- 为所有目标 Handler 注入 ReqIdFilter ----------
-    for handler in (console_handler, file_handler):
-        handler.addFilter(ReqIdFilter())
+    # ── 队列 + QueueHandler（主线程侧） ──
+    _log_queue = queue.Queue(maxsize=10000)
+    queue_handler = _SafeQueueHandler(_log_queue)
+    queue_handler.setLevel(logging.DEBUG)
+    root_logger.addHandler(queue_handler)
 
-    # ---------- 使用 QueueHandler 和 QueueListener 解耦 ----------
-    # 创建队列（容量可配置，这里设为 10000 条，防止内存爆炸）
-    log_queue = queue.Queue(maxsize=10000)
-
-    # QueueHandler 是同步的，但 put 操作通常很快（仅入队）
-    queue_handler = logging.handlers.QueueHandler(log_queue)
-    queue_handler.setLevel(logging.DEBUG)  # 接收所有级别，由目标 Handler 再过滤
-
-    # 将 QueueHandler 添加到 logger，所有日志先进入队列
-    logger.addHandler(queue_handler)
-
-    # 创建 QueueListener，在后台线程中消费队列，调用目标 Handler
-    listener = logging.handlers.QueueListener(
-        log_queue,
+    # ── QueueListener（后台线程侧） ──
+    _queue_listener = logging.handlers.QueueListener(
+        _log_queue,
         console_handler,
         file_handler,
-        respect_handler_level=True,  # 尊重每个 handler 的级别设置
+        respect_handler_level=True,
     )
-    # 启动后台线程（守护模式，主程序退出时自动结束）
-    listener.start()
+    _queue_listener.start()
+    root_logger._queue_listener = _queue_listener  # type: ignore
 
-    # 将 listener 保存到 logger 的属性中，防止被 GC 回收
-    logger._queue_listener = listener  # type: ignore
+    # ✅ P1-2 修复：让第三方库的 WARNING+ 也能看到（比如 pymongo 的告警）
+    #    但注意：第三方库日志不带 req_id（它们不经过 ReqIdLogger）
+    logging.getLogger().setLevel(logging.WARNING)
+    if not logging.getLogger().handlers:
+        # 只在没有 root handler 时挂一个最小 console
+        root_console = logging.StreamHandler()
+        root_console.setLevel(logging.WARNING)
+        root_console.setFormatter(formatter)
+        logging.getLogger().addHandler(root_console)
 
-    # 记录启动信息
-    logger.debug(
-        "QueueListener 已启动 (队列容量=%d, 控制台级别=%s, 文件级别=DEBUG)",
-        log_queue.maxsize,
+    # 打印启动信息（这条日志现在能正确带上 req_id）
+    root_logger.debug(
+        "QueueListener 已启动 (队列容量=%d, 控制台级别=%s, 文件级别=DEBUG, 根logger=%s)",
+        _log_queue.maxsize,
         logging.getLevelName(console_level),
+        _ROOT_LOGGER_NAME,
     )
 
 
 # ================================================================
-#  4. 便捷函数（对外接口）
+#  4. 便捷函数
 # ================================================================
-def get_logger(name: str = "task_planner") -> ReqIdLogger:
+def get_logger(name: str = _ROOT_LOGGER_NAME) -> ReqIdLogger:
     """
-    获取或创建日志记录器（推荐使用该函数替代直接 logging.getLogger）。
-    确保日志系统已初始化且采用异步队列模式。
+    获取 logger（推荐使用该函数替代直接 logging.getLogger）。
+    内部保证日志系统已初始化。
     """
     return setup_logger(name)
 
 
-# 可选：提供全局关闭函数（用于测试或优雅关闭）
-def shutdown_logging() -> None:
-    """关闭所有 QueueListener，等待剩余日志写入完成（最多 2 秒）"""
-    logger = logging.getLogger("task_planner")
-    listener = getattr(logger, "_queue_listener", None)
-    if listener and hasattr(listener, "stop"):
-        listener.stop()  # 默认会等待队列清空（可设置超时）
-        logger.debug("📦 QueueListener 已关闭，所有日志已写入")
+def shutdown_logging(timeout: float = 2.0) -> None:
+    """
+    优雅关闭日志系统：等待队列清空后停止 listener。
+
+    ✅ P1-3 修复：用 print 记录（listener 已停，logger 写入会失败）。
+    """
+    global _queue_listener, _initialized
+    if _queue_listener is not None:
+        try:
+            _queue_listener.stop()
+        except Exception:
+            pass
+        _queue_listener = None
+    _initialized = False
+    print("[logger_setup] 📦 QueueListener 已关闭，所有日志已写入", file=sys.stderr)

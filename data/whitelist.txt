@@ -1,0 +1,5 @@
+# 白名单 —— 一行一个完整词
+# 例：analyze  → 豁免其中的 "anal"
+# 需要时取消注释并追加
+# analyze
+# analysis

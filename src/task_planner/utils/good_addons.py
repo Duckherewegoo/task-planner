@@ -1,31 +1,74 @@
 # -*- coding: utf-8 -*-
 # ╔══════════════════════════════════════════════════════════════════════╗
-# ║  good_addons.py v6.0 — Enterprise Runtime Enhancement Layer        ║
+# ║  good_addons.py v6.2 — Enterprise Runtime Enhancement Layer        ║
 # ║  Pyright strict | PEP-8 compliant | Python 3.9+                    ║
-# ║  License: GPLv3                                                       ║
+# ║  License: GPLv3                                                     ║
 # ╚══════════════════════════════════════════════════════════════════════╝
 """
-good_addons v6.1 — 企业级 Python 运行时增强层。
+good_addons v6.2 — 企业级 Python 运行时增强层。
+═══════════════════════════════════════════════════════════════════════
+单文件 drop-in 增强库：复制到任何项目即可 boost()。
 
-v6.0 Changes (vs v5.0):
-  - 新增 @timed 轻量级计时装饰器
-  - 新增 @fallback 优雅降级装饰器
-  - 新增 HealthChecker 健康检查组件
-  - 分布式追踪：自动从 HTTP Header 提取 trace_id
-  - 结构化日志：可选的 JSON 格式输出
-  - 日志级别动态调整：set_log_level()
-  - diag() 增强：集成健康检查输出
-  - EventBus.get_history() 替代直接访问 _history
+Changelog:
 
-V6.1 Changes (vs V6.0):
-    HealthChecker 整个类（含死锁 + 装饰器语法）
-    _setup_logging（支持重建 + JSON 格式生效）
-    boost（让 json_log 参数真正生效）
+  ── v6.0（vs v5.0）──
+  ✅ 新增 @timed 轻量级计时装饰器
+  ✅ 新增 @fallback 优雅降级装饰器
+  ✅ 新增 HealthChecker 健康检查组件
+  ✅ 分布式追踪：自动从 HTTP Header 提取 trace_id
+  ✅ 结构化日志：可选的 JSON 格式输出
+  ✅ 日志级别动态调整：set_log_level()
+  ✅ diag() 增强：集成健康检查输出
+  ✅ EventBus.get_history() 替代直接访问 _history
+
+  ── v6.1 ──
+  ✅ HealthChecker 重写：
+       - 修复"在已有事件循环中调用 run() 死锁"
+         现在降级为 degraded + 提示用 run_async()
+       - 新增 run_async() / format_async() 异步版本
+       - register() 支持"直接调用"和"装饰器"两种用法
+  ✅ _setup_logging 支持重建：检测 JSON 格式变化，自动清空 handler
+  ✅ boost(json_log=True) 现在能真正生效（不再被 import 时的旧 handler 吃掉）
+
+  ── v6.2 ──
+  ✅ P1-1：系统健康检查的内存阈值统一。
+           原硬编码 `1024 * 0.9` 与 boost(memory_limit_mb=2048) 不一致，
+           导致用户设 4G 时 900MB 就告警。现按 boost 参数动态计算。
+  ✅ P1-2：_eventbus_health 改用公开的 EventBus.subscriber_count()，
+           不再通过 getattr(EVENTS, "_subs") 访问私有属性。
+  ✅ P1-3：@trace 装饰器的 finally 块简化。
+           原 async/sync 两处 if/else 重复计算 ms，现统一为一行。
+  ✅ P2-4：EventBus.emit / emit_async 的异常 stderr 输出加注释说明
+           为何有意使用 print 而非 logger（防 log 未初始化 / 递归）。
 
 Usage:
     from good_addons import boost
-    boost()           # Pure backend enhancement
-    boost(app)        # Web framework enhancement (auto-detects Dash/Flask)
+
+    # 纯后端增强
+    boost()
+
+    # Web 框架增强（自动识别 Dash / Flask）
+    boost(app)
+
+    # 常用组合
+    boost(
+        app,
+        log_level="INFO",
+        memory_watchdog=True,
+        memory_limit_mb=2048,
+        graceful_shutdown=True,
+        json_log=False,        # True 时输出 JSON 格式日志
+        csp_policy=None,       # None 时自动选择 Dash 兼容 / 严格策略
+    )
+
+设计说明：
+  - 单文件可 drop-in，避免拆包破坏"复制一个 .py 就能用"的核心属性
+  - 所有可选依赖（psutil / rich / orjson / pydantic / prometheus / cryptography）
+    都走 try-import + 优雅降级，缺哪个都不影响 boost() 启动
+  - 全局单例走 _SingletonMeta，线程安全
+
+跨模块依赖（仅本项目内）：
+  - 无。本文件保持零内部依赖，便于复制到其他项目。
 """
 
 from __future__ import annotations
@@ -119,7 +162,7 @@ try:
 except ImportError:
     Fernet = None  # type: ignore
 
-__version__ = "6.0.0"
+__version__ = "6.2.0"
 __all__ = [
     "boost", "trace", "timed", "retry", "circuit_breaker", "rate_limited",
     "cached", "validated", "guarded", "fallback", "debounce", "memoize",
@@ -188,6 +231,8 @@ class EventBus(metaclass=_SingletonMeta):
             try:
                 results.append(handler(**kwargs))
             except Exception as e:
+                # 有意用 print 而非 log：EventBus 可能在 log 初始化前就被调用，
+                # 且 handler 异常若走 logger 可能递归（log 自身也订阅事件的话）
                 print(f"[EventBus] Error in {handler.__name__} for {event}: {e}", file=sys.stderr)
         return results
 
@@ -204,6 +249,8 @@ class EventBus(metaclass=_SingletonMeta):
                 else:
                     results.append(handler(**kwargs))
             except Exception as e:
+                # 有意用 print 而非 log：EventBus 可能在 log 初始化前就被调用，
+                # 且 handler 异常若走 logger 可能递归（log 自身也订阅事件的话）
                 print(f"[EventBus] Async error in {handler.__name__} for {event}: {e}", file=sys.stderr)
         return results
 
@@ -594,18 +641,16 @@ def trace(
                 raise
             finally:
                 _ctx_trace_id.reset(old)
+                # ✅ P1-3：统一计算 ms，避免 if/else 分支重复
+                ms = (time.perf_counter() - t0) * 1000
                 if not _recorded:
-                    ms = (time.perf_counter() - t0) * 1000
                     PERF.record(fname, ms)
-                else:
-                    ms = (time.perf_counter() - t0) * 1000
                 if ms > slow_ms:
                     log.warning("⏱ SLOW %s: %.1fms (threshold: %.0fms)", fname, ms, slow_ms)
                 if memory and _HAS_PSUTIL and psutil:
                     delta = psutil.Process().memory_info().rss - mem_before
                     if abs(delta) > 1024 * 1024:
                         log.info("🧠 %s mem Δ: %+.1fMB", fname, delta / (1024 * 1024))
-
         @functools.wraps(func)
         def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
             t0 = time.perf_counter()
@@ -625,18 +670,16 @@ def trace(
                 raise
             finally:
                 _ctx_trace_id.reset(old)
+                # ✅ P1-3：统一计算 ms，避免 if/else 分支重复
+                ms = (time.perf_counter() - t0) * 1000
                 if not _recorded:
-                    ms = (time.perf_counter() - t0) * 1000
                     PERF.record(fname, ms)
-                else:
-                    ms = (time.perf_counter() - t0) * 1000
                 if ms > slow_ms:
                     log.warning("⏱ SLOW %s: %.1fms (threshold: %.0fms)", fname, ms, slow_ms)
                 if memory and _HAS_PSUTIL and psutil:
                     delta = psutil.Process().memory_info().rss - mem_before
                     if abs(delta) > 1024 * 1024:
                         log.info("🧠 %s mem Δ: %+.1fMB", fname, delta / (1024 * 1024))
-
         if inspect.iscoroutinefunction(func):
             return cast(F, async_wrapper)
         return cast(F, sync_wrapper)
@@ -1474,29 +1517,31 @@ class HealthChecker(metaclass=_SingletonMeta):
             if result.get("details"):
                 lines.append(f"      {result['details']}")
         return "\n".join(lines)
+
 # ── v6.0: 自动注册系统健康检查 ──
 _HEALTH = HealthChecker()
+
+# 内存上限（由 boost(memory_limit_mb=...) 设置）
+_memory_limit_mb: float = 2048.0
 
 
 @_HEALTH.register("system")
 def _system_health() -> Dict[str, Any]:
     mem = SystemMonitor.memory_info()
     cpu = SystemMonitor.cpu_percent()
-    status = "ok"
-    if mem.get("rss_mb", 0) > 1024 * 0.9:  # 接近内存限制时告警
-        status = "degraded"
+    rss = mem.get("rss_mb", 0)
+    # ✅ P1-1：阈值与 boost(memory_limit_mb=...) 一致
+    status = "degraded" if rss > _memory_limit_mb * 0.9 else "ok"
     return {
         "status": status,
-        "details": f"RSS: {mem.get('rss_mb', 0):.1f}MB, CPU: {cpu:.1f}%",
+        "details": f"RSS: {rss:.1f}MB / limit {_memory_limit_mb:.0f}MB, CPU: {cpu:.1f}%",
     }
-
 
 @_HEALTH.register("eventbus")
 def _eventbus_health() -> Dict[str, Any]:
-    """✅ 通过公开 API 读取 EventBus 状态，不再访问私有属性。"""
-    history = EVENTS.get_history(last_n=1)
-    # 通过公开方法获取订阅数（如果没有公开方法，就用一个安全的方式）
-    subs_count = sum(len(v) for v in getattr(EVENTS, "_subs", {}).values())
+    """通过公开 API 读取 EventBus 状态。"""
+    history = EVENTS.get_history(last_n=1000)
+    subs_count = EVENTS.subscriber_count()
     return {
         "status": "ok",
         "details": f"subscribers: {subs_count}, history: {len(history)}",
@@ -1750,7 +1795,9 @@ def boost(
       - json_log=True 启用 JSON 格式日志（✅ P0-2 修复：现在能真正生效）
       - 自动注册健康检查
     """
-    global log, _boost_initialized, _LOG_JSON_FORMAT
+    global log, _boost_initialized, _LOG_JSON_FORMAT, _memory_limit_mb
+
+    _memory_limit_mb = memory_limit_mb
 
     if _boost_initialized:
         log.debug("boost() already initialized, skipping")

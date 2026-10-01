@@ -1,11 +1,24 @@
 """
-state.py — LangGraph 状态定义（P2 修复版）
+state.py — LangGraph 状态定义
+═══════════════════════════════════════════════════════════════════════
+Changelog:
+  ── v1 ──
+  ✅ UserAction / NodeStatus 枚举
+  ✅ TaskState 继承 MessagesState
+  ✅ schema_version 字段（checkpoint 兼容）
+
+  ── v2 ──
+  ✅ P1-1：移除 steps / node_results 的 operator.add reducer。
+           所有节点返回的是"完整列表"，与 reducer 语义冲突，
+           会导致列表指数级重复。改为普通 list（覆盖语义），
+           与节点实际行为一致。
+  ✅ P1-2：删除未使用的 UserActionLiteral / NodeResult / validate_user_action。
+  ✅ P1-3：清理 view_mode 的历史决策注释。
 """
 from __future__ import annotations
 
-import operator
 from enum import StrEnum
-from typing import Annotated, Any, Literal
+from typing import Any
 
 from langgraph.graph import MessagesState
 
@@ -17,9 +30,6 @@ class UserAction(StrEnum):
     RETRY_NODE = "retry_node"
 
 
-UserActionLiteral = Literal[*UserAction]
-
-
 class NodeStatus(StrEnum):
     PENDING = "pending"
     RUNNING = "running"
@@ -28,15 +38,14 @@ class NodeStatus(StrEnum):
     FAILED = "failed"
 
 
-class NodeResult(dict):
-    """
-    单个节点的执行结果。
-    用 TypedDict 会更好，但为兼容现有 dict 写入，先用 dict 别名。
-    """
-
-
 class TaskState(MessagesState):
-    """LangGraph 全局状态。继承 MessagesState 自带 messages 字段。"""
+    """
+    LangGraph 全局状态。继承 MessagesState 自带 messages 字段。
+
+    ⚠️ 注意：steps / node_results 使用覆盖语义（非 reducer）。
+       所有节点约定返回"完整列表"，而非"增量"。
+       如果你未来想改成 reducer 累积，必须同步把所有节点改成返回增量。
+    """
 
     # ── 用户输入 ──
     user_input: str
@@ -59,8 +68,7 @@ class TaskState(MessagesState):
 
     # ── 执行进度 ──
     current_node_index: int
-    # ✅ P0 修复：加 reducer，节点只需返回增量，LangGraph 自动拼接
-    node_results: Annotated[list[dict[str, Any]], operator.add]
+    node_results: list[dict[str, Any]]
 
     # ── 渲染产物 ──
     svg: str
@@ -73,8 +81,7 @@ class TaskState(MessagesState):
     cancel_requested: bool
     error: str
     status_text: str
-    # ✅ P0 修复：加 reducer，append-only
-    steps: Annotated[list[str], operator.add]
+    steps: list[str]
 
     # ── 用户指令（interrupt / resume 用）──
     user_action: UserAction | None
@@ -84,20 +91,8 @@ class TaskState(MessagesState):
     # ── 断点续传辅助字段 ──
     resume_from_node_index: int | None
 
-    # ✅ P0 修复：view_mode 不属于领域状态，已移除。
-    #    改为 run_task_stream(..., view_mode=...) 的运行时参数。
-    #    如果你暂时不想动 agent.py，就先把这行注释掉，别删，留着也行。
-
     # ── Schema 版本（checkpoint 兼容性）──
     schema_version: int
 
 
-def validate_user_action(action: str) -> UserAction:
-    """将外部输入安全转换为合法 UserAction，非法值立即报错。"""
-    try:
-        return UserAction(action)
-    except ValueError:
-        valid_values = [e.value for e in UserAction]
-        raise ValueError(
-            f"Invalid user action '{action}'. Expected one of {valid_values}"
-        ) from None
+__all__ = ["UserAction", "NodeStatus", "TaskState"]

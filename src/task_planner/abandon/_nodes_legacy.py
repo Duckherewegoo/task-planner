@@ -32,14 +32,13 @@ from task_planner.infrastructure.llm_client import (
 )
 from task_planner.infrastructure.logger_setup import get_logger, set_req_id
 from task_planner.utils.context import cancel_event_var
-from task_planner.infrastructure.config import (
-    LLM_NODE_MODEL,
-    LLM_NODE_TIMEOUT,
-    EXECUTE_NODE_PROMPT,
-    MAX_INPUT_LENGTH,
-    USER_VISIBLE_NODE_FIELDS,
-    SENSITIVE_PATTERNS,
-)
+from task_planner.infrastructure.cog import hub as _hub
+from task_planner.infrastructure.constants import USER_VISIBLE_NODE_FIELDS
+from task_planner.infrastructure.regexes import SENSITIVE_PATTERNS
+from task_planner.infrastructure.prompts.loader import EXECUTE_NODE_PROMPT
+LLM_NODE_MODEL = _hub.dev.LLM_NODE_MODEL
+LLM_NODE_TIMEOUT = _hub.dev.LLM_NODE_TIMEOUT
+MAX_INPUT_LENGTH = _hub.dev.MAX_INPUT_LENGTH
 from task_planner.core.graph.state import TaskState, UserAction
 
 logger = get_logger(__name__)

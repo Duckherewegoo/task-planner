@@ -54,43 +54,152 @@ ______________________________________________________________________
 
 ```
 new_task_planner/
+├── config/                        # 🔴 配置数据（外部，可挂载）
+│   ├── schema.yaml                # 开发者声明（值 + purpose + scope + secret）
+│   ├── schema.yaml.example        # 模板示例
+│   ├── user.yaml                  # 用户可覆盖项（仅 scope=user 生效）
+│   └── user.yaml.example          # 模板示例
+│
+├── data/                          # 🔴 数据（外部）
+│   ├── blocked_words/             # 违禁词库（一行一词，扁平/嵌套均可）
+│   │   ├── 反动词库.txt
+│   │   ├── 暴恐词库.txt
+│   │   ├── 色情词库.txt
+│   │   ├── 涉枪涉爆.txt
+│   │   ├── 广告类型.txt
+│   │   ├── 非法网址.txt
+│   │   ├── 零时-Tencent.txt
+│   │   └── ...（共 17 个词库文件）
+│   └── whitelist.txt              # 白名单（子串豁免）
+│
+├── scripts/                       # 🟡 运维与检查脚本
+│   ├── check_config_drift.py      # 配置漂移检测
+│   ├── migrate_config_imports.py  # 旧 config 引用迁移
+│   ├── check_bad_words_len.py     # 违禁词长度分布诊断
+│   ├── test_block_words.py        # 词库加载 + 匹配测试
+│   └── find_cyto_configs.py       # Cytoscape 配置搜索
+│
+├── examples/
+│   └── config_hub_usage_example.py  # cog 用法示例
+│
 ├── src/task_planner/
+│   ├── abandon/                   # 🗄️ 归档（旧实现，不参与运行）
+│   │   ├── config_old.py          # 旧大宗 config.py
+│   │   ├── agent_legacy.py / agent_nah.py
+│   │   ├── dash_app_legacy.py
+│   │   ├── llm_client_legacy.py
+│   │   ├── stream_manager_legacy.py
+│   │   ├── datebase_legacy.py     # 注意拼写：datebase
+│   │   ├── good_addons_old.py
+│   │   └── _nodes_legacy.py
+│   │
 │   ├── core/
-│   │   ├── graph/                 # LangGraph 图定义
+│   │   ├── db/                    # MongoDB 数据层（拆分包）
+│   │   │   ├── client.py          # 连接生命周期 + 索引
+│   │   │   ├── schema.py          # 数据清洗 / 状态辅助 / 常量
+│   │   │   ├── plans.py           # Plan CRUD
+│   │   │   ├── tasks.py           # Task CRUD + 状态更新
+│   │   │   ├── nodes.py           # nodes 数组操作
+│   │   │   └── manager.py         # DBManager 兼容类
+│   │   ├── graph/
 │   │   │   ├── state.py           # TaskState 状态契约
-│   │   │   ├── nodes.py           # 节点函数（intent/plan/refine/...）
+│   │   │   ├── nodes/             # 图节点（拆分包）
+│   │   │   │   ├── intent.py / plan.py / refine.py
+│   │   │   │   ├── save.py / render.py / execute.py
+│   │   │   │   ├── direct.py / cancel.py
+│   │   │   │   ├── routes.py      # 路由函数（纯计算）
+│   │   │   │   ├── sanitize.py    # 横切：脱敏 / 视图过滤
+│   │   │   │   └── _executor.py   # 单节点执行器
 │   │   │   └── workflow.py        # 图拓扑 + Checkpointer
-│   │   └── database.py            # MongoDB 异步数据层
+│   │   └── database.py            # 【兼容壳】转发到 core/db
+│   │
 │   ├── infrastructure/
-│   │   ├── config.py              # 全局配置中心
-│   │   ├── llm_client.py          # LLM 异步调用封装
+│   │   ├── cog/                   # 配置中枢（拆分包）
+│   │   │   ├── entry.py / store.py / guard.py / loader.py
+│   │   │   ├── session.py / section.py / registry.py / hub.py
+│   │   │   └── sections/          # base / dashscope / llm / mongo
+│   │   │                          # render / runtime / security / web
+│   │   ├── llm/                   # LLM 调用（拆分包）
+│   │   │   ├── client.py / core.py / api.py
+│   │   │   ├── json_utils.py / validator.py / mocks.py
+│   │   │   └── errors.py
+│   │   ├── prompts/               # Prompt 资源
+│   │   │   ├── loader.py          # 加载 .txt → Template
+│   │   │   ├── intent.txt / planner.txt
+│   │   │   └── node_refine.txt / execute_node.txt
+│   │   ├── assets/                # Cytoscape 样式 + JS 模板
+│   │   │   ├── cytoscape_styles.py
+│   │   │   └── cytoscape_js.py
+│   │   ├── constants.py           # 代码常量 / 枚举
+│   │   ├── regexes.py             # 预编译正则
+│   │   ├── ui_styles.py           # Dash/Gradio 内联样式
+│   │   ├── blocked_words.py       # 违禁词库加载 + AC自动机匹配
 │   │   ├── logger_setup.py        # 异步日志系统
-│   │   └── session_store.py       # 会话存储接口（内存/Redis 可插拔）
+│   │   ├── session_store.py       # 会话存储（内存/Redis 可插拔）
+│   │   └── llm_client.py          # 【兼容壳】转发到 infrastructure/llm
+│   │
 │   ├── services/
-│   │   ├── agent.py               # Agent 主入口（run_task_stream）
-│   │   ├── stream_manager.py      # 后台流式任务 + 节点状态管理
+│   │   ├── agent/                 # Agent 主入口（拆分包）
+│   │   │   ├── session.py / state.py
+│   │   │   ├── stream.py / commands.py
+│   │   │   └── view.py
+│   │   ├── stream/                # 流式任务管理（拆分包）
+│   │   │   ├── state.py / cleaner.py
+│   │   │   ├── launcher.py / control.py
+│   │   │   └── view.py
+│   │   ├── agent.py               # 【兼容壳】转发到 services/agent
+│   │   ├── stream_manager.py      # 【兼容壳】转发到 services/stream
 │   │   └── view_model.py          # 前端字段投影
-│   ├── utils/
-│   │   ├── context.py             # cancel_event_var 上下文
+│   │
+│   ├── utils/                     # 独立工具（不拆，KISS 加固）
+│   │   ├── context.py             # cancel_event 上下文
 │   │   ├── cytoscape_adapter.py   # DAG → Cytoscape 元素
 │   │   ├── flowchart_pro.py       # 交互式 HTML 渲染
 │   │   ├── pyvis_export.py        # 静态导出（SVG/PNG/PDF/DOT）
 │   │   ├── presentation_utils.py  # 展示辅助
-│   │   └── good_addons.py         # 运行时增强层（可选依赖）
-│   └── main/
-│       ├── dash_app.py            # Dash 入口
-│       └── assets/custom.css
-└── tests/
-    ├── test_*.py                  # 单元 + 集成测试
-    └── eval_suite/                # Crucible 评估套件
-        ├── crucible_eval.py
-        ├── dataset_manager.py
-        ├── hitl_reviewer.py
-        ├── run_evaluation.py
-        └── harness/
-            ├── agent_harness.py
-            ├── evaluators.py
-            └── reporters.py
+│   │   └── good_addons.py         # 运行时增强层（drop-in）
+│   │
+│   ├── main/
+│   │   ├── ui/                    # Dash UI（拆分包）
+│   │   │   ├── app.py / layout.py
+│   │   │   ├── constants.py / data_ops.py / export.py
+│   │   │   └── callbacks/         # 分组回调
+│   │   │       ├── new_task.py    # 新建任务
+│   │   │       ├── history.py     # 历史记录
+│   │   │       ├── export_cb.py   # 导出
+│   │   │       └── graph_js.py    # 客户端回调
+│   │   ├── dash_app.py            # 【兼容壳】转发到 main/ui
+│   │   ├── assets/custom.css
+│   │   └── py.typed
+│   │
+│   └── logs/                      # ⚠️ 见下方"已知问题"
+│
+├── tests/
+│   ├── test_package/              # 单元 + 集成测试
+│   │   ├── test_config_contract.py
+│   │   ├── test_evaluators.py
+│   │   ├── test_graph_finished.py
+│   │   ├── test_initial_state.py
+│   │   ├── test_json_extraction.py
+│   │   ├── test_normalize_output.py
+│   │   └── test_session_store.py
+│   └── eval_suite/                # Crucible 评估套件
+│       ├── crucible_eval.py
+│       ├── dataset_manager.py
+│       ├── hitl_reviewer.py
+│       ├── run_evaluation.py
+│       └── harness/
+│           ├── agent_harness.py
+│           ├── evaluators.py
+│           └── reporters.py
+│
+├── logs/                          # 运行日志（项目根）
+├── eval_reports/                  # 评估报告输出
+├── docker-compose.yml
+├── pyproject.toml
+├── README.md
+├── LICENSE
+└── .gitignore
 ```
 
 ______________________________________________________________________
@@ -135,7 +244,7 @@ sudo systemctl start mongod
 在项目根目录创建 `.env`（参考 `.env.example`）：
 
 ```bash
-# ── LLM ──
+# ── LLM（密钥类字段：必须从环境变量读，禁止落盘到 YAML）──
 DASHSCOPE_API_KEY=your_api_key
 DASHSCOPE_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
 USE_MOCK_LLM=false              # 开发调试可设 true，跳过真实调用
@@ -151,6 +260,10 @@ LOG_CONSOLE_LEVEL=INFO
 
 # ── Checkpointer ──
 CHECKPOINTER_TYPE=memory        # memory / sqlite / postgres
+
+# ── 说明 ──
+# 其他普通配置（超时、并发、端口等）请改 config/schema.yaml。
+# 用户级偏好（主题、UI 端口）请改 config/user.yaml，见该文件内注释。
 ```
 
 ### 4. 启动
@@ -227,7 +340,21 @@ ______________________________________________________________________
 | `DASH_HOST` | Dash 监听地址 | `0.0.0.0` |
 | `DASH_PORT` | Dash 监听端口 | `8050` |
 
-完整配置见 `src/task_planner/infrastructure/config.py`。
+### 配置读取顺序
+
+```
+环境变量（仅 from_env=true 的字段，如密钥）
+        ↓ 覆盖
+config/user.yaml（仅 scope=user 的字段）
+        ↓ 覆盖
+config/schema.yaml（默认值）
+```
+
+**密钥类字段（如 `DASHSCOPE_API_KEY`）永远不落盘**，只从环境变量读——
+`schema.yaml` 里以 `from_env: true` 声明，运行时经 `ConfigEntry` 护栏校验。
+
+完整配置声明见 `config/schema.yaml`；
+配置中枢代码见 `src/task_planner/infrastructure/cog/`。
 
 ______________________________________________________________________
 
@@ -313,16 +440,44 @@ python -c "import task_planner; print(task_planner.__file__)"
 
 **修复**：确认 `src/task_planner/main/assets/custom.css` 存在，且 `dash.Dash(assets_folder="assets")`。
 
-### ❌ `ImportError: cannot import name 'XXX' from config`
+### ❌ `ImportError: cannot import name 'XXX' from 'task_planner.infrastructure.cog'`
 
-**原因**：`config.py` 缺少某个常量（review 时已修复大部分）。
+**原因**：`config/schema.yaml` 里未声明该配置项，或 `cog/sections/*.py` 未注册。
 
 **修复**：
 
 ```bash
-# 找到真缺的常量（用 import 而不是 grep）
+# 1. 确认 schema 里有没有这个字段
+grep -n "XXX" config/schema.yaml
+
+# 2. 如果没有，加进去（含 purpose + scope + type）
+#    或在 cog/sections/ 下对应 section 里用 ConfigEntry 声明
+
+# 3. 检查运行时能看到哪些配置
+python -c "from task_planner.infrastructure.cog import hub; print(len(hub), hub.snapshot()[0].purpose)"
+
+# 4. 全链路 import 测试（暴露真缺的符号）
 python -c "import task_planner.main.dash_app"
 ```
+
+### ❌ `ValueError: X: secret 字段必须 from_env`
+
+**原因**：在 `schema.yaml` 里声明了 `secret: true` 但没加 `from_env: true`。
+这是有意设计——防止明文密钥落盘。
+
+**修复**：
+
+```yaml
+SOME_API_KEY:
+  type: str
+  default: ""
+  scope: developer
+  purpose: 描述
+  secret: true
+  from_env: true        # ← 补上这一行
+```
+
+然后通过环境变量提供值（`.env` / Docker env / K8s Secret 都行）。
 
 ### ❌ pytest 卡住或极慢
 
@@ -354,6 +509,62 @@ echo "DASH_PORT=8051" >> .env
 **排查**：F12 → Console 看 JS 报错；Network 看 `_dash-update-component` 请求。
 
 **常见**：`assets/custom.css` 404（检查 `assets_folder` 路径）。
+
+### ⚠️ 日志目录出现在 3 个地方
+
+现象：
+
+```
+./logs/task_planner.log
+./src/logs/task_planner.log
+./src/task_planner/logs/task_planner.log
+```
+
+**原因**：`LOG_DIR` 是相对路径，从不同 CWD 启动会写到不同位置。
+
+**修复**（推荐）：`.env` 里显式指定绝对路径：
+
+```bash
+LOG_DIR=/abs/path/to/project/logs
+```
+
+或在 `config/user.yaml` 里覆盖（不推荐，因为 `LOG_DIR` 是 developer scope）：
+
+```yaml
+# config/schema.yaml
+base:
+  LOG_DIR:
+    type: str
+    default: logs           # 相对项目根
+    scope: developer
+    purpose: 日志目录，建议用绝对路径避免歧义
+```
+
+清掉历史残留：
+
+```bash
+rm -rf src/logs/ src/task_planner/logs/
+```
+
+### ⚠️ 日志报 `违禁词库目录不存在`
+
+**原因**：`data/blocked_words/` 目录为空或路径不对。
+
+**修复**：
+
+```bash
+# 确认词库就位
+ls data/blocked_words/ | head
+
+# 确认加载器生效
+python -c "
+from task_planner.infrastructure.blocked_words import BLOCKED_WORDS
+print(f'词条数: {len(BLOCKED_WORDS)}')
+"
+
+# 如需自定义路径
+export BLOCKED_WORDS_DIR=/mnt/nfs/security/words
+```
 
 ______________________________________________________________________
 

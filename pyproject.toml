@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "task-planner"
-version = "2.1.1"
+version = "3.0.0"
 description = "基于 LangGraph 与大语言模型的自主任务规划引擎，支持动态 DAG 编排、多模态意图识别与全流程可观测性评估（异步版）。"
 requires-python = ">=3.10"
 license = { text = "GPL-3.0-or-later" }
@@ -21,6 +21,9 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "httpx>=0.27.0",
     "pydantic>=2.0.0",
+
+    # ── 配置（cog/loader.py 硬依赖 YAML）──
+    "pyyaml>=6.0.0",
 
     # ── 数据库（异步驱动）──
     "motor>=3.6.0",
@@ -52,11 +55,11 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-# ── UI 界面 ──
-gradio = [
-    "gradio>=6.0.0",
+# ── 违禁词匹配加速（.py 里优雅降级，不装也能跑）──
+words = [
+    "pyahocorasick>=2.1.0",
 ]
-# ── LLM 提供商 ──
+# ── LLM 提供商（可选，走 OpenAI 兼容模式时不需要）──
 dashscope = [
     "dashscope>=1.20.0",
 ]
@@ -66,9 +69,7 @@ orjson = [
 ]
 # ── 评估套件依赖 ──
 eval = [
-    "gradio>=6.0.0",
     "python-Levenshtein>=0.25.0",   # 字符串相似度计算
-    "pyyaml>=6.0.0",                # YAML 数据集加载
 ]
 # ── 开发依赖 ──
 dev = [
@@ -81,7 +82,7 @@ dev = [
     "pyright>=1.1.390",
     "mypy>=1.13.0",
     "python-Levenshtein>=0.25.0",   # 评估套件需要
-    "pyyaml>=6.0.0",                # 评估套件需要
+    "pyahocorasick>=2.1.0",         # 违禁词匹配性能测试需要
 ]
 
 [project.urls]
@@ -90,13 +91,26 @@ Repository = "https://github.com/Duckherewegoo/task-planner"
 Issues = "https://github.com/Duckherewegoo/task-planner/issues"
 
 [project.scripts]
-task-planner = "task_planner.main.dash_app:main"
-task-planner-gradio = "task_planner.abandon.gradio_app:main"   # ⚠️ 已废弃，保留向后兼容
+task-planner = "task_planner.main.ui.app:main"
 task-planner-eval = "tests.eval_suite.run_evaluation:main"
+# ✅ 已移除 task-planner-gradio（gradio 已废弃，abandon/ 中无 gradio_app.py）
+
+
+# ══════════════════════════════════════════════════
+#  打包配置
+# ══════════════════════════════════════════════════
 
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["task_planner*"]
+# 排除归档代码（不安装到 site-packages）
+exclude = ["task_planner.abandon*"]
+
+[tool.setuptools.package-data]
+# ✅ prompts/ 下的 .txt 必须打包，否则 pip install 后运行时读不到
+"task_planner.infrastructure.prompts" = ["*.txt"]
+# ✅ assets 里的资源（如果未来加字体/图片）
+"task_planner.main" = ["assets/*"]
 
 
 # ══════════════════════════════════════════════════

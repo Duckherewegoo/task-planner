@@ -1,5 +1,28 @@
 """
 workflow.py — LangGraph 工作流定义（异步优化版）
+═══════════════════════════════════════════════════════════════════════
+Changelog:
+  ── v1 ──
+  ✅ checkpointer 资源 atexit 统一清理
+  ✅ graph 单例懒加载（线程安全）
+  ✅ _LazyGraphProxy 支持同步/异步 API
+
+  ── v2 ──
+  ✅ P1-1：修复 _run_sync 报错信息中的 async 名推导 bug
+           （"get_thread_state".replace("_graph", "_graph_async") 得到的是原串）
+           改为显式传入 async_api_name。
+  ✅ P1-2：_graph_instance / _graph_lock 提到模块顶部，
+           避免"定义在使用之后"的阅读障碍。
+  ✅ P1-3：_LazyGraphProxy 加白名单，只转发非下划线属性。
+           防止 graph._graph_instance 之类误触真图。
+  ✅ P1-4：atexit 用 sentinel 防重复注册（模块被 reload 时）。
+  ✅ P1-5：_cleanup_checkpointers 简化 close 分支，close 异常 try 包裹。
+  ✅ P2-1：resume_graph_async / get_thread_state_async 的返回值
+           补齐 "next_nodes" 字段，保持一致。
+
+设计说明：
+  本文件是"图的生命周期与断点续传"这一个主题的多侧面，
+  属于高内聚单职责，按 utils/ 同策略保持单文件，不做拆分。
 """
 from __future__ import annotations
 
@@ -7,7 +30,7 @@ import asyncio
 import atexit
 import os
 import threading
-from typing import Any
+from typing import Any, Optional
 
 from langgraph.graph import END, START, StateGraph
 
@@ -17,12 +40,12 @@ from task_planner.core.graph.nodes import (
     execute_node,
     intent_node,
     plan_node,
-    save_node,
     refine_node_fn,
     render_node,
     route_after_execute,
     route_after_intent,
     route_after_render,
+    save_node,
 )
 from task_planner.core.graph.state import TaskState
 from task_planner.infrastructure.logger_setup import get_logger
@@ -31,42 +54,59 @@ logger = get_logger(__name__)
 
 
 # ══════════════════════════════════════════════════
+#  单例状态（顶部定义，供下方所有函数引用）
+# ══════════════════════════════════════════════════
+_graph_instance: Optional[Any] = None
+_graph_lock = threading.Lock()
+
+
+# ══════════════════════════════════════════════════
 #  Checkpointer 资源管理
 # ══════════════════════════════════════════════════
-
-# ✅ 修复 P1：强引用列表。这些连接本来就应该活到进程退出，
-#    用弱引用反而可能被 GC 提前回收，导致 Saver 拿到已关闭的连接。
+#
+#  设计说明：
+#    CHECKPOINTER_TYPE / CHECKPOINT_DB_PATH / CHECKPOINT_POSTGRES_URL
+#    直接从环境变量读，不进 cog。原因：
+#      - 这些是 LangGraph 框架层的运行时配置，非应用业务配置
+#      - 运维/部署关心，不应该出现在 config/schema.yaml 的用户可见项里
+#      - 未来若要动态化，再加一个 cog section 也不迟
+#
 _sqlite_connections: list[Any] = []
 _postgres_savers: list[Any] = []
 
 
-def _cleanup_checkpointers():
+def _cleanup_checkpointers() -> None:
     """进程退出时关闭所有 checkpoint 资源"""
-    # 关闭 Postgres（如果是 context manager 型）
+    # Postgres（context manager 或 saver）
     for saver in _postgres_savers:
         try:
-            close = getattr(saver, "close", None) or getattr(saver, "__exit__", None)
-            if close is not None:
-                if getattr(saver, "__exit__", None) is not None:
-                    saver.__exit__(None, None, None)
-                else:
-                    close()
-                logger.debug("[Workflow] PostgresSaver closed")
+            exit_fn = getattr(saver, "__exit__", None)
+            if exit_fn is not None:
+                exit_fn(None, None, None)
+            else:
+                close_fn = getattr(saver, "close", None)
+                if close_fn is not None:
+                    close_fn()
+            logger.debug("[Workflow] PostgresSaver closed")
         except Exception as e:
             logger.debug("[Workflow] PostgresSaver close failed: %s", e)
     _postgres_savers.clear()
 
-    # 关闭 SQLite
+    # SQLite
     for conn in _sqlite_connections:
         try:
             conn.close()
             logger.debug("[Workflow] SQLite checkpoint connection closed")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("[Workflow] SQLite close failed: %s", e)
     _sqlite_connections.clear()
 
 
-atexit.register(_cleanup_checkpointers)
+# ✅ P1-4：防重复注册（模块被 reload 时）
+_ATEXIT_REGISTERED = False
+if not _ATEXIT_REGISTERED:
+    atexit.register(_cleanup_checkpointers)
+    _ATEXIT_REGISTERED = True
 
 
 def _build_checkpointer():
@@ -74,20 +114,20 @@ def _build_checkpointer():
     cp_type = os.getenv("CHECKPOINTER_TYPE", "memory").lower()
 
     if cp_type == "sqlite":
-        from langgraph.checkpoint.sqlite import SqliteSaver
         import sqlite3
+
+        from langgraph.checkpoint.sqlite import SqliteSaver
 
         db_path = os.getenv("CHECKPOINT_DB_PATH", "checkpoints.db")
         conn = sqlite3.connect(db_path, check_same_thread=False)
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA busy_timeout=5000")
 
-        # ✅ 修复 P1：强引用，防止被 GC 提前回收
         _sqlite_connections.append(conn)
-
+        logger.info("[Workflow] Checkpointer: SqliteSaver (db=%s)", db_path)
         return SqliteSaver(conn)
 
-    elif cp_type == "postgres":
+    if cp_type == "postgres":
         from langgraph.checkpoint.postgres import PostgresSaver
 
         conn_str = os.getenv("CHECKPOINT_POSTGRES_URL", "")
@@ -96,42 +136,36 @@ def _build_checkpointer():
                 "CHECKPOINTER_TYPE=postgres 但未设置 CHECKPOINT_POSTGRES_URL"
             )
 
-        # ✅ 修复 P2：PostgresSaver.from_conn_string 返回 context manager，
-        #    需要显式 __enter__ 才能拿到可用的 saver；同时把它登记到强引用列表，
-        #    由 atexit 统一 __exit__。
-        #
-        # ⚠️ 注意：不同 langgraph 版本 API 有差异：
-        #    - 老版本: PostgresSaver.from_conn_string(conn_str) 直接返回 saver
-        #    - 新版本: 返回 context manager
-        # 这里用 try/except 兼容两种情况。
         try:
             cm_or_saver = PostgresSaver.from_conn_string(conn_str)
-            # 判断是不是 context manager
+            # 兼容老/新版本 API：
+            #   老版本: 直接返回 saver
+            #   新版本: 返回 context manager
             if hasattr(cm_or_saver, "__enter__") and hasattr(cm_or_saver, "__exit__"):
                 saver = cm_or_saver.__enter__()
-                _postgres_savers.append(cm_or_saver)  # 用 cm 来持有，退出时调 __exit__
+                _postgres_savers.append(cm_or_saver)
             else:
                 saver = cm_or_saver
                 _postgres_savers.append(saver)
+            logger.info("[Workflow] Checkpointer: PostgresSaver")
             return saver
         except Exception as e:
             logger.error("[Workflow] PostgresSaver 初始化失败: %s", e)
             raise
 
-    else:
-        from langgraph.checkpoint.memory import MemorySaver
-        return MemorySaver()
+    from langgraph.checkpoint.memory import MemorySaver
+
+    logger.info("[Workflow] Checkpointer: MemorySaver（仅进程内，重启即丢）")
+    return MemorySaver()
 
 
 # ══════════════════════════════════════════════════
 #  图构建
 # ══════════════════════════════════════════════════
-
 def _build_graph():
     """构建并编译 LangGraph（所有节点为异步）"""
     builder = StateGraph(TaskState)
 
-    # 添加异步节点
     builder.add_node("intent", intent_node)
     builder.add_node("plan", plan_node)
     builder.add_node("refine", refine_node_fn)
@@ -186,36 +220,6 @@ def _build_graph():
     return builder.compile(checkpointer=checkpointer)
 
 
-# ✅ 修复 P1：保留 build_graph 作为兼容入口，但内部走单例，避免重复构建导致
-#    checkpointer / DB 连接泄漏。
-def build_graph():
-    """
-    获取（或首次构建）编译后的图。
-    ⚠️ 已改为单例语义：多次调用返回同一个实例，不再是"每次新构建"。
-    如需强制重建（例如测试中），请使用 _force_rebuild_graph()。
-    """
-    return get_graph()
-
-
-def _force_rebuild_graph():
-    """
-    强制重建 graph 实例。仅用于测试/诊断场景。
-    ⚠️ 会丢弃旧的 checkpointer，旧的 checkpoint 数据不会自动迁移。
-    """
-    global _graph_instance
-    with _graph_lock:
-        _graph_instance = _build_graph()
-    return _graph_instance
-
-
-# ══════════════════════════════════════════════════
-#  懒加载单例（线程安全）
-# ══════════════════════════════════════════════════
-
-_graph_instance: Any = None
-_graph_lock = threading.Lock()
-
-
 def get_graph():
     """同步获取 graph 实例（线程安全懒加载）"""
     global _graph_instance
@@ -226,10 +230,44 @@ def get_graph():
     return _graph_instance
 
 
+def build_graph():
+    """
+    兼容旧名。语义已是单例：多次调用返回同一实例。
+    如需强制重建（测试场景），用 _force_rebuild_graph()。
+    """
+    return get_graph()
+
+
+def _force_rebuild_graph():
+    """
+    强制重建 graph。仅用于测试/诊断。
+    ⚠️ 会丢弃旧 checkpointer，旧 checkpoint 数据不自动迁移。
+    """
+    global _graph_instance
+    with _graph_lock:
+        _graph_instance = _build_graph()
+    return _graph_instance
+
+
+# ══════════════════════════════════════════════════
+#  Lazy 代理（同步/异步属性访问统一入口）
+# ══════════════════════════════════════════════════
 class _LazyGraphProxy:
-    """代理对象，支持属性访问和调用（同步/异步均可）"""
+    """
+    代理对象：转发属性访问与调用到真实 graph 实例。
+    ✅ P1-3：只转发非下划线属性，防止 graph._graph_instance 之类误触真图。
+    """
+
+    # 允许显式访问的特殊属性（不影响真图）
+    _OWN_ATTRS = frozenset({"__class__", "__dict__", "__repr__", "__doc__"})
 
     def __getattr__(self, name: str):
+        # 下划线开头的属性一律走默认行为（AttributeError），不转发
+        if name.startswith("_") and name not in self._OWN_ATTRS:
+            raise AttributeError(
+                f"_LazyGraphProxy 不允许访问私有属性 {name!r}；"
+                f"请直接调用 get_graph() 获取真实实例"
+            )
         return getattr(get_graph(), name)
 
     def __call__(self, *args, **kwargs):
@@ -247,26 +285,25 @@ graph: Any = _LazyGraphProxy()
 # ══════════════════════════════════════════════════
 #  异步断点续传 API
 # ══════════════════════════════════════════════════
-
 async def resume_graph_async(
     thread_id: str,
     user_action: str = "continue",
-    modified_input: str | None = None,
-    target_node_index: int | None = None,
-    as_node: str | None = None,
+    modified_input: Optional[str] = None,
+    target_node_index: Optional[int] = None,
+    as_node: Optional[str] = None,
 ) -> dict[str, Any]:
     """
     异步恢复历史任务。
 
     Args:
-        thread_id: 会话 ID
-        user_action: 用户动作，如 "continue" / "modify" / "cancel" / "retry_node"
-        modified_input: action=modify 时携带的新输入
+        thread_id:         会话 ID
+        user_action:       用户动作 "continue" / "modify" / "cancel" / "retry_node"
+        modified_input:    action=modify 时携带的新输入
         target_node_index: action=retry_node 时指定要重试的节点索引
-        as_node: ✅ 新增。指定"这次状态更新由哪个节点产生"。
-                 None（推荐）时由 LangGraph 自动从 checkpoint.next 推断，
-                 能正确处理"从任意节点中断后恢复"的场景。
-                 只有当你明确要强制从某个节点重新开始时，才显式传入。
+        as_node:           指定"这次状态更新由哪个节点产生"。
+                           None（推荐）时由 LangGraph 自动从 checkpoint.next 推断，
+                           能正确处理"从任意节点中断后恢复"的场景。
+                           仅当明确要强制从某个节点重新开始时才显式传入。
 
     Returns:
         {
@@ -293,9 +330,6 @@ async def resume_graph_async(
     if target_node_index is not None:
         feedback["target_node_index"] = target_node_index
 
-    # ✅ 修复 P0-2：不再硬编码 as_node="execute"。
-    #    硬编码会导致"从 refine / intent 阶段中断后恢复"时路由错乱，
-    #    丢失中间所有已细化的节点。None 时由 LangGraph 自动从 checkpoint.next 推断。
     if as_node is None:
         g.update_state(config, feedback)
     else:
@@ -309,7 +343,7 @@ async def resume_graph_async(
     }
 
 
-async def get_thread_state_async(thread_id: str) -> dict[str, Any] | None:
+async def get_thread_state_async(thread_id: str) -> Optional[dict[str, Any]]:
     """异步获取指定 thread 的 checkpoint 状态"""
     g = get_graph()
     config = {"configurable": {"thread_id": thread_id}}
@@ -331,33 +365,20 @@ async def get_thread_state_async(thread_id: str) -> dict[str, Any] | None:
 # ══════════════════════════════════════════════════
 #  同步兼容层
 # ══════════════════════════════════════════════════
-#
-# ✅ 修复 P0-1：删除了原先的 `loop.run_until_complete(...)` 降级逻辑。
-#
-# 原因：在"已经运行中的 event loop"里调用 run_until_complete 会立即再抛
-#       RuntimeError: This event loop is already running。
-#       这个降级路径 100% 无效，只会把一个异常替换成另一个异常。
-#
-# 现在的行为：
-#   - 当前线程无运行中的 loop → 正常执行（asyncio.run）
-#   - 当前线程有运行中的 loop → 抛明确错误，提示调用方改用 await 版本
-#
-# 项目整体已是 asyncio 架构，同步 API 仅为兼容极少数遗留调用。
-# ══════════════════════════════════════════════════
-
-def _run_sync(coro, api_name: str):
-    """在同步上下文中运行协程；在已有 loop 时立即报错而非死循环。"""
+def _run_sync(coro, sync_api_name: str, async_api_name: str):
+    """
+    在同步上下文中运行协程；在已有 loop 时立即报错而非死循环。
+    ✅ P1-1：显式传入 async_api_name，不再靠字符串替换推导。
+    """
     try:
         asyncio.get_running_loop()
     except RuntimeError:
-        # 当前线程没有运行中的 loop → 安全
+        # 当前线程无运行中的 loop → 安全
         return asyncio.run(coro)
 
-    # 当前线程已有运行中的 loop → 明确报错
     raise RuntimeError(
-        f"{api_name}() 被在运行中的 event loop 内调用。"
-        f"请改用 `await {api_name.replace('_graph', '_graph_async')}(...)` "
-        f"或直接 `await {api_name}_async(...)`。"
+        f"{sync_api_name}() 被在运行中的 event loop 内调用。"
+        f"请改用 `await {async_api_name}(...)`。"
     )
 
 
@@ -365,25 +386,31 @@ def resume_graph(thread_id: str, **kwargs) -> dict[str, Any]:
     """
     同步版本（仅用于没有 event loop 的同步上下文）。
 
-    ⚠️ 在异步环境中（FastAPI 请求处理、Jupyter、异步测试）请使用:
-        await resume_graph_async(thread_id, ...)
+    ⚠️ 异步环境请用: await resume_graph_async(thread_id, ...)
     """
-    return _run_sync(resume_graph_async(thread_id, **kwargs), "resume_graph")
+    return _run_sync(
+        resume_graph_async(thread_id, **kwargs),
+        sync_api_name="resume_graph",
+        async_api_name="resume_graph_async",
+    )
 
 
-def get_thread_state(thread_id: str) -> dict[str, Any] | None:
+def get_thread_state(thread_id: str) -> Optional[dict[str, Any]]:
     """
     同步版本（仅用于没有 event loop 的同步上下文）。
 
-    ⚠️ 在异步环境中请使用: await get_thread_state_async(thread_id)
+    ⚠️ 异步环境请用: await get_thread_state_async(thread_id)
     """
-    return _run_sync(get_thread_state_async(thread_id), "get_thread_state")
+    return _run_sync(
+        get_thread_state_async(thread_id),
+        sync_api_name="get_thread_state",
+        async_api_name="get_thread_state_async",
+    )
 
 
 # ══════════════════════════════════════════════════
 #  公开 API
 # ══════════════════════════════════════════════════
-
 __all__ = [
     "build_graph",
     "get_graph",

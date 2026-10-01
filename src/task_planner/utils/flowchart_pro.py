@@ -1,7 +1,8 @@
 """
-flowchart_pro.py — 通用任务流程图渲染器（生产优化版 v7.1）
+flowchart_pro.py — 通用任务流程图渲染器（生产优化版 v8）
 
 Changelog:
+  ── v7.1 ──
   ✅ P0-1：_get_details 修复字段优先级（node.details > meta.details > description）
   ✅ P0-2：build_clean_svg 兼容 edge 的 from/to 与 source/target 双契约
   ✅ P1-1：simple_cycles 只跑一次，cycle_edges 从 _validate_dag 返回
@@ -10,80 +11,120 @@ Changelog:
   ✅ P1-4：export 的 dot 分支 except ImportError 冗余去除
   ✅ P2-x：移除 render_for_gradio；预编译 DAG_LAYOUT JSON；
            属性值 html.escape；import re 提到顶部
+
+  ── v8（KISS 加固，不影响功能）──
+  ✅ P1-5：加本地 _safe_int，替换所有 int(node.get(...))，
+           容忍 None / 非法字符串。
+  ✅ P1-6：build_clean_svg 里 node["id"] 改 node.get("id", "?")，
+           避免 KeyError。
+  ✅ P1-7：_extract_svg_from_html 的 lxml 分支加 except Exception，
+           捕获 XMLSyntaxError 等 lxml 特有异常。
+  ✅ P1-8：render_interactive 用 rsplit 精确替换**最后一个** </body>，
+           避免多 </body> 场景污染结构。
+  ✅ P1-9：_validate_dag 的 nx.simple_cycles 加上限 _MAX_CYCLES_DETECT=50，
+           超过后只记录数量不展开。
+  ✅ P2-7：_extract_svg_from_html 用 html.unescape（顶部已 import html）。
+  ✅ P2-8：_render_png_pdf 的 import base64 提到模块顶部。
+  ✅ P2-9：get_edge_style 的 "soft" 改用 EDGE_TYPE_SOFT 常量。
+  ✅ P2-10：__init__ 注释与代码对齐（去掉"死 try/except"措辞）。
+  ✅ P2-11：_build_tooltip / _build_card_data 的 node['id'] 改 .get。
 """
+from __future__ import annotations
+
+import base64
 import html
 import json
 import re
 import time
 import uuid
-from typing import Any, Optional, Tuple, Set, Dict, List
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 import networkx as nx
 from pyvis.network import Network  # type: ignore
 
-from task_planner.infrastructure.config import (
-    RENDER_DPI,
-    RENDER_EDGE_WIDTH,
-    RENDER_FONT,
-    RENDER_HEIGHT,
-    RENDER_WIDTH,
-    STATUS_BORDER,
-    STATUS_COLOR,
-    STATUS_ICONS,
-    STATUS_TEXT,
+from task_planner.infrastructure.cog import hub as _hub
+from task_planner.infrastructure.constants import (
+    EDGE_DASH_MAP,
     EDGE_TYPE_COLOR,
     EDGE_TYPE_HARD,
+    EDGE_TYPE_SOFT,
     EDGE_TYPE_STYLE,
-    EDGE_DASH_MAP,
     NODE_STYLES,
-    FLOWCHART_CYCLE_DETECTION,
+    STATUS_BORDER,
+    STATUS_COLOR,   # noqa: F401  保留以兼容外部 import
+    STATUS_ICONS,
+    STATUS_TEXT,
 )
 from task_planner.infrastructure.logger_setup import get_logger
 
 logger = get_logger("task_planner.flowchart_pro")
 
+# ── 模块级配置快照（渲染参数改动需重启，这是有意为之） ──
+FLOWCHART_CYCLE_DETECTION = _hub.dev.FLOWCHART_CYCLE_DETECTION
+RENDER_DPI = _hub.dev.RENDER_DPI
+RENDER_EDGE_WIDTH = _hub.dev.RENDER_EDGE_WIDTH
+RENDER_FONT = _hub.dev.RENDER_FONT
+RENDER_HEIGHT = _hub.dev.RENDER_HEIGHT
+RENDER_WIDTH = _hub.dev.RENDER_WIDTH
+
 _EDGE_DASH_MAP = EDGE_DASH_MAP
+
+# ✅ P1-9：环检测上限，畸形图不再无脑展开
+_MAX_CYCLES_DETECT = 50
+
+
+# ══════════════════════════════════════════════════
+#  通用工具
+# ══════════════════════════════════════════════════
+def _safe_int(val: Any, default: int = 0) -> int:
+    """✅ P1-5：容忍 None / 字符串 / 非法值"""
+    try:
+        return int(val)
+    except (TypeError, ValueError):
+        return default
 
 
 # ══════════════════════════════════════════════════
 #  边样式
 # ══════════════════════════════════════════════════
-def get_edge_style(edge_type: str) -> dict[str, Any]:
+def get_edge_style(edge_type: str) -> Dict[str, Any]:
     """根据边类型返回 pyvis add_edge 可用的样式字典。"""
-    # ✅ P2-5 修复：硬编码 fallback，不再依赖字典插入顺序
     color = EDGE_TYPE_COLOR.get(edge_type, "#666666")
     style = EDGE_TYPE_STYLE.get(edge_type, "solid")
-    width = RENDER_EDGE_WIDTH * 0.75 if edge_type == "soft" else RENDER_EDGE_WIDTH
-    dashes: Any = False if style == "solid" else _EDGE_DASH_MAP.get(style, [10, 5])
+    # ✅ P2-9：用常量替代硬编码 "soft"
+    width = (
+        RENDER_EDGE_WIDTH * 0.75
+        if edge_type == EDGE_TYPE_SOFT
+        else RENDER_EDGE_WIDTH
+    )
+    dashes: Any = (
+        False if style == "solid" else _EDGE_DASH_MAP.get(style, [10, 5])
+    )
     return {"color": color, "width": width, "dashes": dashes}
 
 
 # ══════════════════════════════════════════════════
-#  辅助函数
+#  节点详情提取
 # ══════════════════════════════════════════════════
-def _get_details(node: dict[str, Any]) -> str:
+def _get_details(node: Dict[str, Any]) -> str:
     """
-    节点详情提取。
-
-    ✅ P0-1 修复：
-      原实现只读 meta.details / node.description，
-      但 refine_node 把详情写在 node.details（顶层），
-      导致 refine 后的 details 完全丢失。
+    节点详情提取（优先级）：
+      node.details > meta.details > node.description
     """
-    meta: dict[str, Any] = node.get("meta", {}) or {}
+    meta: Dict[str, Any] = node.get("meta", {}) or {}
     details = (
-        node.get("details")            # ✅ 优先：refine 写入的位置
-        or meta.get("details")         # 次选：meta 里
-        or node.get("description")     # 兜底：原始 description
+        node.get("details")
+        or meta.get("details")
+        or node.get("description")
         or ""
     )
     return str(details).strip()
 
 
 # ══════════════════════════════════════════════════
-#  DAG 全局布局（pyvis set_options 用）
+#  DAG 布局
 # ══════════════════════════════════════════════════
-DAG_LAYOUT: dict[str, Any] = {
+DAG_LAYOUT: Dict[str, Any] = {
     "physics": {
         "enabled": True,
         "hierarchicalRepulsion": {
@@ -112,7 +153,10 @@ DAG_LAYOUT: dict[str, Any] = {
     },
     "edges": {
         "arrows": {"to": {"enabled": True, "scaleFactor": 0.8}},
-        "color": {"color": EDGE_TYPE_COLOR[EDGE_TYPE_HARD], "highlight": "#1a73e8"},
+        "color": {
+            "color": EDGE_TYPE_COLOR[EDGE_TYPE_HARD],
+            "highlight": "#1a73e8",
+        },
         "smooth": {"type": "cubicBezier", "roundness": 0.4},
         "width": RENDER_EDGE_WIDTH,
     },
@@ -125,119 +169,138 @@ DAG_LAYOUT: dict[str, Any] = {
     },
 }
 
-# ✅ P2-3 修复：预编译 JSON，避免每次渲染重新 dumps
 _DAG_LAYOUT_JSON = json.dumps(DAG_LAYOUT)
 
 
 # ══════════════════════════════════════════════════
-#  渲染器主类
+#  渲染器
 # ══════════════════════════════════════════════════
 class ProFlowchartRenderer:
     """通用任务流程图渲染器"""
 
     def __init__(self) -> None:
-        # ✅ P1-3 说明：pyvis 在模块顶部已 import，
-        #    这里的 try/except 实际上永远不会触发，
-        #    保留仅作为将来切换为懒加载时的占位。
+        # ✅ P2-10：占位，为未来懒加载预留（pyvis 当前在模块顶部 import）
         pass
 
-    # ──────────────────────────────────────────────
-    #  DAG 校验 + 环边提取（✅ P1-1 一次完成）
-    # ──────────────────────────────────────────────
+    # ── DAG 校验 + 环边提取 ──
     def _validate_dag(
         self,
-        nodes: list[dict[str, Any]],
-        edges: list[dict[str, Any]],
+        nodes: List[Dict[str, Any]],
+        edges: List[Dict[str, Any]],
         req_id: str,
-    ) -> tuple[nx.DiGraph, Set[Tuple[str, str]]]:
-        """
-        ✅ P1-1 修复：一次性返回 (g, cycle_edges)，
-          避免 render_interactive 重复调用 nx.simple_cycles。
-        """
+    ) -> Tuple[nx.DiGraph, Set[Tuple[str, str]]]:
         g = nx.DiGraph()
         for node in nodes:
-            g.add_node(str(node["id"]), **node)
+            g.add_node(str(node.get("id", "")), **node)
         for edge in edges:
-            g.add_edge(str(edge["from"]), str(edge["to"]))
+            src = edge.get("from")
+            tgt = edge.get("to")
+            if src is None or tgt is None:
+                continue
+            g.add_edge(str(src), str(tgt))
 
         cycle_edges: Set[Tuple[str, str]] = set()
 
-        if FLOWCHART_CYCLE_DETECTION:
-            try:
-                cycles = list(nx.simple_cycles(g))
-                if cycles:
-                    logger.warning(
-                        "[FlowchartPro] ⚠️ 检测到 %d 个循环依赖，继续渲染 | req=%s",
-                        len(cycles), req_id,
-                    )
-                    for cycle in cycles:
-                        for i in range(len(cycle)):
-                            cycle_edges.add(
-                                (cycle[i], cycle[(i + 1) % len(cycle)])
-                            )
-                else:
-                    logger.info(
-                        "[FlowchartPro] ✅ DAG 校验通过（无环）| 节点=%d 边=%d req=%s",
-                        len(nodes), len(edges), req_id,
-                    )
-            except Exception as e:
-                logger.warning(
-                    "[FlowchartPro] 环检测失败: %s (req=%s)", e, req_id,
-                )
-        else:
+        if not FLOWCHART_CYCLE_DETECTION:
             logger.info(
                 "[FlowchartPro] ⏭️ 环检测已禁用 | 节点=%d 边=%d req=%s",
                 len(nodes), len(edges), req_id,
             )
+            return g, cycle_edges
+
+        try:
+            # ✅ P1-9：限制展开上限，畸形图不卡死
+            cycles_iter = nx.simple_cycles(g)
+            cycles: List[List[str]] = []
+            for i, c in enumerate(cycles_iter):
+                if i >= _MAX_CYCLES_DETECT:
+                    logger.warning(
+                        "[FlowchartPro] ⚠️ 环数量超过 %d，仅记录前 %d 个 | req=%s",
+                        _MAX_CYCLES_DETECT, _MAX_CYCLES_DETECT, req_id,
+                    )
+                    break
+                cycles.append(c)
+
+            if cycles:
+                logger.warning(
+                    "[FlowchartPro] ⚠️ 检测到 %d 个循环依赖，继续渲染 | req=%s",
+                    len(cycles), req_id,
+                )
+                for cycle in cycles:
+                    for i in range(len(cycle)):
+                        cycle_edges.add(
+                            (cycle[i], cycle[(i + 1) % len(cycle)])
+                        )
+            else:
+                logger.info(
+                    "[FlowchartPro] ✅ DAG 校验通过（无环）| 节点=%d 边=%d req=%s",
+                    len(nodes), len(edges), req_id,
+                )
+        except Exception as e:
+            logger.warning(
+                "[FlowchartPro] 环检测失败: %s (req=%s)", e, req_id,
+            )
 
         return g, cycle_edges
 
-    def _build_tooltip(self, node: dict[str, Any]) -> str:
+    # ── Tooltip ──
+    def _build_tooltip(self, node: Dict[str, Any]) -> str:
         details = _get_details(node)
         if len(details) > 300:
             details = details[:300] + "..."
         escaped = html.escape(details).replace("\n", "<br>")
-        meta: dict[str, Any] = node.get("meta", {}) or {}
+        meta: Dict[str, Any] = node.get("meta", {}) or {}
         pre = meta.get("preconditions", [])
         pre_html = ""
         if pre:
             items = "<br>".join(f"• {html.escape(str(p))}" for p in pre[:2])
             pre_html = f"<br><b>前置条件:</b><br>{items}"
-        name = str(node.get("name", f"步骤{node.get('id')}"))
+        # ✅ P2-11：用 .get 避免 KeyError
+        name = str(node.get("name", f"步骤{node.get('id', '?')}"))
         return f"<b>{html.escape(name)}</b><br><br>{escaped}{pre_html}"
 
+    # ── 卡片数据 ──
     def _build_card_data(
-        self, nodes: list[dict[str, Any]]
-    ) -> dict[str, dict[str, Any]]:
-        cards: dict[str, dict[str, Any]] = {}
+        self, nodes: List[Dict[str, Any]]
+    ) -> Dict[str, Dict[str, Any]]:
+        cards: Dict[str, Dict[str, Any]] = {}
         for node in nodes:
-            nid = str(node["id"])
+            nid = str(node.get("id", ""))
+            if not nid:
+                continue
             details = _get_details(node)
-            meta: dict[str, Any] = node.get("meta", {}) or {}
-            status_code = int(node.get("status", 0))
+            meta: Dict[str, Any] = node.get("meta", {}) or {}
+            status_code = _safe_int(node.get("status"), default=0)
             cards[nid] = {
                 "id": nid,
-                "name": html.escape(str(node.get("name", f"步骤{node['id']}"))),
+                "name": html.escape(
+                    str(node.get("name", f"步骤{nid}"))
+                ),
                 "status": status_code,
-                "status_text": html.escape(STATUS_TEXT.get(status_code, "未知")),
+                "status_text": html.escape(
+                    STATUS_TEXT.get(status_code, "未知")
+                ),
                 "details": html.escape(details).replace("\n", "<br>"),
                 "preconditions": [
-                    html.escape(str(p)) for p in meta.get("preconditions", [])
+                    html.escape(str(p))
+                    for p in meta.get("preconditions", [])
                 ],
                 "postconditions": [
-                    html.escape(str(p)) for p in meta.get("postconditions", [])
+                    html.escape(str(p))
+                    for p in meta.get("postconditions", [])
                 ],
                 "retry_policy": html.escape(
                     str(meta.get("retry_policy", "失败后重试，最多3次"))
                 ),
-                "retry_count": int(node.get("retry_count", 0)),
+                "retry_count": _safe_int(node.get("retry_count"), default=0),
             }
         return cards
 
+    # ── 网络构建 ──
     def _build_network(
         self,
-        nodes: list[dict[str, Any]],
-        edges: list[dict[str, Any]],
+        nodes: List[Dict[str, Any]],
+        edges: List[Dict[str, Any]],
         req_id: str,
         cycle_edges: Optional[Set[Tuple[str, str]]] = None,
     ) -> Network:
@@ -253,15 +316,16 @@ class ProFlowchartRenderer:
             notebook=False,
             cdn_resources="in_line",
         )
-        # ✅ P2-3 修复：用预编译 JSON
         net.set_options(_DAG_LAYOUT_JSON)
 
-        # 添加节点
+        # 节点
         for node in nodes:
-            nid = str(node["id"])
-            status = int(node.get("status", 0))
+            nid = str(node.get("id", ""))
+            if not nid:
+                continue
+            status = _safe_int(node.get("status"), default=0)
             style = NODE_STYLES.get(status, NODE_STYLES.get(0, {}))
-            name = str(node.get("name", f"步骤{node['id']}"))
+            name = str(node.get("name", f"步骤{nid}"))
             label = f"{style.get('icon', '⏳')} {name}"
             net.add_node(
                 nid,
@@ -270,17 +334,24 @@ class ProFlowchartRenderer:
                 color={
                     "background": style.get("bg", "#ffffff"),
                     "border": style.get("border", "#e5e7eb"),
-                    "highlight": {"background": "#fef3c7", "border": "#f59e0b"},
+                    "highlight": {
+                        "background": "#fef3c7",
+                        "border": "#f59e0b",
+                    },
                 },
                 borderWidth=2,
                 shape="box",
                 borderDashes=(status == 3),
             )
 
-        # 添加边
+        # 边
         for edge in edges:
-            src = str(edge["from"])
-            tgt = str(edge["to"])
+            src = edge.get("from")
+            tgt = edge.get("to")
+            if src is None or tgt is None:
+                continue
+            src = str(src)
+            tgt = str(tgt)
             is_cycle = (src, tgt) in cycle_edges or src == tgt
             edge_label = str(edge.get("label", ""))
 
@@ -309,22 +380,22 @@ class ProFlowchartRenderer:
                     color={"color": style["color"]},
                     width=style["width"],
                     dashes=style["dashes"],
-                    font={"size": 11, "face": RENDER_FONT, "align": "middle"},
+                    font={
+                        "size": 11, "face": RENDER_FONT, "align": "middle",
+                    },
                 )
 
         return net
 
-    # ──────────────────────────────────────────────
-    #  动态图例
-    # ──────────────────────────────────────────────
+    # ── 图例 ──
     def _build_legend(self, uid: str) -> str:
-        """从 STATUS_TEXT / STATUS_BORDER 动态生成图例"""
         items = []
         for code, text in STATUS_TEXT.items():
             if code in STATUS_BORDER:
                 color = STATUS_BORDER[code]
                 items.append(
-                    f'<span style="color:{color};">●</span> {html.escape(text)}'
+                    f'<span style="color:{color};">●</span> '
+                    f"{html.escape(text)}"
                 )
         rows = []
         for i in range(0, len(items), 2):
@@ -340,23 +411,16 @@ class ProFlowchartRenderer:
             f'</div>'
         )
 
-    # ──────────────────────────────────────────────
-    #  交互式 HTML 渲染（主入口）
-    # ──────────────────────────────────────────────
+    # ── 交互式渲染（主入口） ──
     def render_interactive(
         self,
-        nodes: list[dict[str, Any]],
-        edges: list[dict[str, Any]],
+        nodes: List[Dict[str, Any]],
+        edges: List[Dict[str, Any]],
         task_id: str,
         req_id: str,
     ) -> str:
-        """
-        ✅ P1-2 修复：用 try/except 包裹整个渲染流程，
-          失败时降级到 _error_html，不再让异常传播到 graph 节点。
-        """
         try:
-            # ✅ P1-1 修复：一次性返回 (g, cycle_edges)，不再重复 simple_cycles
-            g, cycle_edges = self._validate_dag(nodes, edges, req_id)
+            _g, cycle_edges = self._validate_dag(nodes, edges, req_id)
 
             net = self._build_network(
                 nodes, edges, req_id, cycle_edges=cycle_edges,
@@ -372,10 +436,10 @@ class ProFlowchartRenderer:
             )
             legend = self._build_legend(uid)
 
+            # ✅ P1-8：精确替换**最后一个** </body>，避免多 </body> 污染
             if "</body>" in base_html:
-                base_html = base_html.replace(
-                    "</body>", data_script + legend + "</body>"
-                )
+                head, _, tail = base_html.rpartition("</body>")
+                base_html = head + data_script + legend + "</body>" + tail
             else:
                 base_html = base_html + data_script + legend
 
@@ -391,22 +455,20 @@ class ProFlowchartRenderer:
             )
             return self._error_html(f"{type(e).__name__}: {e}", req_id)
 
-    # ──────────────────────────────────────────────
-    #  SVG 提取
-    # ──────────────────────────────────────────────
+    # ── SVG 提取 ──
     def _extract_svg_from_html(self, html_content: str) -> str:
-        # ✅ P2-6 修复：re 已在顶部 import
-        from html import unescape
-
         match = re.search(r"(<svg[^>]*>.*?</svg>)", html_content, re.DOTALL)
         if not match:
             return (
-                f'<div style="width:{RENDER_WIDTH}px;height:{RENDER_HEIGHT}px;">'
+                f'<div style="width:{RENDER_WIDTH}px;'
+                f'height:{RENDER_HEIGHT}px;">'
                 f"{html_content}</div>"
             )
 
-        svg_unescaped = unescape(match.group(1))
+        # ✅ P2-7：用 html.unescape（顶部已 import html）
+        svg_unescaped = html.unescape(match.group(1))
 
+        # 优先用 lxml
         try:
             import lxml.etree as ET  # type: ignore
             parser = ET.XMLParser(
@@ -416,21 +478,21 @@ class ProFlowchartRenderer:
             return ET.tostring(root, encoding="unicode", method="xml")
         except ImportError:
             logger.debug("[FlowchartPro] lxml 未安装，使用标准库降级")
-        except (OSError, RuntimeError) as e:
+        except Exception as e:
+            # ✅ P1-7：捕获所有异常（含 lxml.XMLSyntaxError 等）
             logger.warning("[FlowchartPro] lxml SVG 清理失败: %s", e)
 
-        # 降级：用 html.parser 手动提取
+        # 降级：html.parser
         try:
             from html.parser import HTMLParser
 
             class _SVGExtractor(HTMLParser):
                 def __init__(self) -> None:
                     super().__init__()
-                    self.parts: list[str] = []
+                    self.parts: List[str] = []
                     self.depth = 0
 
                 def _attrs_str(self, attrs) -> str:
-                    # ✅ P2-4 修复：属性值 html.escape，防止引号破坏结构
                     return " ".join(
                         f'{k}="{html.escape(str(v), quote=True)}"'
                         for k, v in attrs
@@ -444,9 +506,10 @@ class ProFlowchartRenderer:
                         self.parts.append(f"<{tag} {self._attrs_str(attrs)}>")
 
                 def handle_startendtag(self, tag, attrs) -> None:
-                    # 自闭合标签
                     if self.depth > 0:
-                        self.parts.append(f"<{tag} {self._attrs_str(attrs)}/>")
+                        self.parts.append(
+                            f"<{tag} {self._attrs_str(attrs)}/>"
+                        )
 
                 def handle_endtag(self, tag) -> None:
                     if tag == "svg" and self.depth > 0:
@@ -463,17 +526,16 @@ class ProFlowchartRenderer:
             parser.feed(svg_unescaped)
             if parser.parts:
                 return "".join(parser.parts)
-        except (OSError, RuntimeError) as e:
+        except Exception as e:
             logger.warning("[FlowchartPro] html.parser 清理失败: %s", e)
 
         return svg_unescaped
 
-    # ──────────────────────────────────────────────
-    #  PNG/PDF 导出
-    # ──────────────────────────────────────────────
+    # ── PNG / PDF ──
     def _render_png_pdf(self, svg_content: str, fmt: str) -> str:
         try:
             import cairosvg  # type: ignore
+
             if fmt == "png":
                 output = cairosvg.svg2png(
                     bytestring=svg_content.encode("utf-8"),
@@ -489,7 +551,7 @@ class ProFlowchartRenderer:
                 )
                 mime = "application/pdf"
 
-            import base64
+            # ✅ P2-8：base64 已在顶部 import
             b64 = base64.b64encode(output).decode("ascii")
             return f"data:{mime};base64,{b64}"
         except ImportError:
@@ -499,9 +561,7 @@ class ProFlowchartRenderer:
         except (OSError, RuntimeError, ValueError) as e:
             raise ValueError(f"{fmt.upper()} 导出失败: {e}")
 
-    # ──────────────────────────────────────────────
-    #  错误页面
-    # ──────────────────────────────────────────────
+    # ── 错误页 ──
     def _error_html(self, message: str, req_id: str) -> str:
         return (
             '<div style="width:100%;height:520px;display:flex;'
@@ -510,10 +570,10 @@ class ProFlowchartRenderer:
             'background:#fef2f2;padding:24px;">'
             '<div style="color:#dc2626;text-align:center;max-width:600px;">'
             '<h3 style="margin:0 0 12px;font-size:20px;">'
-            '⚠️ 流程图生成失败</h3>'
-            f'<p style="margin:0 0 8px;color:#991b1b;line-height:1.6;">'
+            "⚠️ 流程图生成失败</h3>"
+            '<p style="margin:0 0 8px;color:#991b1b;line-height:1.6;">'
             f"{html.escape(message)}</p>"
-            f'<p style="margin:0;color:#6b7280;font-size:12px;">'
+            '<p style="margin:0;color:#6b7280;font-size:12px;">'
             f"请求ID: {html.escape(req_id)}</p>"
             "</div></div>"
         )
@@ -528,10 +588,11 @@ flowchart_pro = ProFlowchartRenderer()
 # ══════════════════════════════════════════════════
 #  兼容接口
 # ══════════════════════════════════════════════════
-# ✅ P2-1 修复：移除 render_for_gradio（gradio 已废弃）
-# ✅ P2-2 说明：_build_legend 的 uid 用于 legend-{uid} id，保留
-
-def build_clean_svg(nodes, edges, task_id):
+def build_clean_svg(
+    nodes: List[Dict[str, Any]],
+    edges: List[Dict[str, Any]],
+    task_id: str,
+) -> str:
     """极简 SVG 渲染（用于静态导出）"""
     width, height = 1200, 800
     svg_parts = [
@@ -539,29 +600,35 @@ def build_clean_svg(nodes, edges, task_id):
         f'xmlns:xlink="http://www.w3.org/1999/xlink" '
         f'width="{width}" height="{height}" '
         f'viewBox="0 0 {width} {height}">',
-        '<style>'
-        '.node-rect { fill: #4A90D9; rx: 8; ry: 8; }'
-        '.node-text { fill: white; font: 14px sans-serif; '
-        'text-anchor: middle; dominant-baseline: middle; }'
-        '.edge { fill: none; stroke: #666; stroke-width: 2; '
-        'marker-end: url(#arrowhead); }'
-        '</style>',
-        '<defs>'
+        "<style>"
+        ".node-rect { fill: #4A90D9; rx: 8; ry: 8; }"
+        ".node-text { fill: white; font: 14px sans-serif; "
+        "text-anchor: middle; dominant-baseline: middle; }"
+        ".edge { fill: none; stroke: #666; stroke-width: 2; "
+        "marker-end: url(#arrowhead); }"
+        "</style>",
+        "<defs>"
         '<marker id="arrowhead" markerWidth="10" markerHeight="7" '
         'refX="10" refY="3.5" orient="auto">'
         '<polygon points="0 0, 10 3.5, 0 7" fill="#666" />'
-        '</marker>'
-        '</defs>',
+        "</marker>"
+        "</defs>",
     ]
-    cols, rows = 4, (len(nodes) + 3) // 4
+    cols = 4
+    rows = (len(nodes) + cols - 1) // cols or 1
     cell_w, cell_h = width // cols, height // rows
-    node_positions = {}
+    node_positions: Dict[Any, Tuple[int, int]] = {}
+
     for i, node in enumerate(nodes):
+        # ✅ P1-6：用 .get 避免 KeyError
+        nid = node.get("id", f"__node_{i}")
         col, row = i % cols, i // cols
         x = col * cell_w + cell_w // 2
         y = row * cell_h + cell_h // 2
-        node_positions[node["id"]] = (x, y)
-        safe_label = html.escape(str(node.get("label", node["id"])), quote=True)
+        node_positions[nid] = (x, y)
+        safe_label = html.escape(
+            str(node.get("label", nid)), quote=True
+        )
         svg_parts.append(
             f'<rect class="node-rect" x="{x - 80}" y="{y - 25}" '
             f'width="160" height="50"/>'
@@ -571,18 +638,13 @@ def build_clean_svg(nodes, edges, task_id):
         )
 
     for edge in edges:
-        # ✅ P0-2 修复：兼容 from/to 与 source/target
-        src = edge.get("from")
-        if src is None:
-            src = edge.get("source")
-        tgt = edge.get("to")
-        if tgt is None:
-            tgt = edge.get("target")
+        # 兼容 from/to 与 source/target
+        src = edge.get("from") if "from" in edge else edge.get("source")
+        tgt = edge.get("to") if "to" in edge else edge.get("target")
 
         if src is None or tgt is None:
             logger.warning(
-                "[FlowchartPro] build_clean_svg: edge 缺少 from/to 或 source/target: %s",
-                edge,
+                "[FlowchartPro] build_clean_svg: edge 缺少端点: %s", edge,
             )
             continue
 
@@ -593,23 +655,27 @@ def build_clean_svg(nodes, edges, task_id):
                 f'<path class="edge" d="M{x1 + 80} {y1} L{x2 - 80} {y2}" />'
             )
 
-    svg_parts.append('</svg>')
-    return '\n'.join(svg_parts)
+    svg_parts.append("</svg>")
+    return "\n".join(svg_parts)
 
 
 def export(
-    nodes: list[dict[str, Any]],
-    edges: list[dict[str, Any]],
+    nodes: List[Dict[str, Any]],
+    edges: List[Dict[str, Any]],
     task_id: str,
     fmt: str,
     req_id: str,
 ) -> str:
     """导出为指定格式"""
     fmt = fmt.lower()
-    logger.info("[FlowchartPro] 导出 | task=%s fmt=%s req=%s", task_id, fmt, req_id)
+    logger.info(
+        "[FlowchartPro] 导出 | task=%s fmt=%s req=%s", task_id, fmt, req_id,
+    )
 
     if fmt == "html":
-        return flowchart_pro.render_interactive(nodes, edges, task_id, req_id)
+        return flowchart_pro.render_interactive(
+            nodes, edges, task_id, req_id
+        )
 
     if fmt == "json":
         return json.dumps(
@@ -623,7 +689,9 @@ def export(
             indent=2,
         )
 
-    html_content = flowchart_pro.render_interactive(nodes, edges, task_id, req_id)
+    html_content = flowchart_pro.render_interactive(
+        nodes, edges, task_id, req_id
+    )
     svg_content = flowchart_pro._extract_svg_from_html(html_content)
 
     if fmt == "svg":
@@ -634,20 +702,39 @@ def export(
 
     if fmt == "dot":
         try:
-            import pydot  # type: ignore
+            import pydot  # type: ignore  # noqa: F401
+
             g = nx.DiGraph()
             for n in nodes:
-                g.add_node(n["id"], label=str(n.get("name", f"步骤{n['id']}")))
+                nid = n.get("id")
+                if nid is None:
+                    continue
+                g.add_node(
+                    nid, label=str(n.get("name", f"步骤{nid}"))
+                )
             for e in edges:
-                g.add_edge(e["from"], e["to"], label=str(e.get("label", "")))
+                src = e.get("from")
+                tgt = e.get("to")
+                if src is None or tgt is None:
+                    continue
+                g.add_edge(src, tgt, label=str(e.get("label", "")))
             dot_data = nx.nx_pydot.to_pydot(g)
             return dot_data.to_string()
         except ImportError:
             raise ValueError("导出 DOT 需要安装 pydot: pip install pydot")
-        # ✅ P1-4 修复：删掉冗余的 ImportError
         except (OSError, RuntimeError) as e:
             raise ValueError(f"DOT 导出失败: {e}")
 
     raise ValueError(
         f"不支持的导出格式: {fmt}（支持 svg / png / pdf / dot / html / json）"
     )
+
+
+__all__ = [
+    "ProFlowchartRenderer",
+    "flowchart_pro",
+    "get_edge_style",
+    "build_clean_svg",
+    "export",
+    "DAG_LAYOUT",
+]

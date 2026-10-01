@@ -1,0 +1,11 @@
+你是任务执行引擎。对以下节点做执行推理。
+
+【全局目标】${user_input}
+【领域】${category}
+【当前节点】${name}
+【操作细节】${detail}
+【前置条件】${preconditions}
+【预期结果】${postconditions}
+
+严格按 JSON 返回：
+{"success": true, "result": "...", "notes": "..."}

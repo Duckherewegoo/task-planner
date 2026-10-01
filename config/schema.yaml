@@ -1,0 +1,310 @@
+# ═══════════════════════════════════════════════════════
+# schema.yaml — 开发者声明
+# ═══════════════════════════════════════════════════════
+# type:   int / str / float / bool
+# scope:  user=用户可改 | developer=仅开发者 | system=只读
+# secret: true → 日志/UI 自动脱敏
+
+base:
+  DEBUG:
+    type: bool
+    default: false
+    scope: developer
+    purpose: 调试模式；生产必须 false
+
+  LOG_DIR:
+    type: str
+    default: logs
+    scope: developer
+    purpose: 日志目录，相对项目根
+
+  LOG_FILE:
+    type: str
+    default: task_planner.log
+    scope: developer
+    purpose: 日志文件名
+
+  LOG_MAX_DAYS:
+    type: int
+    default: 7
+    scope: developer
+    purpose: 日志保留天数
+
+  LOG_CONSOLE_LEVEL:
+    type: str
+    default: INFO
+    scope: developer
+    purpose: "控制台日志级别：DEBUG/INFO/WARNING/ERROR"
+
+  DASH_DISABLE_VERSION_CHECK:
+    type: bool
+    default: true
+    scope: developer
+    purpose: 关闭 Dash 版本检查，避免联网
+
+dashscope:
+  DASHSCOPE_API_KEY:
+    type: str
+    default: ""
+    scope: developer
+    purpose: DashScope 密钥；留空走 Mock
+    secret: true
+
+  DASHSCOPE_BASE_URL:
+    type: str
+    default: ""
+    scope: developer
+    purpose: 自定义 API 端点；空=官方默认
+
+  DASHSCOPE_REGION:
+    type: str
+    default: cn-beijing
+    scope: developer
+    purpose: DashScope 区域
+
+  USE_MOCK_LLM:
+    type: bool
+    default: false
+    scope: developer
+    purpose: 强制走 Mock LLM，用于离线测试
+
+llm:
+  LLM_INTENT_MODEL:
+    type: str
+    default: qwen3.7-flash-2026-07-15
+    scope: developer
+    purpose: 意图识别模型名
+
+  LLM_PLANNER_MODEL:
+    type: str
+    default: qwen3.7-flash-2026-07-15
+    scope: developer
+    purpose: DAG 规划模型名
+
+  LLM_NODE_MODEL:
+    type: str
+    default: qwen3.7-flash-2026-07-15
+    scope: developer
+    purpose: 单节点执行模型名
+
+  LLM_INTENT_ENABLE_THINKING:
+    type: bool
+    default: false
+    scope: developer
+    purpose: 意图识别是否开思考模式
+
+  LLM_PLANNER_ENABLE_THINKING:
+    type: bool
+    default: true
+    scope: developer
+    purpose: 规划阶段是否开思考模式
+
+  LLM_NODE_ENABLE_THINKING:
+    type: bool
+    default: false
+    scope: developer
+    purpose: 节点执行是否开思考模式
+
+  LLM_THINKING_BUDGET:
+    type: int
+    default: 81920
+    scope: developer
+    purpose: 思考模式 token 预算
+
+  LLM_TIMEOUT:
+    type: int
+    default: 120
+    scope: developer
+    purpose: 单次 LLM 调用超时(秒)
+
+  LLM_MAX_RETRIES:
+    type: int
+    default: 3
+    scope: developer
+    purpose: 单次调用失败重试次数，不含首次
+
+  LLM_RETRY_BACKOFF:
+    type: int
+    default: 2
+    scope: developer
+    purpose: 重试退避倍数（指数退避基数）
+
+  LLM_NODE_TIMEOUT:
+    type: int
+    default: 60
+    scope: developer
+    purpose: 单节点执行超时(秒)，开思考时建议 ≥ LLM_TIMEOUT
+
+  LLM_TASK_TOTAL_TIMEOUT:
+    type: int
+    default: 300
+    scope: developer
+    purpose: 整个任务总超时(秒)
+
+  MAX_TASK_RETRIES:
+    type: int
+    default: 3
+    scope: developer
+    purpose: 任务级重试次数
+
+  LATENCY_ACCEPTANCE_THRESHOLD:
+    type: float
+    default: 10.0
+    scope: developer
+    purpose: 评估套件单 case 延迟接受阈值(秒)
+
+mongo:
+  MONGO_HOST:
+    type: str
+    default: task_mongodb
+    scope: developer
+    purpose: MongoDB 主机名，容器内用服务名
+
+  MONGO_PORT:
+    type: int
+    default: 27017
+    scope: developer
+    purpose: MongoDB 端口
+
+  MONGO_DB:
+    type: str
+    default: task_planner_db
+    scope: developer
+    purpose: MongoDB 数据库名
+
+web:
+  GRADIO_HOST:
+    type: str
+    default: 0.0.0.0
+    scope: developer
+    purpose: Gradio 监听地址
+
+  GRADIO_PORT:
+    type: int
+    default: 7860
+    scope: user
+    purpose: Gradio 端口，冲突时改 7861+
+
+  ENABLE_MCP:
+    type: bool
+    default: false
+    scope: developer
+    purpose: 是否启用 MCP 集成
+
+  DASH_HOST:
+    type: str
+    default: 0.0.0.0
+    scope: developer
+    purpose: Dash 监听地址
+
+  DASH_PORT:
+    type: int
+    default: 8050
+    scope: user
+    purpose: Dash 端口（避免与 Gradio 冲突）
+
+render:
+  RENDER_DPI:
+    type: int
+    default: 300
+    scope: user
+    purpose: 导出 DPI
+
+  RENDER_FONT:
+    type: str
+    default: Noto Sans CJK SC
+    scope: user
+    purpose: 渲染默认字体
+
+  RENDER_DIR:
+    type: str
+    default: exports
+    scope: developer
+    purpose: 导出目录，相对项目根
+
+  RENDER_WIDTH:
+    type: int
+    default: 1200
+    scope: user
+    purpose: 画布宽度 px
+
+  RENDER_HEIGHT:
+    type: int
+    default: 600
+    scope: user
+    purpose: 画布高度 px
+
+  RENDER_EDGE_WIDTH:
+    type: float
+    default: 2.0
+    scope: user
+    purpose: 边线默认粗细
+
+  RENDER_EDGE_LABEL_FONT_SIZE:
+    type: int
+    default: 10
+    scope: user
+    purpose: 边标签字号
+
+  RENDER_SHOW_EDGE_LABELS:
+    type: bool
+    default: true
+    scope: user
+    purpose: 是否显示边标签
+
+  FLOWCHART_CYCLE_DETECTION:
+    type: bool
+    default: true
+    scope: developer
+    purpose: 是否启用环形检测
+
+  DEFAULT_EXPORT_FORMAT:
+    type: str
+    default: svg
+    scope: user
+    purpose: 默认导出格式 svg/png/pdf/dot/html/json
+
+runtime:
+  LLM_MAX_CONCURRENT:
+    type: int
+    default: 10
+    scope: developer
+    purpose: 同时最多进行的 LLM 调用数
+
+  LLM_CONNECTION_POOL_SIZE:
+    type: int
+    default: 20
+    scope: developer
+    purpose: httpx 连接池大小
+
+security:
+  MAX_INPUT_LENGTH:
+    type: int
+    default: 2000
+    scope: developer
+    purpose: 单次用户输入最大字符数
+
+  MAX_CACHE_INPUT_BYTES:
+    type: int
+    default: 10485760
+    scope: developer
+    purpose: 输入缓存上限(字节)，超过跳过缓存
+
+  SESSION_TTL:
+    type: int
+    default: 3600
+    scope: developer
+    purpose: 会话过期时间(秒)
+
+ui:
+  THEME:
+    type: str
+    default: light
+    scope: user
+    purpose: "界面主题：light / dark"
+
+  LANGUAGE:
+    type: str
+    default: zh-CN
+    scope: user
+    purpose: "界面语言：zh-CN / en-US"

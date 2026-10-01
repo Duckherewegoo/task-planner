@@ -17,7 +17,7 @@ Changelog:
   - ✅ P0-1 修复：DEBUG 默认值改为 False（生产优先）
   - ✅ P0-2 修复：NODE_STATUS_CODE_MAP 4→timeout、补 5→skipped
   - ✅ P0-3 修复：_env() 里跨行 f-string 改为 logger 占位符（兼容 Python < 3.12）
-  - ✅ P1-2 修复：移除 WERKZEUG_RUN_MAIN 硬编码
+  - ✅ P1-2 修复：移除 WERKZEUG_RUN_MAIN 硬编码，改为更灵活的.env获取及config编码
   - ✅ P1-3 修复：敏感词正则加词边界，减少误伤
   - ✅ P1-1 修复：INTENT_PROMPT 的 category 白名单补 consultation
   - ✅ 修复：GRADIO_PORT 与 DASH_PORT 默认值冲突

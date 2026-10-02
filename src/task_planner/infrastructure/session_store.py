@@ -44,7 +44,7 @@ class SessionStore(Protocol):
     """
 
     async def get(self, tid: str) -> Optional[Any]: ...
-    async def set(self, tid: str, session: Any) -> None: ...
+    async def set(self, tid: str, session: Any, *, created_at: float | None = None,) -> None: ...
     async def pop(self, tid: str) -> Optional[Any]: ...
     async def cleanup_stale(self, ttl: int) -> int: ...
 
@@ -83,15 +83,35 @@ class InMemorySessionStore:
             return entry["session"]
 
     # ── 写 ──
-    async def set(self, tid: str, session: Any) -> None:
+    async def set(
+        self,
+        tid: str,
+        session: Any,
+        *,
+        created_at: float | None = None,
+    ) -> None:
+        """
+        写入会话。
+
+        Args:
+            tid:         会话 ID
+            session:     任意对象（store 不关心内部结构）
+            created_at:  可选。指定创建时间（测试模拟旧会话用）。
+                         不传时：
+                           - 若已存在，保留原 created_at（不刷新 TTL）
+                           - 若不存在，用当前时间
+        """
         async with self._lock:
-            # ✅ P1-1：由 store 记录创建时间，不读 session 内部属性
             existing = self._data.get(tid)
+            if created_at is not None:
+                ts = created_at
+            elif existing is not None:
+                ts = existing["created_at"]
+            else:
+                ts = time.time()
             self._data[tid] = {
                 "session": session,
-                "created_at": (
-                    existing["created_at"] if existing else time.time()
-                ),
+                "created_at": ts,
             }
 
     # ── 移除 ──

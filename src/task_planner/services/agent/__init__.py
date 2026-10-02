@@ -30,3 +30,9 @@ __all__ = [
     "cleanup_stale_sessions",
     "TaskSession",
 ]
+
+# ═══════════════════════════════════════════════════════════════════
+#  向后兼容：旧私有名 alias（下个大版本删除）
+# ═══════════════════════════════════════════════════════════════════
+from .state import make_initial_state as _make_initial_state  # noqa: F401
+from .view import is_graph_finished as _is_graph_finished  # noqa: F401

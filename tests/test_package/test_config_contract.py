@@ -17,8 +17,9 @@ class TestStatusContract:
 
     def test_node_status_map_has_all_codes(self):
         """NODE_STATUS_CODE_MAP 覆盖 TASK_STATUS 的所有状态码"""
-        from task_planner.infrastructure.config import (
-            TASK_STATUS, NODE_STATUS_CODE_MAP,
+        from task_planner.infrastructure.constants import (
+            NODE_STATUS_CODE_MAP,
+            TASK_STATUS,
         )
         for name, code in TASK_STATUS.items():
             assert code in NODE_STATUS_CODE_MAP, \
@@ -26,20 +27,23 @@ class TestStatusContract:
 
     def test_timeout_maps_to_timeout(self):
         """⚠️ 关键回归：status=4 必须映射为 timeout，不是 skipped"""
-        from task_planner.infrastructure.config import NODE_STATUS_CODE_MAP
+        from task_planner.infrastructure.constants import NODE_STATUS_CODE_MAP
         assert NODE_STATUS_CODE_MAP[4] == "timeout", \
             "P0-2 回归：4 应为 timeout"
 
     def test_skipped_maps_to_skipped(self):
         """status=5 必须映射为 skipped"""
-        from task_planner.infrastructure.config import NODE_STATUS_CODE_MAP
+        from task_planner.infrastructure.constants import NODE_STATUS_CODE_MAP
         assert NODE_STATUS_CODE_MAP[5] == "skipped", \
             "P0-2 回归：5 应为 skipped"
 
     def test_all_maps_have_consistent_length(self):
         """STATUS_TEXT / STATUS_COLOR / STATUS_BORDER 数量一致"""
-        from task_planner.infrastructure.config import (
-            STATUS_TEXT, STATUS_COLOR, STATUS_BORDER, STATUS_ICONS,
+        from task_planner.infrastructure.constants import (
+            STATUS_BORDER,
+            STATUS_COLOR,
+            STATUS_ICONS,
+            STATUS_TEXT,
         )
         assert len(STATUS_TEXT) == len(STATUS_COLOR) == len(STATUS_BORDER) == len(STATUS_ICONS)
 
@@ -48,12 +52,12 @@ class TestIntentContract:
 
     def test_consultation_in_whitelist(self):
         """P1-1：consultation 应在白名单"""
-        from task_planner.infrastructure.config import VALID_INTENT_CATEGORIES
+        from task_planner.infrastructure.constants import VALID_INTENT_CATEGORIES
         assert "consultation" in VALID_INTENT_CATEGORIES
 
     def test_prompt_mentions_consultation(self):
         """P1-1：prompt schema 必须列出 consultation"""
-        from task_planner.infrastructure.config import INTENT_PROMPT
+        from task_planner.infrastructure.prompts.loader import INTENT_PROMPT
         assert "consultation" in INTENT_PROMPT.template, \
             "P1-1 回归：prompt 里没列 consultation，LLM 不会输出该分类"
 
@@ -61,24 +65,21 @@ class TestIntentContract:
 class TestSecurityDefault:
 
     def test_debug_default_is_false(self):
-        """P0-1：DEBUG 未设置时默认 False"""
-        # 这个测试依赖 conftest.py 里没设置 DEBUG，但我们设置了
-        # 所以改成检查"默认值是 False"这个事实：直接读源码
-        import inspect
-        from task_planner.infrastructure import config as cfg
-        src = inspect.getsource(cfg)
-        # 检查 _env("DEBUG", ...) 的第二个参数是 False
-        assert '_env("DEBUG", False' in src, \
-            "P0-1 回归：DEBUG 默认值不是 False"
-
+        """P0-1：DEBUG 默认必须是 False（生产安全）"""
+        from task_planner.infrastructure.cog import hub
+        assert hub.dev.DEBUG is False, \
+            "P0-1 回归：DEBUG 默认应为 False"
 
 class TestPromptTemplate:
 
     def test_all_prompts_are_template(self):
         """所有 prompt 都应是 string.Template 实例"""
         from string import Template
-        from task_planner.infrastructure.config import (
-            INTENT_PROMPT, PLANNER_PROMPT, NODE_REFINE_PROMPT, EXECUTE_NODE_PROMPT,
+        from task_planner.infrastructure.prompts.loader import (
+            EXECUTE_NODE_PROMPT,
+            INTENT_PROMPT,
+            NODE_REFINE_PROMPT,
+            PLANNER_PROMPT,
         )
         for name, p in [
             ("INTENT_PROMPT", INTENT_PROMPT),
@@ -91,6 +92,6 @@ class TestPromptTemplate:
     def test_skip_planning_patterns_are_compiled(self):
         """SKIP_PLANNING_PATTERNS 应全是编译后的正则"""
         import re
-        from task_planner.infrastructure.config import SKIP_PLANNING_PATTERNS
+        from task_planner.infrastructure.regexes import SKIP_PLANNING_PATTERNS
         for p in SKIP_PLANNING_PATTERNS:
             assert isinstance(p, re.Pattern)

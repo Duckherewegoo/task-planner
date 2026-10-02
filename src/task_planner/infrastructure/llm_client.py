@@ -47,3 +47,11 @@ __all__ = [
     "_extract_json",
     "_render_template",
 ]
+
+# ═══════════════════════════════════════════════════════════════════
+#  向后兼容：旧私有名 alias（下个大版本删除）
+# ═══════════════════════════════════════════════════════════════════
+from task_planner.infrastructure.llm.json_utils import (  # noqa: F401
+    extract_tail_json as _extract_tail_json,
+    normalize_llm_output as _normalize_llm_output,
+)

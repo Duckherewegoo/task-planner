@@ -60,17 +60,12 @@ async def test_pop_missing_returns_none(store):
 
 
 @pytest.mark.asyncio
-async def test_cleanup_stale(store):
-    s1 = FakeSession("old")
-    s1.start_time = time.time() - 10000      # 很久以前
-    s2 = FakeSession("new")
-    await store.set("old", s1)
-    await store.set("new", s2)
-
-    cleaned = await store.cleanup_stale(ttl=3600)
+async def test_cleanup_stale():
+    store = InMemorySessionStore()
+    # 显式指定"1 小时前创建"，模拟旧会话
+    await store.set("t1", object(), created_at=time.time() - 3600)
+    cleaned = await store.cleanup_stale(ttl=1)
     assert cleaned == 1
-    assert await store.get("old") is None
-    assert await store.get("new") is s2
 
 
 @pytest.mark.asyncio

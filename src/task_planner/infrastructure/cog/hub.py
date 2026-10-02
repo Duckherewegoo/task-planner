@@ -53,5 +53,38 @@ class ConfigHub:
     def snapshot(self) -> Tuple[ConfigEntry, ...]:
         return self._store.all()
 
+    # ---------- 重载 ----------
+    def reload(
+        self,
+        schema_path: Path,
+        user_path: Optional[Path] = None,
+    ) -> int:
+        """
+        从磁盘重新加载配置。
+
+        - 清空 store（原地清空，不换实例，现有 session 继续可用）
+        - 重跑 ConfigLoader（读 schema.yaml + user.yaml）
+        - 重跑所有 @register_section 的 section
+        - 返回最终条目数
+
+        ⚠️ 注意：
+          - 已缓存的 ConfigEntry 实例会被替换，持有旧 entry 引用的代码
+            需要重新从 hub 读取（正常用法下没人持有 entry 引用）
+          - 不会重载 from_env 字段（那些从 os.environ 读，运行时不可改）
+        """
+        cleared = self._store.clear()
+
+        # 1) 从 YAML 重载
+        ConfigLoader(self._store).load(schema_path, user_path)
+
+        # 2) 从 @register_section 重载（YAML 已存在的不覆盖）
+        for cls in _SECTION_REGISTRY.all():
+            for entry in cls().define():
+                if not self._store.has(entry.name):
+                    self._store.create(entry)
+
+        total = len(self._store)
+        return total
+
     def __len__(self) -> int:
         return len(self._store)

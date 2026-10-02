@@ -1,10 +1,5 @@
-# ═══════════════════════════════════════════════════════
-# user.yaml — 用户覆盖
-# ═══════════════════════════════════════════════════════
-# 只有 scope: user 的项生效；写别的会被忽略（防越权）
-
-GRADIO_PORT: 7860
 DASH_PORT: 8050
+GRADIO_PORT: 7860
+LANGUAGE: zh-CN
 RENDER_DPI: 300
 THEME: light
-LANGUAGE: zh-CN

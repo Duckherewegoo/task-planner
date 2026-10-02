@@ -52,6 +52,16 @@ class ConfigStore:
                 raise KeyError(f"未注册: {name}")
             del self._data[name]
 
+    def clear(self) -> int:
+        """
+        清空所有条目，返回清除数量。
+        供 hub.reload() 使用（保留锁对象本身，不换实例）。
+        """
+        with self._lock:
+            n = len(self._data)
+            self._data.clear()
+            return n
+
     def __len__(self) -> int:
         return len(self._data)
 

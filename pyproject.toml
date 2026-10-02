@@ -67,6 +67,10 @@ dashscope = [
 orjson = [
     "orjson>=3.10.0",
 ]
+# ── 配置工具增强（保留 YAML 注释）──
+config-ui = [
+    "ruamel.yaml>=0.18.0",
+]
 # ── 评估套件依赖 ──
 eval = [
     "python-Levenshtein>=0.25.0",   # 字符串相似度计算
@@ -92,6 +96,7 @@ Issues = "https://github.com/Duckherewegoo/task-planner/issues"
 
 [project.scripts]
 task-planner = "task_planner.main.ui.app:main"
+task-planner-config = "task_planner.config_ui.app:main"   # ← 新增
 task-planner-eval = "tests.eval_suite.run_evaluation:main"
 # ✅ 已移除 task-planner-gradio（gradio 已废弃，abandon/ 中无 gradio_app.py）
 

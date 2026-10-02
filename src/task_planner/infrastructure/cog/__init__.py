@@ -22,9 +22,23 @@ hub: ConfigHub = ConfigHub().bootstrap(
     user_path=_CONFIG_DIR / "user.yaml",
 )
 
+# ═══════════════════════════════════════════════════════════════════
+#  便捷重载（配置工具 / 热更新用）
+# ═══════════════════════════════════════════════════════════════════
+def reload_hub() -> int:
+    """
+    从磁盘重新加载配置（用默认路径）。
+    返回重载后的条目数。供配置工具调用。
+    """
+    return hub.reload(
+        schema_path=_CONFIG_DIR / "schema.yaml",
+        user_path=_CONFIG_DIR / "user.yaml",
+    )
+
 __all__ = [
     "hub",               # 主入口
     "register_section",  # 扩展点
+    "reload_hub",        # ← 重新加载，给配置工具用
     "ConfigEntry",       # 加新条目时用
     "ConfigSection",     # 自定义分组时用
     "Scope",

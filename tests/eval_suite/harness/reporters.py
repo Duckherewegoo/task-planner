@@ -13,7 +13,11 @@ Changelog:
 
 import datetime
 import html
-from typing import Any, Dict, List
+from typing import (
+    Any,
+    Dict,
+    List,
+)
 
 
 class Reporters:

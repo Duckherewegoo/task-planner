@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import pytest
 
-from task_planner.infrastructure.llm_client import _normalize_llm_output
+from task_planner.infrastructure.llm.json_utils import normalize_llm_output as _normalize_llm_output
 
 
 REFINE_KEYS = ["name", "details", "meta"]

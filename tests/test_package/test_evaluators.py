@@ -5,7 +5,10 @@ from __future__ import annotations
 
 import pytest
 
-from tests.eval_suite.harness.evaluators import Evaluators, _tokenize
+from tests.eval_suite.harness.evaluators import (
+    Evaluators,
+    _tokenize,
+)
 
 
 class TestPlanNodeCountAccuracy:

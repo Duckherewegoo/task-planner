@@ -19,10 +19,20 @@ import asyncio
 import sys
 import time
 import uuid
-from typing import Dict, Any, Optional
+from typing import (
+    Dict,
+    Any,
+    Optional,
+)
 
-from task_planner.services.agent import run_task_stream, cancel_task
-from task_planner.infrastructure.logger_setup import get_logger, set_req_id
+from task_planner.services.agent import (
+    run_task_stream,
+    cancel_task,
+)
+from task_planner.infrastructure.logger_setup import (
+    get_logger,
+    set_req_id,
+)
 
 logger = get_logger("eval.agent_harness")
 
@@ -156,7 +166,7 @@ class AgentHarness:
             # ── 采集 final_state（可选，失败不影响主结果）──
                 if result["task_id"] and not result["task_id"].startswith("local-"):
                     try:
-                        from task_planner.core.database import get_task
+                        from task_planner.core.db import get_task
                         # ✅ P1-2 修复：直接 await（若 get_task 是 async）
                         #    若你的 get_task 是同步函数，把下面这行换成：
                         #    task_data = await asyncio.to_thread(get_task, result["task_id"])
@@ -241,7 +251,10 @@ class AgentHarness:
         Returns:
             True 表示成功调用，False 表示参数非法或任务不存在
         """
-        from task_planner.services.agent import resume_task, modify_task
+        from task_planner.services.agent import (
+    resume_task,
+    modify_task,
+)
         if user_action == "continue":
             return await resume_task(thread_id)
         elif user_action == "modify" and modified_input:

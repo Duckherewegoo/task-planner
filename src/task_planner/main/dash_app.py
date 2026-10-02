@@ -5,6 +5,10 @@ dash_app.py — 【兼容壳】
 """
 from __future__ import annotations
 
-from task_planner.main.ui import app, build_layout, main  # noqa: F401
+from task_planner.main.ui import (
+    app,
+    build_layout,
+    main,
+)
 
 __all__ = ["app", "main", "build_layout"]

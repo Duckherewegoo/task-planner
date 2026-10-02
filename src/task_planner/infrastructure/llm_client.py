@@ -6,22 +6,18 @@ llm_client.py — 【兼容壳】
 from __future__ import annotations
 
 # 全部转发
-from task_planner.infrastructure.llm import (  # noqa: F401
-    # 业务接口
+from task_planner.infrastructure.llm import (
     direct_chat,
     recognize_intent,
     generate_plan,
     refine_node,
     execute_node_llm,
-    # 底层
     get_llm_client,
     async_call_llm,
-    # 异常
     LLMClientError,
     LLMTimeoutError,
     LLMCancelledError,
     LLMResponseError,
-    # 工具
     extract_json,
     normalize_llm_output,
     _render_template,
@@ -51,7 +47,7 @@ __all__ = [
 # ═══════════════════════════════════════════════════════════════════
 #  向后兼容：旧私有名 alias（下个大版本删除）
 # ═══════════════════════════════════════════════════════════════════
-from task_planner.infrastructure.llm.json_utils import (  # noqa: F401
+from task_planner.infrastructure.llm.json_utils import (
     extract_tail_json as _extract_tail_json,
     normalize_llm_output as _normalize_llm_output,
 )

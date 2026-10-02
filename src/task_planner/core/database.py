@@ -5,41 +5,33 @@ database.py — 【兼容壳】
 """
 from __future__ import annotations
 
-from task_planner.core.db import (  # noqa: F401
-    # 连接
+from task_planner.core.db import (
     init_db,
     get_db,
     close_db,
-    # Plan
     create_plan,
     get_plan,
     delete_plan,
     delete_plans,
-    # Task 创建/查询
     create_task_with_plan,
     create_direct_answer_task,
     get_task,
     load_task_with_plan,
     list_tasks,
     get_recent_tasks,
-    # Task 状态
     mark_task_success,
     mark_task_failed,
     mark_task_timeout,
     mark_task_running,
-    # Task 删除
     delete_task,
     batch_delete_tasks,
-    # 节点
     update_node_status,
     reset_node_status,
     get_node_status,
-    # Schema 辅助
     validate_plan,
     status_name,
     safe_int,
     TERMINAL_STATUSES,
-    # 兼容类
     DBManager,
     db_manager,
 )

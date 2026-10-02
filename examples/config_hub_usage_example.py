@@ -14,7 +14,10 @@ from task_planner.infrastructure.blocked_words import load_blocked_words
 BLOCKED_WORDS = load_blocked_words()
 
 # ── 常量 ──
-from task_planner.infrastructure.constants import TASK_STATUS, NODE_STATUS_CODE_MAP
+from task_planner.infrastructure.constants import (
+    TASK_STATUS,
+    NODE_STATUS_CODE_MAP,
+)
 
 # ── 正则 ──
 from task_planner.infrastructure.regexes import SKIP_PLANNING_PATTERNS
@@ -24,8 +27,14 @@ from task_planner.infrastructure.ui_styles import BUTTON_STYLE_PRIMARY
 
 # ── Cytoscape ──
 from task_planner.infrastructure.assets.cytoscape_styles import CYTO_STYLESHEET
-from task_planner.infrastructure.assets.cytoscape_js import GRAPH_CONFIGS, FIT_JS_TEMPLATE
+from task_planner.infrastructure.assets.cytoscape_js import (
+    GRAPH_CONFIGS,
+    FIT_JS_TEMPLATE,
+)
 
 # ── Prompts ──
-from prompts.loader import INTENT_PROMPT, PLANNER_PROMPT
+from prompts.loader import (
+    INTENT_PROMPT,
+    PLANNER_PROMPT,
+)
 msg = INTENT_PROMPT.substitute(user_input="帮我搭个K8s集群")

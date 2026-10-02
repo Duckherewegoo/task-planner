@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from task_planner.services.agent import _make_initial_state
+from task_planner.services.agent.state import make_initial_state as _make_initial_state
 from task_planner.core.graph.state import TaskState
 
 

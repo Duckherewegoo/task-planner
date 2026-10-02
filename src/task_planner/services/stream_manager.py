@@ -5,7 +5,7 @@ stream_manager.py — 【兼容壳】
 """
 from __future__ import annotations
 
-from task_planner.services.stream import (  # noqa: F401
+from task_planner.services.stream import (
     StreamStateCleaner,
     TaskStreamState,
     cancel_stream,

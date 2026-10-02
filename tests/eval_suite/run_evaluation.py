@@ -17,9 +17,15 @@ import sys
 from pathlib import Path
 
 from .dataset_manager import DatasetManager
-from .crucible_eval import CrucibleEvaluator, create_default_dataset
+from .crucible_eval import (
+    CrucibleEvaluator,
+    create_default_dataset,
+)
 from .hitl_reviewer import HITLReviewer
-from task_planner.infrastructure.logger_setup import get_logger, set_req_id
+from task_planner.infrastructure.logger_setup import (
+    get_logger,
+    set_req_id,
+)
 
 logger = get_logger("eval.runner")
 

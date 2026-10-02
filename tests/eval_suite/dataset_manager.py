@@ -15,8 +15,16 @@ Changelog:
 
 import json
 from pathlib import Path
-from typing import List, Dict, Any, Optional
-from dataclasses import dataclass, field
+from typing import (
+    List,
+    Dict,
+    Any,
+    Optional,
+)
+from dataclasses import (
+    dataclass,
+    field,
+)
 
 import yaml
 

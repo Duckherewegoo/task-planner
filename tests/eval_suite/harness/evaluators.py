@@ -13,8 +13,16 @@ Changelog:
 
 import re
 import string
-from collections import defaultdict, deque
-from typing import Any, Dict, List, Optional
+from collections import (
+    defaultdict,
+    deque,
+)
+from typing import (
+    Any,
+    Dict,
+    List,
+    Optional,
+)
 
 from task_planner.infrastructure.cog import hub as _hub
 LATENCY_ACCEPTANCE_THRESHOLD = _hub.dev.LATENCY_ACCEPTANCE_THRESHOLD

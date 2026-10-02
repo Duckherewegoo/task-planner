@@ -4,7 +4,11 @@ registry.py — Section 类注册表 + @register_section 装饰器。
 """
 from __future__ import annotations
 
-from typing import Dict, Tuple, Type
+from typing import (
+    Dict,
+    Tuple,
+    Type,
+)
 
 from .section import ConfigSection
 

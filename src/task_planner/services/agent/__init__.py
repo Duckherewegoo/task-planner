@@ -3,7 +3,10 @@ agent — 异步 Agent 主入口（拆分版）
 ═══════════════════════════════════════════════════════════════════════
 对外接口与旧 agent.py 完全一致：
 
-    from task_planner.services.agent import run_task_stream, cancel_task, ...
+    from task_planner.services.agent import (
+        run_task_stream,
+        cancel_task,
+    )
 
 子模块：
   session    TaskSession + 会话池
@@ -12,7 +15,12 @@ agent — 异步 Agent 主入口（拆分版）
   commands   5 个命令（取消/修改/继续/重试）
   view       快照提取 + 完成判断（纯函数）
 """
-from .commands import cancel_task, modify_task, resume_task, retry_node_cmd
+from .commands import (
+    cancel_task,
+    modify_task,
+    resume_task,
+    retry_node_cmd,
+)
 from .session import (
     TaskSession,
     cleanup_stale_sessions,
@@ -30,9 +38,3 @@ __all__ = [
     "cleanup_stale_sessions",
     "TaskSession",
 ]
-
-# ═══════════════════════════════════════════════════════════════════
-#  向后兼容：旧私有名 alias（下个大版本删除）
-# ═══════════════════════════════════════════════════════════════════
-from .state import make_initial_state as _make_initial_state  # noqa: F401
-from .view import is_graph_finished as _is_graph_finished  # noqa: F401

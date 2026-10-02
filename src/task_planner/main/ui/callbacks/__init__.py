@@ -1,5 +1,10 @@
 """callbacks — 触发所有回调注册。import 副作用。"""
-from . import export_cb, graph_js, history, new_task  # noqa: F401
+from . import (
+    export_cb,
+    graph_js,
+    history,
+    new_task,
+)  # noqa: F401
 
 
 def register_all() -> None:

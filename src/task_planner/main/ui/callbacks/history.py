@@ -3,9 +3,16 @@ from __future__ import annotations
 
 import logging
 
-from dash import Input, Output, State, callback, dcc, no_update
+from dash import (
+    Input,
+    Output,
+    State,
+    callback,
+    dcc,
+    no_update,
+)
 
-from task_planner.core.database import (
+from task_planner.core.db import (
     batch_delete_tasks,
     list_tasks,
     load_task_with_plan,
@@ -21,8 +28,15 @@ from task_planner.utils.cytoscape_adapter import (
 )
 from task_planner.utils.presentation_utils import build_history_dropdown_options
 
-from ..constants import HistorySelectResult, HistoryTapNodeResult, cytoscape_cached
-from ..data_ops import load_and_fill_query, update_node_and_render
+from ..constants import (
+    HistorySelectResult,
+    HistoryTapNodeResult,
+    cytoscape_cached,
+)
+from ..data_ops import (
+    load_and_fill_query,
+    update_node_and_render,
+)
 
 logger = logging.getLogger(__name__)
 

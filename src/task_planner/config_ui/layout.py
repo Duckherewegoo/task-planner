@@ -1,5 +1,8 @@
 """layout.py — 配置工具页面布局"""
-from dash import dcc, html
+from dash import (
+    dcc,
+    html,
+)
 
 from task_planner.config_ui.form_builder import build_form
 

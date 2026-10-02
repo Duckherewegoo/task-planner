@@ -12,14 +12,14 @@ from task_planner.infrastructure.cog import hub as _hub
 from task_planner.infrastructure.constants import VALID_PORT_RANGE
 from task_planner.infrastructure.logger_setup import get_logger
 
-logger = get_logger("task_planner.dash_app")
+logger = get_logger("task_planner.ui")
 
 cyto.load_extra_layouts()
 
 
 def _bootstrap_db() -> None:
     """模块导入时执行一次 DB 初始化"""
-    from task_planner.core.database import init_db
+    from task_planner.core.db import init_db
 
     try:
         asyncio.run(init_db())

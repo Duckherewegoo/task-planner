@@ -31,16 +31,16 @@ os.environ.setdefault("MONGO_HOST", "localhost")
 try:
     from tests.eval_suite.dataset_manager import DatasetManager
     from tests.eval_suite.crucible_eval import (
-    CrucibleEvaluator,
-    create_default_dataset,
-)
+        CrucibleEvaluator,
+        create_default_dataset,
+    )
     from tests.eval_suite.harness.evaluators import Evaluators
 except ImportError:
     from .dataset_manager import DatasetManager
     from .crucible_eval import (
-    CrucibleEvaluator,
-    create_default_dataset,
-)
+        CrucibleEvaluator,
+        create_default_dataset,
+    )
     from .harness.evaluators import Evaluators
 
 

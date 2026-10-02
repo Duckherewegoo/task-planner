@@ -1,7 +1,10 @@
 """nodes.py — Plan 内 nodes 数组的状态操作"""
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import (
+    datetime,
+    timezone,
+)
 from typing import Optional
 
 from task_planner.infrastructure.constants import TASK_STATUS
@@ -10,7 +13,7 @@ from task_planner.infrastructure.logger_setup import get_logger
 from .client import get_db
 from .schema import status_name
 
-logger = get_logger("task_planner.db.nodes")
+logger = get_logger("task_planner.core.db.nodes")
 
 
 async def update_node_status(

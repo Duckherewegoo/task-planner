@@ -6,7 +6,7 @@ from typing import Any
 from task_planner.infrastructure.constants import TASK_STATUS
 from task_planner.infrastructure.logger_setup import get_logger
 
-logger = get_logger("task_planner.db.schema")
+logger = get_logger("task_planner.core.db.schema")
 
 # 状态码 → 名字（反查表）
 _STATUS_NAMES: dict[int, str] = {v: k for k, v in TASK_STATUS.items()}

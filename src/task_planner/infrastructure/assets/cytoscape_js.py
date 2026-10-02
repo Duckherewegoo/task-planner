@@ -1,5 +1,8 @@
 """cytoscape_js.py — 前端 JS 模板（原 config.py 第 14 节后半）"""
-from typing import Any, Dict
+from typing import (
+    Any,
+    Dict,
+)
 
 
 # >>>>> GRAPH_CONFIGS  <<<<<

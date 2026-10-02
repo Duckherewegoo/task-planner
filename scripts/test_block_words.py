@@ -11,7 +11,7 @@ from pathlib import Path
 # 让脚本能直接跑（不用先 pip install -e .）
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from task_planner.infrastructure.blocked_words import (  # noqa: E402
+from task_planner.infrastructure.blocked_words import (
     BLOCKED_WORDS,
     BLOCK_WORDS,
     REVIEW_WORDS,

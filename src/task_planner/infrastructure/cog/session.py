@@ -3,9 +3,15 @@ session.py — 一个会话 = 一个角色。写前问 guard，读直通 store�
 """
 from __future__ import annotations
 
-from typing import Any, Tuple
+from typing import (
+    Any,
+    Tuple,
+)
 
-from .entry import ConfigEntry, Role
+from .entry import (
+    ConfigEntry,
+    Role,
+)
 from .guard import ConfigGuard
 from .store import ConfigStore
 

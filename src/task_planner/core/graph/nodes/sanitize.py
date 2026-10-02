@@ -16,7 +16,11 @@ Changelog:
 from __future__ import annotations
 
 import hashlib
-from typing import Any, TypedDict, cast
+from typing import (
+    Any,
+    TypedDict,
+    cast,
+)
 
 from langchain_core.runnables import RunnableConfig  # noqa: F401  （保留类型签名兼容性）
 

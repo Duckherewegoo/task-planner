@@ -252,9 +252,9 @@ class AgentHarness:
             True 表示成功调用，False 表示参数非法或任务不存在
         """
         from task_planner.services.agent import (
-    resume_task,
-    modify_task,
-)
+            resume_task,
+            modify_task,
+        )
         if user_action == "continue":
             return await resume_task(thread_id)
         elif user_action == "modify" and modified_input:

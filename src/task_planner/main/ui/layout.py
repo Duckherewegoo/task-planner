@@ -1,7 +1,10 @@
 """layout.py — Dash 页面布局"""
 from __future__ import annotations
 
-from dash import dcc, html
+from dash import (
+    dcc,
+    html,
+)
 import dash_cytoscape as cyto
 
 from task_planner.infrastructure.assets.cytoscape_js import GRAPH_CONFIGS  # noqa: F401

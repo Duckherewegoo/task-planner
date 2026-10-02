@@ -4,8 +4,14 @@ section.py — ConfigSection 抽象基类。
 """
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Tuple
+from abc import (
+    ABC,
+    abstractmethod,
+)
+from typing import (
+    TYPE_CHECKING,
+    Tuple,
+)
 
 if TYPE_CHECKING:
     from .entry import ConfigEntry

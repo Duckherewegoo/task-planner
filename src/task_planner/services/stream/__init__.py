@@ -3,7 +3,7 @@ stream — 后台流式任务管理（拆分版）
 ═══════════════════════════════════════════════════════════════════════
 对外接口与旧 stream_manager.py 完全一致：
 
-    from task_planner.services.stream_manager import start_stream, ...
+    from task_planner.services.stream import start_stream
 
 子模块：
   state      TaskStreamState
@@ -12,7 +12,10 @@ stream — 后台流式任务管理（拆分版）
   control    取消/完成/跳过/失败/可操作查询
   view       视图辅助（纯函数）
 """
-from .cleaner import StreamStateCleaner, state_cleaner
+from .cleaner import (
+    StreamStateCleaner,
+    state_cleaner,
+)
 from .control import (
     cancel_stream,
     complete_node,
@@ -22,9 +25,15 @@ from .control import (
     get_stream_state,
     skip_node,
 )
-from .launcher import resume_stream, start_stream
+from .launcher import (
+    resume_stream,
+    start_stream,
+)
 from .state import TaskStreamState
-from .view import get_status_text, snapshot_to_elements
+from .view import (
+    get_status_text,
+    snapshot_to_elements,
+)
 
 __all__ = [
     # 类

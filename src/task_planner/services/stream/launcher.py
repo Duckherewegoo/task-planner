@@ -2,7 +2,10 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Callable, Optional
+from typing import (
+    Callable,
+    Optional,
+)
 
 from task_planner.core.graph.workflow import (
     get_thread_state_async,
@@ -13,7 +16,7 @@ from task_planner.infrastructure.logger_setup import get_logger
 from .cleaner import state_cleaner
 from .state import TaskStreamState
 
-logger = get_logger("task_planner.stream_manager")
+logger = get_logger("task_planner.stream")
 
 
 async def start_stream(

@@ -81,3 +81,4 @@ desktop.ini
 # data/blocked_words/             ← 不要加这行
 data/blocked_words/_local/         # 本地测试用词库，不提交
 
+.compat_removal_backup/

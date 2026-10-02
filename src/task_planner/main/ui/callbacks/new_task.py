@@ -5,13 +5,23 @@ import time
 import uuid
 from typing import Any
 
-from dash import Input, Output, Patch, State, callback, ctx, dcc, html, no_update
+from dash import (
+    Input,
+    Output,
+    Patch,
+    State,
+    callback,
+    ctx,
+    dcc,
+    html,
+    no_update,
+)
 
 from task_planner.core.graph.nodes import sanitize_node_for_user
 from task_planner.core.graph.state import NodeStatus
 from task_planner.infrastructure.constants import (
     HINT_TEMPLATES,
-    NODE_STATUS_CODE_MAP,   # noqa: F401
+    NODE_STATUS_CODE_MAP,
     STATE_COLORS,
     STATE_LABELS,
 )
@@ -29,7 +39,7 @@ from task_planner.infrastructure.ui_styles import (
     MARKDOWN_PRE_STYLE,
 )
 from task_planner.services.agent import run_task_stream
-from task_planner.services.stream_manager import (
+from task_planner.services.stream import (
     cancel_stream,
     get_stream_state,
     start_stream,
@@ -37,7 +47,10 @@ from task_planner.services.stream_manager import (
 from task_planner.utils.cytoscape_adapter import build_detail_markdown
 
 from ..constants import cytoscape_cached
-from ..data_ops import auto_unlock_downstream, safe_elapsed
+from ..data_ops import (
+    auto_unlock_downstream,
+    safe_elapsed,
+)
 
 
 def register() -> None:
@@ -466,7 +479,7 @@ def register() -> None:
         prevent_initial_call=True,
     )
     async def on_reset_node(n_clicks, selected_nid, dag, node_states, task_id):
-        from task_planner.core.database import reset_node_status
+        from task_planner.core.db import reset_node_status
         import logging
 
         if ctx.triggered_id != "reset-btn-panel":

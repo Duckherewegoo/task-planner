@@ -3,10 +3,21 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from dash import ALL, Input, Output, State, callback, ctx, no_update
+from dash import (
+    ALL,
+    Input,
+    Output,
+    State,
+    callback,
+    ctx,
+    no_update,
+)
 
 from task_planner.config_ui.form_builder import build_form
-from task_planner.config_ui.writer import write_env, write_user_yaml
+from task_planner.config_ui.writer import (
+    write_env,
+    write_user_yaml,
+)
 from task_planner.infrastructure.cog import hub
 from task_planner.infrastructure.cog.entry import Scope
 from task_planner.infrastructure.logger_setup import get_logger

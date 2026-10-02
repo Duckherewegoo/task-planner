@@ -7,7 +7,10 @@ import textwrap
 from dash import dcc
 
 from task_planner.infrastructure.logger_setup import get_logger
-from task_planner.utils.pyvis_export import export_dag_to_png, export_dag_to_svg
+from task_planner.utils.pyvis_export import (
+    export_dag_to_png,
+    export_dag_to_svg,
+)
 
 from .data_ops import make_filename
 

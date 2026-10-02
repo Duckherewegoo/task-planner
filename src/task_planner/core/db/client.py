@@ -4,13 +4,20 @@ from __future__ import annotations
 import asyncio
 from typing import Optional
 
-from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
-from pymongo import ASCENDING, DESCENDING, IndexModel
+from motor.motor_asyncio import (
+    AsyncIOMotorClient,
+    AsyncIOMotorDatabase,
+)
+from pymongo import (
+    ASCENDING,
+    DESCENDING,
+    IndexModel,
+)
 
 from task_planner.infrastructure.cog import hub as _hub
 from task_planner.infrastructure.logger_setup import get_logger
 
-logger = get_logger("task_planner.db.client")
+logger = get_logger("task_planner.core.db.client")
 
 _client: Optional[AsyncIOMotorClient] = None
 _db: Optional[AsyncIOMotorDatabase] = None

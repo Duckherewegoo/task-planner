@@ -2,13 +2,16 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Optional
+from typing import (
+    Any,
+    Optional,
+)
 
 from task_planner.infrastructure.logger_setup import get_logger
 
 from .client import get_db
 
-logger = get_logger("task_planner.db.plans")
+logger = get_logger("task_planner.core.db.plans")
 
 
 async def create_plan(

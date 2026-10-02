@@ -35,7 +35,12 @@ import re
 import sys
 import tokenize
 from pathlib import Path
-from typing import Dict, List, Set, Tuple
+from typing import (
+    Dict,
+    List,
+    Set,
+    Tuple,
+)
 
 
 # ═══════════════════════════════════════════════════════════════════════

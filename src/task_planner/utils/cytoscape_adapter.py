@@ -31,17 +31,24 @@ from __future__ import annotations
 
 import re
 from functools import lru_cache
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import (
+    Any,
+    Dict,
+    List,
+    Optional,
+    Set,
+    Tuple,
+)
 
 from wcwidth import wcswidth
 
 from task_planner.infrastructure.constants import (
     DEFAULT_EDGE_TYPE,
-    EDGE_TYPE_CONDITIONAL,  # noqa: F401  （供外部 import 转发）
+    EDGE_TYPE_CONDITIONAL,
     EDGE_TYPE_CSS,
     EDGE_TYPE_HARD,
-    EDGE_TYPE_RETRY,  # noqa: F401
-    EDGE_TYPE_SOFT,   # noqa: F401
+    EDGE_TYPE_RETRY,
+    EDGE_TYPE_SOFT,
     NODE_STYLES,
     STATUS_ICONS,
     VALID_EDGE_TYPES,
@@ -235,10 +242,6 @@ def get_edge_type(edge: Dict[str, Any]) -> str:
             raw, edge.get("from"), edge.get("to"), DEFAULT_EDGE_TYPE,
         )
     return DEFAULT_EDGE_TYPE
-
-
-# 向后兼容：旧调用点 from ... import _get_edge_type 仍可用
-_get_edge_type = get_edge_type
 
 
 def _status_icon(status_code: int) -> str:

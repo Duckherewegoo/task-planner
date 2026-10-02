@@ -1,5 +1,8 @@
 """base — 代码内置的基础配置（与 YAML 互补，不重复）"""
-from ..entry import ConfigEntry, Scope
+from ..entry import (
+    ConfigEntry,
+    Scope,
+)
 from ..registry import register_section
 from ..section import ConfigSection
 

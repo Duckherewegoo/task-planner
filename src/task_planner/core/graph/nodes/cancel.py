@@ -5,7 +5,7 @@ from typing import Any
 
 from langchain_core.runnables import RunnableConfig
 
-from task_planner.core.database import mark_task_failed
+from task_planner.core.db import mark_task_failed
 from task_planner.core.graph.state import TaskState
 from task_planner.infrastructure.logger_setup import get_logger
 

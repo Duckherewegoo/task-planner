@@ -3,8 +3,8 @@ llm — LLM 调用封装（拆分版）
 ═══════════════════════════════════════════════════
 对外接口与旧 llm_client.py 完全一致：
 
-    from task_planner.infrastructure.llm import recognize_intent, ...
-    from task_planner.infrastructure.llm_client import recognize_intent, ...  # 兼容
+    from task_planner.infrastructure.llm import recognize_intent
+    from task_planner.infrastructure.llm import recognize_intent  # 兼容
 
 子模块：
   errors        异常体系
@@ -30,7 +30,10 @@ from .errors import (
     LLMResponseError,
     LLMTimeoutError,
 )
-from .json_utils import extract_json, normalize_llm_output
+from .json_utils import (
+    extract_json,
+    normalize_llm_output,
+)
 
 # 兼容旧名
 from task_planner.infrastructure.prompts.loader import render_template as _render_template

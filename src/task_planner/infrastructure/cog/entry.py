@@ -4,7 +4,10 @@ entry.py — 配置条目的数据结构。
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import (
+    dataclass,
+    replace,
+)
 from enum import Enum
 from typing import Any
 

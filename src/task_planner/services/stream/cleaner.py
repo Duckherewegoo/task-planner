@@ -10,7 +10,7 @@ from task_planner.infrastructure.logger_setup import get_logger
 
 from .state import TaskStreamState
 
-logger = get_logger("task_planner.stream_manager")
+logger = get_logger("task_planner.stream")
 
 
 class StreamStateCleaner:

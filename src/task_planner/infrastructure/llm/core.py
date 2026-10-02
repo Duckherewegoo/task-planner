@@ -3,12 +3,18 @@ from __future__ import annotations
 
 import asyncio
 import random
-from typing import Any, Optional
+from typing import (
+    Any,
+    Optional,
+)
 
 from task_planner.infrastructure.cog import hub as _hub
 from task_planner.infrastructure.logger_setup import get_logger
 
-from .client import _get_semaphore, get_llm_client  # noqa: F401 (semaphore 转发)
+from .client import (
+    _get_semaphore,
+    get_llm_client,
+)  # noqa: F401 (semaphore 转发)
 from .errors import (
     LLMCancelledError,
     LLMClientError,

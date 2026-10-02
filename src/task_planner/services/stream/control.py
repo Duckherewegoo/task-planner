@@ -10,7 +10,7 @@ from task_planner.utils.cytoscape_adapter import get_edge_type as _get_edge_type
 
 from .cleaner import state_cleaner
 
-logger = get_logger("task_planner.stream_manager")
+logger = get_logger("task_planner.stream")
 
 
 async def get_stream_state(thread_id: str):

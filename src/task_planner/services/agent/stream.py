@@ -4,15 +4,27 @@ from __future__ import annotations
 import asyncio
 import contextvars
 import traceback
-from typing import Any, AsyncGenerator
+from typing import (
+    Any,
+    AsyncGenerator,
+)
 
 from task_planner.core.graph.workflow import graph
-from task_planner.infrastructure.logger_setup import get_logger, set_req_id
+from task_planner.infrastructure.logger_setup import (
+    get_logger,
+    set_req_id,
+)
 from task_planner.utils.context import cancel_event_var
 
-from .session import acquire_session, pop_session
+from .session import (
+    acquire_session,
+    pop_session,
+)
 from .state import make_initial_state
-from .view import extract_snapshot, is_graph_finished
+from .view import (
+    extract_snapshot,
+    is_graph_finished,
+)
 
 logger = get_logger(__name__)
 

@@ -2,7 +2,10 @@
 ui_styles.py — Dash/Gradio 内联样式字典。
 集中管理，避免散落在回调里。
 """
-from typing import Any, Dict
+from typing import (
+    Any,
+    Dict,
+)
 
 # ── 基础按钮 ──
 BASE_BTN_STYLE: Dict[str, Any] = {

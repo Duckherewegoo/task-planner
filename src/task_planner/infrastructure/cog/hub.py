@@ -6,9 +6,15 @@ hub.py — 配置系统唯一对外门面。
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import (
+    Optional,
+    Tuple,
+)
 
-from .entry import ConfigEntry, Role
+from .entry import (
+    ConfigEntry,
+    Role,
+)
 from .guard import ConfigGuard
 from .loader import ConfigLoader
 from .registry import _SECTION_REGISTRY

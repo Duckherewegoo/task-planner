@@ -5,7 +5,12 @@ import hashlib
 import json
 import threading
 from dataclasses import dataclass
-from typing import Any, Dict, List, Tuple
+from typing import (
+    Any,
+    Dict,
+    List,
+    Tuple,
+)
 
 from dash import no_update
 

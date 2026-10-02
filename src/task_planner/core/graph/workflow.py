@@ -30,9 +30,16 @@ import asyncio
 import atexit
 import os
 import threading
-from typing import Any, Optional
+from typing import (
+    Any,
+    Optional,
+)
 
-from langgraph.graph import END, START, StateGraph
+from langgraph.graph import (
+    END,
+    START,
+    StateGraph,
+)
 
 from task_planner.core.graph.nodes import (
     cancel_node,

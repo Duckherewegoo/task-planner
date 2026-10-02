@@ -2,7 +2,11 @@
 constants.py — 全项目共享的代码常量/枚举。
 不是配置，不接受运行时修改，不进 cog。
 """
-from typing import Dict, FrozenSet, List
+from typing import (
+    Dict,
+    FrozenSet,
+    List,
+)
 
 # ══════════════════════════════════════════════════
 #  任务状态

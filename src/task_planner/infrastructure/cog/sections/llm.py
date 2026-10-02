@@ -1,5 +1,8 @@
 """llm — 代码内置项"""
-from ..entry import ConfigEntry, Scope
+from ..entry import (
+    ConfigEntry,
+    Scope,
+)
 from ..registry import register_section
 from ..section import ConfigSection
 

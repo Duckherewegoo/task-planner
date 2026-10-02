@@ -3,7 +3,10 @@ from __future__ import annotations
 
 import asyncio
 import json
-from typing import Any, Optional
+from typing import (
+    Any,
+    Optional,
+)
 
 from task_planner.infrastructure.constants import MOCK_RESPONSE_PREFIX
 from task_planner.infrastructure.logger_setup import get_logger
@@ -25,8 +28,15 @@ from .errors import (
     LLMResponseError,
     LLMTimeoutError,
 )
-from .json_utils import extract_json, normalize_llm_output
-from .mocks import mock_intent, mock_plan, mock_refine
+from .json_utils import (
+    extract_json,
+    normalize_llm_output,
+)
+from .mocks import (
+    mock_intent,
+    mock_plan,
+    mock_refine,
+)
 from .validator import validate_intent
 
 logger = get_logger(__name__)

@@ -3,7 +3,11 @@ from __future__ import annotations
 
 import json
 
-from dash import Input, Output, clientside_callback
+from dash import (
+    Input,
+    Output,
+    clientside_callback,
+)
 
 from task_planner.infrastructure.assets.cytoscape_js import (
     FIT_JS_TEMPLATE,

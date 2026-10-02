@@ -4,9 +4,18 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from dash import Input, Output, State, callback, dcc
+from dash import (
+    Input,
+    Output,
+    State,
+    callback,
+    dcc,
+)
 
-from ..data_ops import make_filename, resolve_dag_data
+from ..data_ops import (
+    make_filename,
+    resolve_dag_data,
+)
 from ..export import (
     DATA_EXPORT_STRATEGIES,
     export_png_bytes,

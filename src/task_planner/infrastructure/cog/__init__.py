@@ -10,7 +10,11 @@ from pathlib import Path
 from . import sections  # noqa: F401
 
 # 2) 组装 hub
-from .entry import ConfigEntry, Role, Scope
+from .entry import (
+    ConfigEntry,
+    Role,
+    Scope,
+)
 from .hub import ConfigHub
 from .registry import register_section
 from .section import ConfigSection

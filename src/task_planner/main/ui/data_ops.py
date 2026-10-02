@@ -2,12 +2,19 @@
 from __future__ import annotations
 
 import time
-from typing import Any, Optional
+from typing import (
+    Any,
+    Optional,
+)
 
-from task_planner.core.database import load_task_with_plan
-from task_planner.infrastructure.constants import EDGE_TYPE_HARD, NODE_ACTION_CONFIG
+from task_planner.core.db import load_task_with_plan
+from task_planner.infrastructure.constants import (
+    EDGE_TYPE_HARD,
+    NODE_ACTION_CONFIG,
+)
 from task_planner.infrastructure.logger_setup import get_logger
-from task_planner.utils.cytoscape_adapter import _get_edge_type, dag_to_cytoscape
+from task_planner.utils.cytoscape_adapter import dag_to_cytoscape
+from task_planner.utils.cytoscape_adapter import get_edge_type as _get_edge_type
 from task_planner.utils.presentation_utils import extract_first_task_id
 
 from .constants import cytoscape_cached

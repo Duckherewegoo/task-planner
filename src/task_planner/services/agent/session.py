@@ -9,7 +9,10 @@ from __future__ import annotations
 
 import asyncio
 import time
-from typing import Any, Optional
+from typing import (
+    Any,
+    Optional,
+)
 
 from task_planner.infrastructure.cog import hub as _hub
 from task_planner.infrastructure.logger_setup import get_logger

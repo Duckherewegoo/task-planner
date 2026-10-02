@@ -4,7 +4,11 @@ store.py — 内存配置仓库。只干 CRUD，不判权限、不读文件。
 from __future__ import annotations
 
 from threading import RLock
-from typing import Dict, Iterator, Tuple
+from typing import (
+    Dict,
+    Iterator,
+    Tuple,
+)
 
 from .entry import ConfigEntry
 

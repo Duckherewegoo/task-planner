@@ -3,7 +3,10 @@ nodes — LangGraph 异步节点函数（拆分版）
 ═══════════════════════════════════════════════════
 对外导出所有节点函数与路由函数，接口与旧 nodes.py 完全一致：
 
-    from task_planner.core.graph.nodes import intent_node, plan_node, ...
+    from task_planner.core.graph.nodes import (
+        intent_node,
+        plan_node,
+    )
 
 拆分子模块：
   sanitize      横切：脱敏 / 视图过滤 / 取消事件

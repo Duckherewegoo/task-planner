@@ -37,7 +37,14 @@ import json
 import re
 import time
 import uuid
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import (
+    Any,
+    Dict,
+    List,
+    Optional,
+    Set,
+    Tuple,
+)
 
 import networkx as nx
 from pyvis.network import Network  # type: ignore
@@ -51,7 +58,7 @@ from task_planner.infrastructure.constants import (
     EDGE_TYPE_STYLE,
     NODE_STYLES,
     STATUS_BORDER,
-    STATUS_COLOR,   # noqa: F401  保留以兼容外部 import
+    STATUS_COLOR,
     STATUS_ICONS,
     STATUS_TEXT,
 )

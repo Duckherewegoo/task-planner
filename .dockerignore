@@ -1,0 +1,39 @@
+# 版本控制 / IDE
+.git
+.gitignore
+.github
+.idea
+.vscode
+
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+venv/
+build/
+dist/
+
+# 项目特有
+logs/
+eval_reports/
+.compat_removal_backup/
+tests/
+scripts/
+examples/
+src/task_planner/abandon/
+
+# 敏感 / 本地
+.env
+.env.*
+!.env.example
+config/user.yaml
+config/*.example
+
+# 文档
+*.md
+!README.md
+LICENSE

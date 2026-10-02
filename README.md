@@ -74,6 +74,13 @@ ______________________________________________________________________
 
 ```
 new_task_planner/
+├── .github/
+│   └── workflows/
+│       └── ci.yml                    ← ci action
+├── Dockerfile                        ← mongodb mode
+├── .dockerignore                     ← dockerignore
+├── docker-compose.yml                ← 只留 mongodb
+├── docker-compose.prod.yml           ← docker mode 
 ├── config/                        # 🔴 配置数据（外部，可挂载）
 │   ├── schema.yaml                # 开发者声明（value / purpose / scope / secret / from_env）
 │   ├── schema.yaml.example        # 模板示例
@@ -237,7 +244,6 @@ new_task_planner/
 │
 ├── logs/                          # 运行日志（项目根）
 ├── eval_reports/                  # 评估报告输出
-├── docker-compose.yml
 ├── pyproject.toml
 ├── README.md
 ├── LICENSE
@@ -280,6 +286,36 @@ docker run -d --name task_mongodb -p 27017:27017 mongo:7.0
 ```bash
 sudo systemctl start mongod
 ```
+**完整使用流程**
+
+```bash
+
+# ── 开发模式（只 mongodb）──
+docker compose up -d
+task-planner                    # 主应用在宿主机跑
+
+# ── 生产模式（全容器）──
+export DASHSCOPE_API_KEY=sk-xxx
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+# ── 生产 + 配置工具 ──
+docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+    --profile config up -d
+
+# ── 看日志 ──
+docker compose logs -f app
+
+# ── 停 ──
+docker compose down                # 停服务，保留数据卷
+docker compose down -v             # 停服务 + 删数据卷（危险）
+
+```
+
+**关于 .env 的说明**
+
+- 生产：.env 放宿主机（不进镜像），compose 用它注入环境变量。关键：.dockerignore 里已排除 .env，不会误打进镜像。
+
+- 配置工具：config-ui 服务挂载 .env 到容器里可写（因为工具要能改密钥）。生产环境慎用——可以只在内网开。
 
 ### 3. 配置 `.env`
 

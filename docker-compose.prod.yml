@@ -1,0 +1,68 @@
+# ═══════════════════════════════════════════════════════════════════
+# 生产：mongodb + app 全容器化
+# 用法：docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# ═══════════════════════════════════════════════════════════════════
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: task-planner:latest
+    container_name: task_planner_app
+    restart: unless-stopped
+    ports:
+      - "8050:8050"   # 主应用
+      # - "8051:8051"  # 配置工具（按需开）
+    environment:
+      # ── 数据库 ──
+      MONGO_HOST: mongodb
+      MONGO_PORT: 27017
+      MONGO_DB: task_planner_db
+      # ── 应用 ──
+      DASH_HOST: 0.0.0.0
+      DASH_PORT: 8050
+      DEBUG: "false"
+      # ── 密钥（从 .env 注入，不落盘）──
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY}
+      DASHSCOPE_BASE_URL: ${DASHSCOPE_BASE_URL:-}
+      USE_MOCK_LLM: ${USE_MOCK_LLM:-false}
+      # ── 日志 ──
+      LOG_DIR: /app/logs
+    volumes:
+      # 配置挂载为只读（生产不允许运行改配置）
+      - ./config/schema.yaml:/app/config/schema.yaml:ro
+      - ./config/user.yaml:/app/config/user.yaml:ro
+      # 词库挂载
+      - ./data:/app/data:ro
+      # 日志 / 导出可写
+      - ./logs:/app/logs
+      - ./exports:/app/exports
+    depends_on:
+      mongodb:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8050/').read(1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  # 可选：单独跑配置工具
+  config-ui:
+    image: task-planner:latest
+    container_name: task_planner_config
+    restart: unless-stopped
+    ports:
+      - "8051:8051"
+    environment:
+      CONFIG_UI_HOST: 0.0.0.0
+      CONFIG_UI_PORT: 8051
+    volumes:
+      # 配置需要**可写**（配置工具要改 user.yaml / .env）
+      - ./config:/app/config
+      - ./.env:/app/.env
+    entrypoint: ["task-planner-config"]
+    profiles:
+      - config    # 默认不启动，用 --profile config 才起

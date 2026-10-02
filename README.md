@@ -7,6 +7,13 @@
 > 基于 **LangGraph** 与 **大语言模型** 的自主任务规划引擎，支持动态 DAG 编排、多模态意图识别与全流程可观测性评估。
 > **全链路异步化，高性能、可扩展。**
 
+**工程特性：**
+
+- **配置系统** — `cog` 包，scope 分级 + 密钥 `from_env` 强制
+- **违禁词库** — AC 自动机 + 白名单子串豁免 + block/review 分级
+- **独立配置工具** — `task-planner-config`（可选套件，端口 8051）
+- **可选依赖全走优雅降级** — `pyahocorasick` / `ruamel.yaml` / `orjson` / `psutil`
+
 ______________________________________________________________________
 
 ## ✨ 核心特性
@@ -21,6 +28,9 @@ ______________________________________________________________________
 - 🔌 **异步优先** — 全链路 async I/O（LLM、DB、流式输出）
 - 🧪 **评估套件** — 内置 Crucible 评估引擎，支持 HITL 人工审查
 - 🛡 **生产级增强** — 重试、熔断、限流、健康检查、结构化日志
+- ⚙️ **独立配置工具** — 可选套件，独立进程运行（端口 8051），自动从 `cog.snapshot()` 生成表单，支持热重载
+
+> 注：Gradio 已完全弃用，保留相关说明以便排查旧配置。
 
 ______________________________________________________________________
 
@@ -46,6 +56,16 @@ ______________________________________________________________________
 │  LLM Client        │       │  Database                   │
 │  AsyncOpenAI+httpx │       │  MongoDB (Motor 异步)       │
 └────────────────────┘       └─────────────────────────────┘
+
+┌───────────────────────────────────────────────┐
+│  旁路（可选，独立进程）：                       │
+│  ┌────────────────────────┐                    │
+│  │  config_ui（端口 8051）│                    │
+│  │  task-planner-config   │                    │
+│  │  只读写 config/*.yaml  │                    │
+│  │  和 .env，不连 DB/LLM  │                    │
+│  └────────────────────────┘                    │
+└───────────────────────────────────────────────┘
 ```
 
 ______________________________________________________________________
@@ -55,21 +75,24 @@ ______________________________________________________________________
 ```
 new_task_planner/
 ├── config/                        # 🔴 配置数据（外部，可挂载）
-│   ├── schema.yaml                # 开发者声明（值 + purpose + scope + secret）
+│   ├── schema.yaml                # 开发者声明（value / purpose / scope / secret / from_env）
 │   ├── schema.yaml.example        # 模板示例
-│   ├── user.yaml                  # 用户可覆盖项（仅 scope=user 生效）
+│   ├── user.yaml                  # 用户覆盖（仅 scope=user 生效）
 │   └── user.yaml.example          # 模板示例
 │
 ├── data/                          # 🔴 数据（外部）
-│   ├── blocked_words/             # 违禁词库（一行一词，扁平/嵌套均可）
-│   │   ├── 反动词库.txt
-│   │   ├── 暴恐词库.txt
-│   │   ├── 色情词库.txt
-│   │   ├── 涉枪涉爆.txt
-│   │   ├── 广告类型.txt
-│   │   ├── 非法网址.txt
-│   │   ├── 零时-Tencent.txt
-│   │   └── ...（共 17 个词库文件）
+│   ├── blocked_words/             # 违禁词库（17 个 txt，扁平）
+│   │   ├── 反动词库.txt           # → tier=block
+│   │   ├── 暴恐词库.txt           # → tier=block
+│   │   ├── 色情词库.txt           # → tier=block
+│   │   ├── 涉枪涉爆.txt           # → tier=block
+│   │   ├── COVID-19词库.txt       # → tier=review
+│   │   ├── GFW补充词库.txt        # → tier=review
+│   │   ├── 其他词库.txt / 广告类型.txt / 政治类型.txt
+│   │   ├── 新思想启蒙.txt / 民生词库.txt
+│   │   ├── 网易前端过滤敏感词库.txt
+│   │   ├── 色情类型.txt / 补充词库.txt / 贪腐词库.txt
+│   │   ├── 零时-Tencent.txt / 非法网址.txt
 │   └── whitelist.txt              # 白名单（子串豁免）
 │
 ├── scripts/                       # 🟡 运维与检查脚本
@@ -83,76 +106,97 @@ new_task_planner/
 │   └── config_hub_usage_example.py  # cog 用法示例
 │
 ├── src/task_planner/
-│   ├── abandon/                   # 🗄️ 归档（旧实现，不参与运行）
+│   ├── abandon/                   # 🗄️ 归档（不参与运行，9 文件）
 │   │   ├── config_old.py          # 旧大宗 config.py
 │   │   ├── agent_legacy.py / agent_nah.py
 │   │   ├── dash_app_legacy.py
 │   │   ├── llm_client_legacy.py
 │   │   ├── stream_manager_legacy.py
-│   │   ├── datebase_legacy.py     # 注意拼写：datebase
+│   │   ├── datebase_legacy.py     # ⚠️ 原拼写保留
 │   │   ├── good_addons_old.py
 │   │   └── _nodes_legacy.py
 │   │
+│   ├── config_ui/                 # ✅ 独立配置工具
+│   │   ├── __init__.py            # 导出 app / main
+│   │   ├── app.py                 # Dash 实例 + main()，默认端口 8051
+│   │   ├── layout.py              # 页面布局
+│   │   ├── form_builder.py        # 从 cog.hub 自动生成表单
+│   │   ├── writer.py              # 原子写 user.yaml / .env
+│   │   └── callbacks.py           # 保存 / 重置 / 重载
+│   │
 │   ├── core/
-│   │   ├── db/                    # MongoDB 数据层（拆分包）
+│   │   ├── database.py            # 【兼容壳】→ core/db/
+│   │   ├── db/                    # MongoDB 数据层（6 文件）
 │   │   │   ├── client.py          # 连接生命周期 + 索引
-│   │   │   ├── schema.py          # 数据清洗 / 状态辅助 / 常量
+│   │   │   ├── schema.py          # 数据清洗 / status 辅助 / validate_plan
 │   │   │   ├── plans.py           # Plan CRUD
-│   │   │   ├── tasks.py           # Task CRUD + 状态更新
+│   │   │   ├── tasks.py           # Task CRUD + 4 状态更新
 │   │   │   ├── nodes.py           # nodes 数组操作
 │   │   │   └── manager.py         # DBManager 兼容类
-│   │   ├── graph/
-│   │   │   ├── state.py           # TaskState 状态契约
-│   │   │   ├── nodes/             # 图节点（拆分包）
-│   │   │   │   ├── intent.py / plan.py / refine.py
-│   │   │   │   ├── save.py / render.py / execute.py
-│   │   │   │   ├── direct.py / cancel.py
-│   │   │   │   ├── routes.py      # 路由函数（纯计算）
-│   │   │   │   ├── sanitize.py    # 横切：脱敏 / 视图过滤
-│   │   │   │   └── _executor.py   # 单节点执行器
-│   │   │   └── workflow.py        # 图拓扑 + Checkpointer
-│   │   └── database.py            # 【兼容壳】转发到 core/db
+│   │   └── graph/
+│   │       ├── state.py           # TaskState
+│   │       ├── workflow.py         # 图拓扑 + Checkpointer + 单例
+│   │       └── nodes/             # 图节点（13 文件）
+│   │           ├── intent.py / plan.py / refine.py
+│   │           ├── save.py / render.py / execute.py
+│   │           ├── direct.py / cancel.py
+│   │           ├── routes.py      # 路由函数（纯计算）
+│   │           ├── sanitize.py    # 横切：脱敏 / 视图过滤
+│   │           └── _executor.py   # 单节点执行器
 │   │
 │   ├── infrastructure/
+│   │   ├── assets/                # Cytoscape 资源
+│   │   │   ├── cytoscape_styles.py   # 30+ 规则样式表
+│   │   │   └── cytoscape_js.py       # 3 个 JS 模板 + GRAPH_CONFIGS
 │   │   ├── cog/                   # 配置中枢（拆分包）
-│   │   │   ├── entry.py / store.py / guard.py / loader.py
-│   │   │   ├── session.py / section.py / registry.py / hub.py
-│   │   │   └── sections/          # base / dashscope / llm / mongo
-│   │   │                          # render / runtime / security / web
-│   │   ├── llm/                   # LLM 调用（拆分包）
-│   │   │   ├── client.py / core.py / api.py
-│   │   │   ├── json_utils.py / validator.py / mocks.py
-│   │   │   └── errors.py
+│   │   │   ├── entry.py           # ConfigEntry + Scope + Role
+│   │   │   ├── store.py           # CRUD（增删改查）+ clear
+│   │   │   ├── guard.py           # 权限规则
+│   │   │   ├── loader.py          # YAML → ConfigEntry（支持 from_env）
+│   │   │   ├── session.py         # 按角色代理 CRUD
+│   │   │   ├── section.py         # ConfigSection 抽象基类
+│   │   │   ├── registry.py        # @register_section 装饰器
+│   │   │   ├── hub.py             # 门面 + reload()
+│   │   │   ├── __init__.py        # 组装 + reload_hub()
+│   │   │   └── sections/          # 8 个内置 section
+│   │   │       ├── base.py / dashscope.py / llm.py / mongo.py
+│   │   │       └── render.py / runtime.py / security.py / web.py
+│   │   ├── llm/                   # LLM 调用（7 文件）
+│   │   │   ├── client.py          # AsyncOpenAI 单例
+│   │   │   ├── core.py            # 单次调用（重试 / 超时 / 流式）
+│   │   │   ├── api.py             # 5 个业务接口
+│   │   │   ├── json_utils.py / validator.py
+│   │   │   ├── mocks.py / errors.py
 │   │   ├── prompts/               # Prompt 资源
-│   │   │   ├── loader.py          # 加载 .txt → Template
+│   │   │   ├── loader.py          # 加载 .txt → Template + render_template
 │   │   │   ├── intent.txt / planner.txt
 │   │   │   └── node_refine.txt / execute_node.txt
-│   │   ├── assets/                # Cytoscape 样式 + JS 模板
-│   │   │   ├── cytoscape_styles.py
-│   │   │   └── cytoscape_js.py
-│   │   ├── constants.py           # 代码常量 / 枚举
+│   │   ├── constants.py           # 枚举 / 状态码 / 颜色
 │   │   ├── regexes.py             # 预编译正则
-│   │   ├── ui_styles.py           # Dash/Gradio 内联样式
-│   │   ├── blocked_words.py       # 违禁词库加载 + AC自动机匹配
-│   │   ├── logger_setup.py        # 异步日志系统
-│   │   ├── session_store.py       # 会话存储（内存/Redis 可插拔）
-│   │   └── llm_client.py          # 【兼容壳】转发到 infrastructure/llm
+│   │   ├── ui_styles.py           # Dash 内联样式
+│   │   ├── blocked_words.py       # 违禁词库（AC自动机 + 白名单）
+│   │   ├── logger_setup.py        # 异步日志（队列 + 线程）
+│   │   ├── session_store.py       # 会话存储接口（Protocol）
+│   │   └── llm_client.py          # 【兼容壳】→ infrastructure/llm/
 │   │
 │   ├── services/
-│   │   ├── agent/                 # Agent 主入口（拆分包）
-│   │   │   ├── session.py / state.py
-│   │   │   ├── stream.py / commands.py
-│   │   │   └── view.py
-│   │   ├── stream/                # 流式任务管理（拆分包）
-│   │   │   ├── state.py / cleaner.py
+│   │   ├── agent/                 # Agent 主入口（5 文件）
+│   │   │   ├── session.py         # TaskSession + 会话池
+│   │   │   ├── state.py           # make_initial_state
+│   │   │   ├── stream.py          # run_task_stream
+│   │   │   ├── commands.py        # 5 个命令
+│   │   │   └── view.py            # 快照提取（is_graph_finished）
+│   │   ├── stream/                # 流式任务管理（5 文件）
+│   │   │   ├── state.py           # TaskStreamState
+│   │   │   ├── cleaner.py         # StreamStateCleaner + state_cleaner
 │   │   │   ├── launcher.py / control.py
 │   │   │   └── view.py
-│   │   ├── agent.py               # 【兼容壳】转发到 services/agent
-│   │   ├── stream_manager.py      # 【兼容壳】转发到 services/stream
+│   │   ├── agent.py               # 【兼容壳】→ services/agent/
+│   │   ├── stream_manager.py      # 【兼容壳】→ services/stream/
 │   │   └── view_model.py          # 前端字段投影
 │   │
 │   ├── utils/                     # 独立工具（不拆，KISS 加固）
-│   │   ├── context.py             # cancel_event 上下文
+│   │   ├── context.py             # OperationCancelled + cancel_event
 │   │   ├── cytoscape_adapter.py   # DAG → Cytoscape 元素
 │   │   ├── flowchart_pro.py       # 交互式 HTML 渲染
 │   │   ├── pyvis_export.py        # 静态导出（SVG/PNG/PDF/DOT）
@@ -161,21 +205,23 @@ new_task_planner/
 │   │
 │   ├── main/
 │   │   ├── ui/                    # Dash UI（拆分包）
-│   │   │   ├── app.py / layout.py
-│   │   │   ├── constants.py / data_ops.py / export.py
-│   │   │   └── callbacks/         # 分组回调
-│   │   │       ├── new_task.py    # 新建任务
-│   │   │       ├── history.py     # 历史记录
-│   │   │       ├── export_cb.py   # 导出
-│   │   │       └── graph_js.py    # 客户端回调
-│   │   ├── dash_app.py            # 【兼容壳】转发到 main/ui
+│   │   │   ├── app.py             # Dash 实例 + main()
+│   │   │   ├── layout.py          # 页面布局
+│   │   │   ├── constants.py       # HistorySelectResult / 缓存
+│   │   │   ├── data_ops.py        # 数据解析 / 节点操作
+│   │   │   ├── export.py          # JSON / DOT / HTML / SVG / PNG
+│   │   │   └── callbacks/         # 4 个分组回调
+│   │   │       ├── new_task.py / history.py
+│   │   │       ├── export_cb.py / graph_js.py
+│   │   ├── dash_app.py            # 【兼容壳】→ main/ui/
 │   │   ├── assets/custom.css
 │   │   └── py.typed
 │   │
 │   └── logs/                      # ⚠️ 见下方"已知问题"
 │
 ├── tests/
-│   ├── test_package/              # 单元 + 集成测试
+│   ├── conftest.py
+│   ├── test_package/              # 单元 + 集成（7 文件，77 测试）
 │   │   ├── test_config_contract.py
 │   │   ├── test_evaluators.py
 │   │   ├── test_graph_finished.py
@@ -184,14 +230,10 @@ new_task_planner/
 │   │   ├── test_normalize_output.py
 │   │   └── test_session_store.py
 │   └── eval_suite/                # Crucible 评估套件
-│       ├── crucible_eval.py
-│       ├── dataset_manager.py
-│       ├── hitl_reviewer.py
-│       ├── run_evaluation.py
+│       ├── crucible_eval.py / dataset_manager.py
+│       ├── hitl_reviewer.py / run_evaluation.py
 │       └── harness/
-│           ├── agent_harness.py
-│           ├── evaluators.py
-│           └── reporters.py
+│           ├── agent_harness.py / evaluators.py / reporters.py
 │
 ├── logs/                          # 运行日志（项目根）
 ├── eval_reports/                  # 评估报告输出
@@ -280,6 +322,33 @@ python -m task_planner.main.dash_app
 
 > ⚠️ **端口说明**：Dash 默认端口是 **8050**（不是 7860）。7860 是 Gradio 的默认端口，本项目已弃用 Gradio。
 
+### 5. 启动配置工具（可选）
+
+```bash
+# 方式 A：pip 安装的入口（推荐）
+task-planner-config
+
+# 方式 B：模块运行
+python -m task_planner.config_ui.app
+```
+
+浏览器访问 http://127.0.0.1:8051 。
+
+**功能：**
+
+- 自动从 `cog.hub.snapshot()` 生成表单（新增字段无需改工具代码）
+- 普通配置写 `user.yaml`，密钥写 `.env`
+- 可点「重新加载」从磁盘重读（内部调用 `hub.reload()`）
+- 保存后主应用需重启生效
+- 与主应用完全隔离：不 import 主应用、不连 DB、不连 LLM
+
+**端口覆盖：**
+
+```bash
+CONFIG_UI_HOST=127.0.0.1
+CONFIG_UI_PORT=8051
+```
+
 ______________________________________________________________________
 
 ## 🎮 使用示例
@@ -316,6 +385,18 @@ ______________________________________________________________________
 
 - 图像：PNG / SVG
 - 数据：JSON / DOT / HTML（自包含交互式流程图）
+
+### 5. 配置修改
+
+三种方式，按用户身份选择：
+
+**【用户】走图形界面** — 启动 `task-planner-config` → 改字段 → 点保存；只影响 `config/user.yaml` 和 `.env`。
+
+**【用户】手改 YAML** - 编辑 `config/user.yaml`；仅 `scope=user` 的字段生效（防越权）。
+
+**【开发者】改 schema** - 编辑 `config/schema.yaml`（值 + purpose + scope + type）；新增字段自动出现在配置工具里。
+
+**【运维】环境变量** - 密钥类字段（`from_env=true`）只能从环境变量读；`.env` / Docker env / K8s Secret 都行。
 
 ______________________________________________________________________
 
@@ -355,6 +436,13 @@ config/schema.yaml（默认值）
 
 完整配置声明见 `config/schema.yaml`；
 配置中枢代码见 `src/task_planner/infrastructure/cog/`。
+
+**推荐操作方式：**
+
+- **[图形化]** `task-planner-config`（自动生成表单）
+- **[手改]** `config/user.yaml`（普通）+ `.env`（密钥）
+- **[代码引用]** `from task_planner.infrastructure.cog import hub`
+  - `hub.user.THEME` / `hub.dev.LLM_TIMEOUT`
 
 ______________________________________________________________________
 
@@ -566,6 +654,46 @@ print(f'词条数: {len(BLOCKED_WORDS)}')
 export BLOCKED_WORDS_DIR=/mnt/nfs/security/words
 ```
 
+### ⚠️ `task-planner-config` 命令找不到
+
+**原因**：`pyproject.toml` 的 `[project.scripts]` 未生效。
+
+**修复**：
+
+```bash
+# 重新安装注册入口点
+pip install -e .
+
+# 确认入口点已注册
+which task-planner-config
+```
+
+或直接用模块运行：
+
+```bash
+python -m task_planner.config_ui.app
+```
+
+### ⚠️ 配置工具改了值，主应用没反应
+
+**原因**：两个进程持有各自的 hub 实例，通过文件系统间接通信。
+
+**修复**：
+
+- 主应用需重启才读新值（当前设计如此）
+- 确认配置文件写对：
+
+```bash
+cat config/user.yaml
+cat .env
+```
+
+### ⚠️ 配置工具显示的还是旧值
+
+**原因**：hub 是「启动快照」，不实时刷盘。
+
+**修复**：点配置工具的「🔄 重新加载」按钮，它会调 `hub.reload()`，从磁盘重读。
+
 ______________________________________________________________________
 
 ## 🤝 贡献
@@ -593,6 +721,8 @@ ______________________________________________________________________
 
 - [pyvis](https://pyvis.readthedocs.io/) / [pydot](https://pypi.org/project/pydot/) / [cairosvg](https://cairosvg.org/) — 图渲染与导出
 
+- [ruamel.yaml](https://pypi.org/project/ruamel.yaml/)（可选）— 配置工具保留 YAML 注释
+
   核心贡献者：**JiangDake**
 
 ______________________________________________________________________
@@ -600,6 +730,25 @@ ______________________________________________________________________
 ## 📄 许可证
 
 [GNU General Public License v3.0](https://www.gnu.org/licenses/gpl-3.0)
+
+______________________________________________________________________
+
+______________________________________________________________________
+
+## ℹ️ 已知问题
+
+### 关于 `abandon/` 目录
+
+保留归档，不参与运行。理由：
+
+- 出奇怪 bug 时可 diff 出「是否重构引入」
+- `scripts/check_config_drift.py --old` 仍用它做基线
+- `pyproject.toml` 里 `[tool.setuptools.packages.find]` 设了
+  `exclude = ["task_planner.abandon*"]`，不会打包进 wheel
+
+**不要 ignore**：`.gitignore` 里不要加 `abandon/`。
+
+**不要 import**：`src/` 下所有代码不引用 `abandon.*`。
 
 ______________________________________________________________________
 

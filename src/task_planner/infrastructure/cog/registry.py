@@ -41,3 +41,18 @@ _SECTION_REGISTRY = SectionRegistry()
 def register_section(cls: Type[ConfigSection]) -> Type[ConfigSection]:
     """装饰器：类定义处声明，import 时自动进全局注册表"""
     return _SECTION_REGISTRY.register(cls)
+
+def get_registered_sections() -> Tuple[Type[ConfigSection], ...]:
+    """
+    返回所有已注册的 Section 类（对外只读接口）。
+
+    hub.bootstrap / hub.reload 用这个接口遍历，
+    不直接碰 _SECTION_REGISTRY（保持其私有语义）。
+    """
+    return _SECTION_REGISTRY.all()
+
+__all__ = [
+    "SectionRegistry",
+    "register_section",
+    "get_registered_sections",   # ← 新增
+]

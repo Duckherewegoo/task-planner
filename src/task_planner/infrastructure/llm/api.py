@@ -20,7 +20,7 @@ from task_planner.infrastructure.prompts.loader import (
 from task_planner.infrastructure.regexes import SKIP_PLANNING_PATTERNS
 from task_planner.infrastructure.cog import hub as _hub
 
-from .client import _get_semaphore
+from .client import get_semaphore
 from .core import async_call_llm
 from .errors import (
     LLMCancelledError,
@@ -54,7 +54,7 @@ async def direct_chat(
     """直接对话接口（异步）"""
     if _hub.dev.USE_MOCK_LLM:
         return f"{MOCK_RESPONSE_PREFIX}{user_input}"
-    async with _get_semaphore():
+    async with get_semaphore():
         return await async_call_llm(
             model=_hub.dev.LLM_INTENT_MODEL,
             prompt=user_input,
@@ -328,7 +328,7 @@ async def execute_node_llm(
         return True, "✅ Mock执行完成"
 
     try:
-        async with _get_semaphore():
+        async with get_semaphore():
             raw = await async_call_llm(
                 model=_hub.dev.LLM_NODE_MODEL,
                 prompt=prompt,

@@ -17,7 +17,7 @@ from .entry import (
 )
 from .guard import ConfigGuard
 from .loader import ConfigLoader
-from .registry import _SECTION_REGISTRY
+from .registry import get_registered_sections
 from .session import ConfigSession
 from .store import ConfigStore
 
@@ -35,7 +35,7 @@ class ConfigHub:
         # 1) YAML → store
         ConfigLoader(self._store).load(schema_path, user_path)
         # 2) Python @register_section → store（YAML 已存在的不覆盖）
-        for cls in _SECTION_REGISTRY.all():
+        for cls in get_registered_sections():
             for entry in cls().define():
                 if not self._store.has(entry.name):
                     self._store.create(entry)
@@ -84,7 +84,7 @@ class ConfigHub:
         ConfigLoader(self._store).load(schema_path, user_path)
 
         # 2) 从 @register_section 重载（YAML 已存在的不覆盖）
-        for cls in _SECTION_REGISTRY.all():
+        for cls in get_registered_sections():
             for entry in cls().define():
                 if not self._store.has(entry.name):
                     self._store.create(entry)

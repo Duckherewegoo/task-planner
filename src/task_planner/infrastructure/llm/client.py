@@ -26,13 +26,15 @@ def _get_client_lock() -> asyncio.Lock:
     return _client_lock
 
 
-def _get_semaphore() -> asyncio.Semaphore:
-    """惰性创建并发信号量（首次调用时绑定当前事件循环）"""
+def get_semaphore() -> asyncio.Semaphore:
+    """
+    惰性创建并发信号量（首次调用时绑定当前事件循环）。
+    由 `llm/api.py` 和 `llm/core.py` 共用。
+    """
     global _semaphore
     if _semaphore is None:
         _semaphore = asyncio.Semaphore(_hub.dev.LLM_MAX_CONCURRENT)
     return _semaphore
-
 
 async def get_llm_client() -> Optional[AsyncOpenAI]:
     """异步懒加载 AsyncOpenAI 客户端（协程安全）"""
@@ -81,4 +83,4 @@ async def get_llm_client() -> Optional[AsyncOpenAI]:
     return _client
 
 
-__all__ = ["get_llm_client", "_get_semaphore", "_get_client_lock"]
+__all__ = ["get_llm_client", "get_semaphore"]

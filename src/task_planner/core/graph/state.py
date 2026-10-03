@@ -103,15 +103,6 @@ class TaskState(MessagesState):
     # ── Schema 版本（checkpoint 兼容性）──
     schema_version: int
 
-    # ── ✅ P2 新增：面向前端的视图标记 ────────
-    view_mode: Literal["full", "summary"] | None
-    """
-    控制节点详情面板的展示粒度。
-    - "full": 展示所有字段（含 meta/debug）
-    - "summary": 仅展示 sanitize_node_for_user 过滤后的字段
-    默认 None 等同于 "summary"。
-    """
-
 
 def validate_user_action(action: str) -> UserAction:
     """

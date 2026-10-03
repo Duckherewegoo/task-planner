@@ -11,10 +11,8 @@ from typing import (
 from task_planner.infrastructure.cog import hub as _hub
 from task_planner.infrastructure.logger_setup import get_logger
 
-from .client import (
-    _get_semaphore,
-    get_llm_client,
-)  # noqa: F401 (semaphore 转发)
+from .client import get_llm_client  # noqa: F401
+
 from .errors import (
     LLMCancelledError,
     LLMClientError,
@@ -193,4 +191,4 @@ async def async_call_llm(
     raise LLMClientError("LLM 调用最终失败", req_id)
 
 
-__all__ = ["async_call_llm", "_get_semaphore"]
+__all__ = ["async_call_llm"]

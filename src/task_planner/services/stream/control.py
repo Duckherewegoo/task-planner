@@ -6,7 +6,7 @@ from typing import Any
 from task_planner.infrastructure.constants import EDGE_TYPE_HARD
 from task_planner.infrastructure.logger_setup import get_logger
 from task_planner.services.agent import cancel_task
-from task_planner.utils.cytoscape_adapter import get_edge_type as _get_edge_type
+from task_planner.utils.cytoscape_adapter import get_edge_type 
 
 from .cleaner import state_cleaner
 
@@ -151,7 +151,7 @@ async def get_ready_nodes(thread_id: str, dag: dict) -> list[str]:
     # ✅ 预建 {target: [sources]} 索引，仅 hard 边参与依赖判断
     in_edges: dict[str, list[str]] = {}
     for e in edges:
-        if _get_edge_type(e) != EDGE_TYPE_HARD:
+        if get_edge_type(e) != EDGE_TYPE_HARD:
             continue
         in_edges.setdefault(str(e["to"]), []).append(str(e["from"]))
 

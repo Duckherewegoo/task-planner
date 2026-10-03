@@ -22,7 +22,7 @@ from .api import (
     recognize_intent,
     refine_node,
 )
-from .client import get_llm_client
+from .client import get_llm_client, get_semaphore
 from .core import async_call_llm
 from .errors import (
     LLMCancelledError,
@@ -35,8 +35,7 @@ from .json_utils import (
     normalize_llm_output,
 )
 
-# 兼容旧名
-from task_planner.infrastructure.prompts.loader import render_template as _render_template
+from task_planner.infrastructure.prompts.loader import render_template 
 
 __all__ = [
     # 业务接口
@@ -47,6 +46,7 @@ __all__ = [
     "execute_node_llm",
     # 底层
     "get_llm_client",
+    "get_semaphore",   
     "async_call_llm",
     # 异常
     "LLMClientError",
@@ -56,5 +56,5 @@ __all__ = [
     # 工具
     "extract_json",
     "normalize_llm_output",
-    "_render_template",
+    "render_template"
 ]

@@ -20,6 +20,7 @@ Changelog:
   ✅ P2-1：_get_edge_type 改名 get_edge_type（公开）。
            _get_edge_type 保留为 alias，向后兼容。
            原因：stream/control.py 等下游在跨模块引用它。
+  ✅ P2-1fix: 不应该保留alias，要做就做彻底
   ✅ P2-2：_warned_empty_endpoints 加上限（_WARN_CACHE_MAX = 1000），
            超过后清空，避免脏数据导致内存泄漏。
   ✅ P2-3：dag_to_cytoscape 边循环中 _is_loop_edge 只调一次。
@@ -225,7 +226,7 @@ def _is_loop_edge(edge: Dict[str, Any]) -> bool:
     return src_clean == tgt_clean
 
 
-# ✅ P2-1：公开为 get_edge_type，_get_edge_type 保留 alias
+# P2-1fix
 def get_edge_type(edge: Dict[str, Any]) -> str:
     """提取并验证边的类型（大小写不敏感，未知降级为 hard）"""
     raw = edge.get("type")
@@ -556,5 +557,4 @@ __all__ = [
     "build_history_detail_markdown",
     # 公开工具（供下游 import）
     "get_edge_type",
-    "_get_edge_type",   # 兼容旧名
 ]

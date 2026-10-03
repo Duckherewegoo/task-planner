@@ -14,7 +14,7 @@ from task_planner.infrastructure.constants import (
 )
 from task_planner.infrastructure.logger_setup import get_logger
 from task_planner.utils.cytoscape_adapter import dag_to_cytoscape
-from task_planner.utils.cytoscape_adapter import get_edge_type as _get_edge_type
+from task_planner.utils.cytoscape_adapter import get_edge_type 
 from task_planner.utils.presentation_utils import extract_first_task_id
 
 from .constants import cytoscape_cached
@@ -130,7 +130,7 @@ def auto_unlock_downstream(
     downstream_edges_map: dict[str, list] = {}
     for e in edges:
         src, tgt = str(e.get("from", "")), str(e.get("to", ""))
-        if src == changed_nid and _get_edge_type(e) in check_edge_types:
+        if src == changed_nid and get_edge_type(e) in check_edge_types:
             downstream_edges_map.setdefault(tgt, []).append(e)
 
     for tgt, relevant_in_edges in downstream_edges_map.items():

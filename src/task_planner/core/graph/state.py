@@ -18,7 +18,7 @@ Changelog:
 from __future__ import annotations
 
 from enum import StrEnum
-from typing import Any
+from typing import Any, Literal
 
 from langgraph.graph import MessagesState
 
@@ -69,10 +69,12 @@ class TaskState(MessagesState):
     # ── 执行进度 ──
     current_node_index: int
     node_results: list[dict[str, Any]]
+    """每个元素: {"node_id": int, "success": bool, "detail": str}"""
 
     # ── 渲染产物 ──
     svg: str
     flowchart_html: str
+    """Cytoscape / PyVis 渲染后的 HTML 片段"""
 
     # ── 直接回答 ──
     direct_response: str
@@ -82,6 +84,8 @@ class TaskState(MessagesState):
     error: str
     status_text: str
     steps: list[str]
+    """人类可读的执行步骤日志，用于前端状态栏展示"""
+
 
     # ── 用户指令（interrupt / resume 用）──
     user_action: UserAction | None
@@ -90,9 +94,45 @@ class TaskState(MessagesState):
 
     # ── 断点续传辅助字段 ──
     resume_from_node_index: int | None
+    """
+    当用户从历史记录恢复执行时，指定从哪个节点索引继续。
+    None 表示按当前 current_node_index 自然续传。
+    """
+
 
     # ── Schema 版本（checkpoint 兼容性）──
     schema_version: int
 
+    # ── ✅ P2 新增：面向前端的视图标记 ────────
+    view_mode: Literal["full", "summary"] | None
+    """
+    控制节点详情面板的展示粒度。
+    - "full": 展示所有字段（含 meta/debug）
+    - "summary": 仅展示 sanitize_node_for_user 过滤后的字段
+    默认 None 等同于 "summary"。
+    """
 
-__all__ = ["UserAction", "NodeStatus", "TaskState"]
+
+def validate_user_action(action: str) -> UserAction:
+    """
+    将外部输入安全转换为合法 UserAction，非法值立即报错而非静默传播。
+
+    Args:
+        action: 来自前端/API 的用户操作字符串
+
+    Returns:
+        对应的 UserAction 枚举成员
+
+    Raises:
+        ValueError: 当 action 不是合法的 UserAction 值时
+    """
+    try:
+        return UserAction(action)
+    except ValueError:
+        valid_values = [e.value for e in UserAction]
+        raise ValueError(
+            f"Invalid user action '{action}'. Expected one of {valid_values}"
+        ) from None
+
+
+__all__ = ["UserAction", "NodeStatus", "TaskState", "validate_user_action"]

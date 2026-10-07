@@ -20,18 +20,18 @@ import sys
 import time
 import uuid
 from typing import (
-    Dict,
     Any,
+    Dict,
     Optional,
 )
 
-from task_planner.services.agent import (
-    run_task_stream,
-    cancel_task,
-)
 from task_planner.infrastructure.logger_setup import (
     get_logger,
     set_req_id,
+)
+from task_planner.services.agent import (
+    cancel_task,
+    run_task_stream,
 )
 
 logger = get_logger("eval.agent_harness")
@@ -78,9 +78,9 @@ class AgentHarness:
     def __init__(self, enable_refine: bool = True, timeout: int = 300):
         self.enable_refine = enable_refine
         self.timeout = timeout
-        self.thread_id: Optional[str] = None
+        self.thread_id: str | None = None
 
-    async def run(self, user_input: str) -> Dict[str, Any]:
+    async def run(self, user_input: str) -> dict[str, Any]:
         """
         执行单个测试用例，返回完整结果字典。
 
@@ -111,7 +111,7 @@ class AgentHarness:
             self.thread_id, rid, user_input[:50],
         )
 
-        result: Dict[str, Any] = {
+        result: dict[str, Any] = {
             "input": user_input,
             "thread_id": self.thread_id,
             "output": "",
@@ -218,7 +218,7 @@ class AgentHarness:
                 logger.debug("[Harness] cancel failed: %s", e)
 
     @staticmethod
-    async def get_checkpoint_state(thread_id: str) -> Optional[Dict[str, Any]]:
+    async def get_checkpoint_state(thread_id: str) -> dict[str, Any] | None:
         """
         获取 checkpoint 状态（用于断点续传测试）。
 
@@ -238,7 +238,7 @@ class AgentHarness:
     async def resume(
         thread_id: str,
         user_action: str = "continue",
-        modified_input: Optional[str] = None,
+        modified_input: str | None = None,
     ) -> bool:
         """
         恢复执行（测试用）。
@@ -252,8 +252,8 @@ class AgentHarness:
             True 表示成功调用，False 表示参数非法或任务不存在
         """
         from task_planner.services.agent import (
-            resume_task,
             modify_task,
+            resume_task,
         )
         if user_action == "continue":
             return await resume_task(thread_id)

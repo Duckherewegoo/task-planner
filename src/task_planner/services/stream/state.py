@@ -4,10 +4,6 @@ from __future__ import annotations
 import asyncio
 import time
 from collections import deque
-from typing import (
-    Any,
-    Optional,
-)
 
 from task_planner.infrastructure.cog import hub as _hub
 
@@ -18,7 +14,7 @@ class TaskStreamState:
     def __init__(
         self,
         thread_id: str,
-        ttl: Optional[int] = None,
+        ttl: int | None = None,
         max_snapshots: int = 100,
     ):
         self.thread_id = thread_id
@@ -30,9 +26,9 @@ class TaskStreamState:
         # 生命周期
         self.finished: bool = False
         self.cancelled: bool = False
-        self.error: Optional[str] = None
+        self.error: str | None = None
         self._created_at: float = time.time()
-        self._finished_at: Optional[float] = None
+        self._finished_at: float | None = None
 
         # 节点用户操作状态
         self.node_states: dict[str, str] = {}
@@ -43,20 +39,20 @@ class TaskStreamState:
         self._ttl = ttl if ttl is not None else _hub.dev.SESSION_TTL
 
         # 后台任务引用（用于取消）
-        self._task: Optional[asyncio.Task] = None
+        self._task: asyncio.Task | None = None
 
     # ── 时间查询 ──
-    def is_expired(self, now: Optional[float] = None) -> bool:
+    def is_expired(self, now: float | None = None) -> bool:
         """判断是否超时（未完成状态下）"""
         now = now or time.time()
         return not self.finished and (now - self._created_at > self._ttl)
 
-    def age_since_created(self, now: Optional[float] = None) -> float:
+    def age_since_created(self, now: float | None = None) -> float:
         """创建至今秒数（替代直接访问 _created_at）"""
         now = now or time.time()
         return now - self._created_at
 
-    def age_since_finished(self, now: Optional[float] = None) -> Optional[float]:
+    def age_since_finished(self, now: float | None = None) -> float | None:
         """完成至今秒数；未完成时返回 None"""
         if self._finished_at is None:
             return None
@@ -129,7 +125,7 @@ class TaskStreamState:
         async with self._lock:
             self.node_states[node_id] = state
 
-    async def mark_finished(self, error: Optional[str] = None) -> None:
+    async def mark_finished(self, error: str | None = None) -> None:
         async with self._lock:
             if not self.finished:
                 self.finished = True

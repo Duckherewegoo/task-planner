@@ -14,7 +14,6 @@ import pytest
 
 from task_planner.infrastructure.llm.json_utils import normalize_llm_output as _normalize_llm_output
 
-
 REFINE_KEYS = ["name", "details", "meta"]
 
 

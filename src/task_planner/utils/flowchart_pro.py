@@ -39,11 +39,6 @@ import time
 import uuid
 from typing import (
     Any,
-    Dict,
-    List,
-    Optional,
-    Set,
-    Tuple,
 )
 
 import networkx as nx
@@ -58,8 +53,6 @@ from task_planner.infrastructure.constants import (
     EDGE_TYPE_STYLE,
     NODE_STYLES,
     STATUS_BORDER,
-    STATUS_COLOR,
-    STATUS_ICONS,
     STATUS_TEXT,
 )
 from task_planner.infrastructure.logger_setup import get_logger
@@ -94,7 +87,7 @@ def _safe_int(val: Any, default: int = 0) -> int:
 # ══════════════════════════════════════════════════
 #  边样式
 # ══════════════════════════════════════════════════
-def get_edge_style(edge_type: str) -> Dict[str, Any]:
+def get_edge_style(edge_type: str) -> dict[str, Any]:
     """根据边类型返回 pyvis add_edge 可用的样式字典。"""
     color = EDGE_TYPE_COLOR.get(edge_type, "#666666")
     style = EDGE_TYPE_STYLE.get(edge_type, "solid")
@@ -113,12 +106,12 @@ def get_edge_style(edge_type: str) -> Dict[str, Any]:
 # ══════════════════════════════════════════════════
 #  节点详情提取
 # ══════════════════════════════════════════════════
-def _get_details(node: Dict[str, Any]) -> str:
+def _get_details(node: dict[str, Any]) -> str:
     """
     节点详情提取（优先级）：
       node.details > meta.details > node.description
     """
-    meta: Dict[str, Any] = node.get("meta", {}) or {}
+    meta: dict[str, Any] = node.get("meta", {}) or {}
     details = (
         node.get("details")
         or meta.get("details")
@@ -131,7 +124,7 @@ def _get_details(node: Dict[str, Any]) -> str:
 # ══════════════════════════════════════════════════
 #  DAG 布局
 # ══════════════════════════════════════════════════
-DAG_LAYOUT: Dict[str, Any] = {
+DAG_LAYOUT: dict[str, Any] = {
     "physics": {
         "enabled": True,
         "hierarchicalRepulsion": {
@@ -192,10 +185,10 @@ class ProFlowchartRenderer:
     # ── DAG 校验 + 环边提取 ──
     def _validate_dag(
         self,
-        nodes: List[Dict[str, Any]],
-        edges: List[Dict[str, Any]],
+        nodes: list[dict[str, Any]],
+        edges: list[dict[str, Any]],
         req_id: str,
-    ) -> Tuple[nx.DiGraph, Set[Tuple[str, str]]]:
+    ) -> tuple[nx.DiGraph, set[tuple[str, str]]]:
         g = nx.DiGraph()
         for node in nodes:
             g.add_node(str(node.get("id", "")), **node)
@@ -206,7 +199,7 @@ class ProFlowchartRenderer:
                 continue
             g.add_edge(str(src), str(tgt))
 
-        cycle_edges: Set[Tuple[str, str]] = set()
+        cycle_edges: set[tuple[str, str]] = set()
 
         if not FLOWCHART_CYCLE_DETECTION:
             logger.info(
@@ -218,7 +211,7 @@ class ProFlowchartRenderer:
         try:
             # ✅ P1-9：限制展开上限，畸形图不卡死
             cycles_iter = nx.simple_cycles(g)
-            cycles: List[List[str]] = []
+            cycles: list[list[str]] = []
             for i, c in enumerate(cycles_iter):
                 if i >= _MAX_CYCLES_DETECT:
                     logger.warning(
@@ -251,12 +244,12 @@ class ProFlowchartRenderer:
         return g, cycle_edges
 
     # ── Tooltip ──
-    def _build_tooltip(self, node: Dict[str, Any]) -> str:
+    def _build_tooltip(self, node: dict[str, Any]) -> str:
         details = _get_details(node)
         if len(details) > 300:
             details = details[:300] + "..."
         escaped = html.escape(details).replace("\n", "<br>")
-        meta: Dict[str, Any] = node.get("meta", {}) or {}
+        meta: dict[str, Any] = node.get("meta", {}) or {}
         pre = meta.get("preconditions", [])
         pre_html = ""
         if pre:
@@ -268,15 +261,15 @@ class ProFlowchartRenderer:
 
     # ── 卡片数据 ──
     def _build_card_data(
-        self, nodes: List[Dict[str, Any]]
-    ) -> Dict[str, Dict[str, Any]]:
-        cards: Dict[str, Dict[str, Any]] = {}
+        self, nodes: list[dict[str, Any]]
+    ) -> dict[str, dict[str, Any]]:
+        cards: dict[str, dict[str, Any]] = {}
         for node in nodes:
             nid = str(node.get("id", ""))
             if not nid:
                 continue
             details = _get_details(node)
-            meta: Dict[str, Any] = node.get("meta", {}) or {}
+            meta: dict[str, Any] = node.get("meta", {}) or {}
             status_code = _safe_int(node.get("status"), default=0)
             cards[nid] = {
                 "id": nid,
@@ -306,10 +299,10 @@ class ProFlowchartRenderer:
     # ── 网络构建 ──
     def _build_network(
         self,
-        nodes: List[Dict[str, Any]],
-        edges: List[Dict[str, Any]],
+        nodes: list[dict[str, Any]],
+        edges: list[dict[str, Any]],
         req_id: str,
-        cycle_edges: Optional[Set[Tuple[str, str]]] = None,
+        cycle_edges: set[tuple[str, str]] | None = None,
     ) -> Network:
         if cycle_edges is None:
             cycle_edges = set()
@@ -421,8 +414,8 @@ class ProFlowchartRenderer:
     # ── 交互式渲染（主入口） ──
     def render_interactive(
         self,
-        nodes: List[Dict[str, Any]],
-        edges: List[Dict[str, Any]],
+        nodes: list[dict[str, Any]],
+        edges: list[dict[str, Any]],
         task_id: str,
         req_id: str,
     ) -> str:
@@ -496,7 +489,7 @@ class ProFlowchartRenderer:
             class _SVGExtractor(HTMLParser):
                 def __init__(self) -> None:
                     super().__init__()
-                    self.parts: List[str] = []
+                    self.parts: list[str] = []
                     self.depth = 0
 
                 def _attrs_str(self, attrs) -> str:
@@ -596,8 +589,8 @@ flowchart_pro = ProFlowchartRenderer()
 #  兼容接口
 # ══════════════════════════════════════════════════
 def build_clean_svg(
-    nodes: List[Dict[str, Any]],
-    edges: List[Dict[str, Any]],
+    nodes: list[dict[str, Any]],
+    edges: list[dict[str, Any]],
     task_id: str,
 ) -> str:
     """极简 SVG 渲染（用于静态导出）"""
@@ -624,7 +617,7 @@ def build_clean_svg(
     cols = 4
     rows = (len(nodes) + cols - 1) // cols or 1
     cell_w, cell_h = width // cols, height // rows
-    node_positions: Dict[Any, Tuple[int, int]] = {}
+    node_positions: dict[Any, tuple[int, int]] = {}
 
     for i, node in enumerate(nodes):
         # ✅ P1-6：用 .get 避免 KeyError
@@ -667,8 +660,8 @@ def build_clean_svg(
 
 
 def export(
-    nodes: List[Dict[str, Any]],
-    edges: List[Dict[str, Any]],
+    nodes: list[dict[str, Any]],
+    edges: list[dict[str, Any]],
     task_id: str,
     fmt: str,
     req_id: str,
@@ -709,7 +702,7 @@ def export(
 
     if fmt == "dot":
         try:
-            import pydot  # type: ignore  # noqa: F401
+            import pydot  # type: ignore
 
             g = nx.DiGraph()
             for n in nodes:

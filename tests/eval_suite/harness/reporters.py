@@ -24,13 +24,13 @@ class Reporters:
 
     @staticmethod
     def markdown_report(
-        summary: Dict[str, Any],
-        results: List[Dict[str, Any]],
+        summary: dict[str, Any],
+        results: list[dict[str, Any]],
     ) -> str:
         """生成 Markdown 格式报告"""
 
         # ✅ P0-1 修复：带时区的 UTC 时间
-        generated_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        generated_at = datetime.datetime.now(datetime.UTC).isoformat()
 
         # ✅ P1-1 修复：安全的百分比格式化
         def pct(v: Any) -> str:
@@ -107,8 +107,8 @@ class Reporters:
 
     @staticmethod
     def html_report(
-        summary: Dict[str, Any],
-        results: List[Dict[str, Any]],
+        summary: dict[str, Any],
+        results: list[dict[str, Any]],
     ) -> str:
         """
         生成 HTML 格式报告。

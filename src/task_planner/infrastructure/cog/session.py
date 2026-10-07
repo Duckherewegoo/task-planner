@@ -5,7 +5,6 @@ from __future__ import annotations
 
 from typing import (
     Any,
-    Tuple,
 )
 
 from .entry import (
@@ -29,7 +28,7 @@ class ConfigSession:
     def entry(self, name: str) -> ConfigEntry:
         return self._store.read(name)
 
-    def all(self) -> Tuple[ConfigEntry, ...]:
+    def all(self) -> tuple[ConfigEntry, ...]:
         return self._store.all()
 
     # ---- Update ----

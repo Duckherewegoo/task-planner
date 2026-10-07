@@ -2,12 +2,13 @@
 loader.py — Prompt 加载器。
 从 .txt 读取，返回 string.Template 实例。
 """
-from pathlib import Path
-from string import Template
 # ═══════════════════════════════════════════════════════════════════
 #  模板渲染（供 llm_client / nodes 共用）
 # ═══════════════════════════════════════════════════════════════════
 import logging
+from pathlib import Path
+from string import Template
+
 _logger = logging.getLogger(__name__)
 
 _DIR = Path(__file__).resolve().parent   # 指向 prompts/ 本身

@@ -5,20 +5,18 @@ import asyncio
 import json
 from typing import (
     Any,
-    Optional,
 )
 
+from task_planner.infrastructure.cog import hub as _hub
 from task_planner.infrastructure.constants import MOCK_RESPONSE_PREFIX
 from task_planner.infrastructure.logger_setup import get_logger
 from task_planner.infrastructure.prompts.loader import (
-    EXECUTE_NODE_PROMPT,
     INTENT_PROMPT,
     NODE_REFINE_PROMPT,
     PLANNER_PROMPT,
     render_template,
 )
 from task_planner.infrastructure.regexes import SKIP_PLANNING_PATTERNS
-from task_planner.infrastructure.cog import hub as _hub
 
 from .client import get_semaphore
 from .core import async_call_llm
@@ -48,8 +46,8 @@ logger = get_logger(__name__)
 async def direct_chat(
     user_input: str,
     req_id: str,
-    cancel_event: Optional[asyncio.Event] = None,
-    timeout: Optional[float] = None,
+    cancel_event: asyncio.Event | None = None,
+    timeout: float | None = None,
 ) -> str:
     """直接对话接口（异步）"""
     if _hub.dev.USE_MOCK_LLM:
@@ -71,7 +69,7 @@ async def direct_chat(
 async def recognize_intent(
     user_input: str,
     req_id: str,
-    cancel_event: Optional[asyncio.Event] = None,
+    cancel_event: asyncio.Event | None = None,
 ) -> dict[str, Any]:
     """意图识别异步主入口"""
     # 空输入短路
@@ -166,7 +164,7 @@ async def generate_plan(
     user_input: str,
     intent_info: dict[str, Any],
     req_id: str,
-    cancel_event: Optional[asyncio.Event] = None,
+    cancel_event: asyncio.Event | None = None,
 ) -> dict[str, Any]:
     """异步生成执行计划"""
     if not isinstance(intent_info, dict):
@@ -244,7 +242,7 @@ async def refine_node(
     user_input: str,
     category: str,
     req_id: str,
-    cancel_event: Optional[asyncio.Event] = None,
+    cancel_event: asyncio.Event | None = None,
 ) -> dict[str, Any]:
     """异步细化单节点"""
     _REQUIRED = ("name", "details", "meta")

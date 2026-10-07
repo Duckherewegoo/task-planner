@@ -1,13 +1,12 @@
 """layout.py — Dash 页面布局"""
 from __future__ import annotations
 
+import dash_cytoscape as cyto
 from dash import (
     dcc,
     html,
 )
-import dash_cytoscape as cyto
 
-from task_planner.infrastructure.assets.cytoscape_js import GRAPH_CONFIGS  # noqa: F401
 from task_planner.infrastructure.assets.cytoscape_styles import CYTO_STYLESHEET
 from task_planner.infrastructure.ui_styles import (
     BUTTON_STYLE_DANGER,
@@ -18,10 +17,9 @@ from task_planner.infrastructure.ui_styles import (
 )
 
 
-
 # ── 布局 ──
 def build_layout() -> html.Div:
-    return html.Div([ 
+    return html.Div([
         dcc.Interval(id="stream-interval", interval=500, disabled=True, n_intervals=0),
         dcc.Store(id="thread-id-store", data=""),
         dcc.Store(id="stream-active", data=False),

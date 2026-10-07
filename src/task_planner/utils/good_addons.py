@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # ╔══════════════════════════════════════════════════════════════════════╗
 # ║  good_addons.py v6.2 — Enterprise Runtime Enhancement Layer        ║
 # ║  Pyright strict | PEP-8 compliant | Python 3.9+                    ║
@@ -95,20 +94,14 @@ from collections import (
     defaultdict,
     deque,
 )
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from datetime import (
+    UTC,
     datetime,
-    timezone,
 )
 from typing import (
     Any,
-    Callable,
-    Dict,
-    Generator,
-    List,
-    Optional,
-    Tuple,
-    Type,
     TypeVar,
     Union,
     cast,
@@ -133,10 +126,10 @@ except ImportError:
     psutil = None  # type: ignore
 
 try:
+    from rich import box
     from rich.console import Console
     from rich.logging import RichHandler
     from rich.table import Table
-    from rich import box
     _HAS_RICH = True
 except ImportError:
     Console = None  # type: ignore
@@ -197,7 +190,7 @@ _ctx_user_id: contextvars.ContextVar[str] = contextvars.ContextVar("user_id", de
 
 class _SingletonMeta(type):
     """Thread-safe Singleton Metaclass."""
-    _instances: Dict[type, Any] = {}
+    _instances: dict[type, Any] = {}
     _lock = threading.Lock()
 
     def __call__(cls, *args: Any, **kwargs: Any) -> Any:
@@ -212,9 +205,9 @@ class EventBus(metaclass=_SingletonMeta):
     """Thread-safe Pub/Sub Event Bus."""
 
     def __init__(self) -> None:
-        self._subs: Dict[str, List[Tuple[int, Callable[..., Any]]]] = defaultdict(list)
+        self._subs: dict[str, list[tuple[int, Callable[..., Any]]]] = defaultdict(list)
         self._lock = threading.Lock()
-        self._history: deque[Dict[str, Any]] = deque(maxlen=1000)
+        self._history: deque[dict[str, Any]] = deque(maxlen=1000)
         self._seq = 0
 
     def on(self, event: str, handler: Callable[..., Any], *, priority: int = 0) -> Callable[[], None]:
@@ -227,7 +220,7 @@ class EventBus(metaclass=_SingletonMeta):
         with self._lock:
             self._subs[event] = [(p, h) for p, h in self._subs[event] if h is not handler]
 
-    def emit(self, event: str, **kwargs: Any) -> List[Any]:
+    def emit(self, event: str, **kwargs: Any) -> list[Any]:
         with self._lock:
             handlers = list(self._subs.get(event, []))
         self._seq += 1
@@ -242,7 +235,7 @@ class EventBus(metaclass=_SingletonMeta):
                 print(f"[EventBus] Error in {handler.__name__} for {event}: {e}", file=sys.stderr)
         return results
 
-    async def emit_async(self, event: str, **kwargs: Any) -> List[Any]:
+    async def emit_async(self, event: str, **kwargs: Any) -> list[Any]:
         with self._lock:
             handlers = list(self._subs.get(event, []))
         self._seq += 1
@@ -260,7 +253,7 @@ class EventBus(metaclass=_SingletonMeta):
                 print(f"[EventBus] Async error in {handler.__name__} for {event}: {e}", file=sys.stderr)
         return results
 
-    def get_history(self, last_n: int = 50) -> List[Dict[str, Any]]:
+    def get_history(self, last_n: int = 50) -> list[dict[str, Any]]:
         """返回最近 N 条事件历史（v6.0 新增，替代直接访问 _history）。"""
         with self._lock:
             return list(self._history)[-last_n:]
@@ -278,7 +271,7 @@ class RequestContext:
 
     @staticmethod
     @contextmanager
-    def scope(trace_id: str = "", user_id: str = "", **extra: Any) -> Generator[Dict[str, Any], None, None]:
+    def scope(trace_id: str = "", user_id: str = "", **extra: Any) -> Generator[dict[str, Any]]:
         tid = trace_id or secrets.token_hex(8)
         t1 = _ctx_trace_id.set(tid)
         t2 = _ctx_request_start.set(time.perf_counter())
@@ -292,7 +285,7 @@ class RequestContext:
             _ctx_user_id.reset(t3)
 
     @staticmethod
-    def from_headers(headers: Dict[str, str]) -> str:
+    def from_headers(headers: dict[str, str]) -> str:
         """v6.0: 从 HTTP Headers 提取 trace_id（支持 X-Trace-ID / X-Request-ID）。"""
         for header in RequestContext._trace_id_headers:
             val = headers.get(header, "")
@@ -315,7 +308,7 @@ class RequestContext:
         return time.perf_counter() - start if start else 0.0
 
     @staticmethod
-    def snapshot() -> Dict[str, Any]:
+    def snapshot() -> dict[str, Any]:
         return {
             "trace_id": RequestContext.trace_id(),
             "user_id": RequestContext.user_id(),
@@ -328,7 +321,7 @@ class PerformanceMonitor(metaclass=_SingletonMeta):
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
-        self._stats: Dict[str, Dict[str, Any]] = {}
+        self._stats: dict[str, dict[str, Any]] = {}
 
     def record(self, name: str, duration_ms: float, *, error: bool = False) -> None:
         with self._lock:
@@ -341,7 +334,7 @@ class PerformanceMonitor(metaclass=_SingletonMeta):
             if error:
                 s["errors"] += 1
 
-    def snapshot(self, *, top_n: int = 0, sort_by: str = "total_ms") -> List[Dict[str, Any]]:
+    def snapshot(self, *, top_n: int = 0, sort_by: str = "total_ms") -> list[dict[str, Any]]:
         with self._lock:
             items = []
             for name, s in self._stats.items():
@@ -419,7 +412,7 @@ class _JSONFormatter(logging.Formatter):
     """v6.0: JSON 格式日志格式化器。"""
     def format(self, record: logging.LogRecord) -> str:
         data = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),
@@ -441,7 +434,7 @@ def _setup_logging(
     level: str = "INFO",
     *,
     rich: bool = True,
-    json_format: Optional[bool] = None,
+    json_format: bool | None = None,
 ) -> logging.Logger:
     """
     初始化 good_addons logger。
@@ -549,7 +542,7 @@ def set_log_level(level: Union[str, int]) -> None:
 class ExceptionFingerprinter:
     """Generates stable fingerprints for exceptions + deduplication."""
 
-    _seen: Dict[str, float] = {}
+    _seen: dict[str, float] = {}
     _lock = threading.Lock()
     _dedup_window: float = 60.0
 
@@ -561,7 +554,7 @@ class ExceptionFingerprinter:
         return hashlib.md5(raw.encode()).hexdigest()[:12]
 
     @classmethod
-    def capture(cls, exc: BaseException) -> Dict[str, Any]:
+    def capture(cls, exc: BaseException) -> dict[str, Any]:
         fp = cls.fingerprint(exc)
         now = time.time()
         with cls._lock:
@@ -586,7 +579,7 @@ def _install_exception_hook() -> None:
     """Install global exception hook."""
     original_hook = sys.excepthook
 
-    def _hook(exc_type: Type[BaseException], exc_value: BaseException, exc_tb: Any) -> None:
+    def _hook(exc_type: type[BaseException], exc_value: BaseException, exc_tb: Any) -> None:
         try:
             info = ExceptionFingerprinter.capture(exc_value)
             if not info.get("deduplicated"):
@@ -621,7 +614,7 @@ def trace(func: F) -> F: ...
 def trace(*, level: int = logging.DEBUG, slow_ms: float = 200, log_args: bool = False, memory: bool = False, name: str = "") -> Callable[[F], F]: ...
 
 def trace(
-    _func: Optional[F] = None, *, level: int = logging.DEBUG, slow_ms: float = 200,
+    _func: F | None = None, *, level: int = logging.DEBUG, slow_ms: float = 200,
     log_args: bool = False, memory: bool = False, name: str = "",
 ) -> Union[F, Callable[[F], F]]:
     """Performance tracing decorator."""
@@ -703,7 +696,7 @@ def timed(func: F) -> F: ...
 def timed(*, slow_ms: float = 200, name: str = "") -> Callable[[F], F]: ...
 
 def timed(
-    _func: Optional[F] = None, *, slow_ms: float = 200, name: str = "",
+    _func: F | None = None, *, slow_ms: float = 200, name: str = "",
 ) -> Union[F, Callable[[F], F]]:
     """
     v6.0: 轻量级性能计时装饰器（@trace 的简化版）。
@@ -748,11 +741,11 @@ def timed(
 @overload
 def fallback(func: F) -> F: ...
 @overload
-def fallback(*, value: Any = None, catch: Tuple[Type[Exception], ...] = (Exception,), log_error: bool = True) -> Callable[[F], F]: ...
+def fallback(*, value: Any = None, catch: tuple[type[Exception], ...] = (Exception,), log_error: bool = True) -> Callable[[F], F]: ...
 
 def fallback(
-    _func: Optional[F] = None, *, value: Any = None,
-    catch: Tuple[Type[Exception], ...] = (Exception,), log_error: bool = True,
+    _func: F | None = None, *, value: Any = None,
+    catch: tuple[type[Exception], ...] = (Exception,), log_error: bool = True,
 ) -> Union[F, Callable[[F], F]]:
     """
     v6.0: 优雅降级装饰器——主函数失败时返回备用值，不抛出异常。
@@ -796,12 +789,12 @@ def fallback(
 @overload
 def retry(func: F) -> F: ...
 @overload
-def retry(*, max_attempts: int = 3, base_delay: float = 1.0, max_delay: float = 60.0, exponential: bool = True, jitter: bool = True, exceptions: Tuple[Type[Exception], ...] = (Exception,), backoff_factor: float = 2.0) -> Callable[[F], F]: ...
+def retry(*, max_attempts: int = 3, base_delay: float = 1.0, max_delay: float = 60.0, exponential: bool = True, jitter: bool = True, exceptions: tuple[type[Exception], ...] = (Exception,), backoff_factor: float = 2.0) -> Callable[[F], F]: ...
 
 def retry(
-    _func: Optional[F] = None, *, max_attempts: int = 3, base_delay: float = 1.0,
+    _func: F | None = None, *, max_attempts: int = 3, base_delay: float = 1.0,
     max_delay: float = 60.0, exponential: bool = True, jitter: bool = True,
-    exceptions: Tuple[Type[Exception], ...] = (Exception,), backoff_factor: float = 2.0,
+    exceptions: tuple[type[Exception], ...] = (Exception,), backoff_factor: float = 2.0,
 ) -> Union[F, Callable[[F], F]]:
     """Retry decorator with exponential backoff."""
     def decorator(func: F) -> F:
@@ -862,7 +855,7 @@ class CircuitBreaker:
 
     def __init__(
         self, failure_threshold: int = 5, recovery_timeout: float = 30.0,
-        success_threshold: int = 2, fallback: Optional[Callable[..., Any]] = None,
+        success_threshold: int = 2, fallback: Callable[..., Any] | None = None,
     ) -> None:
         self.failure_threshold = failure_threshold
         self.recovery_timeout = recovery_timeout
@@ -884,7 +877,7 @@ class CircuitBreaker:
             return self._state
 
     # ── v6.0: 导出状态用于监控 ──
-    def status(self) -> Dict[str, Any]:
+    def status(self) -> dict[str, Any]:
         with self._lock:
             return {
                 "state": self._state.value,
@@ -949,11 +942,11 @@ class CircuitBreaker:
 @overload
 def circuit_breaker(func: F) -> F: ...
 @overload
-def circuit_breaker(*, failure_threshold: int = 5, recovery_timeout: float = 30.0, fallback: Optional[Callable[..., Any]] = None) -> Callable[[F], F]: ...
+def circuit_breaker(*, failure_threshold: int = 5, recovery_timeout: float = 30.0, fallback: Callable[..., Any] | None = None) -> Callable[[F], F]: ...
 
 def circuit_breaker(
-    _func: Optional[F] = None, *, failure_threshold: int = 5,
-    recovery_timeout: float = 30.0, fallback: Optional[Callable[..., Any]] = None,
+    _func: F | None = None, *, failure_threshold: int = 5,
+    recovery_timeout: float = 30.0, fallback: Callable[..., Any] | None = None,
 ) -> Union[F, Callable[[F], F]]:
     breaker = CircuitBreaker(failure_threshold, recovery_timeout, fallback=fallback)
     if _func is not None:
@@ -984,7 +977,7 @@ class RateLimitError(Exception):
     pass
 
 
-def rate_limited(rate: float = 10.0, capacity: int = 20, *, on_limit: Optional[Callable[..., Any]] = None) -> Callable[[F], F]:
+def rate_limited(rate: float = 10.0, capacity: int = 20, *, on_limit: Callable[..., Any] | None = None) -> Callable[[F], F]:
     bucket = _TokenBucket(rate, capacity)
 
     def decorator(func: F) -> F:
@@ -999,9 +992,9 @@ def rate_limited(rate: float = 10.0, capacity: int = 20, *, on_limit: Optional[C
     return decorator
 
 
-def cached(ttl: float = 300, *, maxsize: int = 1024, key_func: Optional[Callable[..., str]] = None, jitter: float = 0.0) -> Callable[[F], F]:
+def cached(ttl: float = 300, *, maxsize: int = 1024, key_func: Callable[..., str] | None = None, jitter: float = 0.0) -> Callable[[F], F]:
     def decorator(func: F) -> F:
-        store: Dict[str, Tuple[Any, float]] = {}
+        store: dict[str, tuple[Any, float]] = {}
         lock = threading.Lock()
         stats = {"hits": 0, "misses": 0, "evictions": 0}
 
@@ -1036,7 +1029,7 @@ def cached(ttl: float = 300, *, maxsize: int = 1024, key_func: Optional[Callable
 
 
 def memoize(func: F) -> F:
-    cache: Dict[str, Any] = {}
+    cache: dict[str, Any] = {}
 
     @functools.wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
@@ -1072,11 +1065,11 @@ def validated(**type_hints: Any) -> Callable[[F], F]:
 @overload
 def guarded(func: F) -> F: ...
 @overload
-def guarded(*, fallback: Any = None, catch: Tuple[Type[Exception], ...] = (Exception,), log_error: bool = True, reraise: bool = False) -> Callable[[F], F]: ...
+def guarded(*, fallback: Any = None, catch: tuple[type[Exception], ...] = (Exception,), log_error: bool = True, reraise: bool = False) -> Callable[[F], F]: ...
 
 def guarded(
-    _func: Optional[F] = None, *, fallback: Any = None,
-    catch: Tuple[Type[Exception], ...] = (Exception,), log_error: bool = True, reraise: bool = False,
+    _func: F | None = None, *, fallback: Any = None,
+    catch: tuple[type[Exception], ...] = (Exception,), log_error: bool = True, reraise: bool = False,
 ) -> Union[F, Callable[[F], F]]:
     def decorator(func: F) -> F:
         @functools.wraps(func)
@@ -1112,7 +1105,7 @@ def guarded(
 
 def debounce(wait: float = 0.3) -> Callable[[F], F]:
     def decorator(func: F) -> F:
-        timer: List[Optional[threading.Timer]] = [None]
+        timer: list[threading.Timer | None] = [None]
         lock = threading.Lock()
 
         @functools.wraps(func)
@@ -1178,7 +1171,7 @@ class Security:
             return False
 
     @staticmethod
-    def encrypt(data: str, key: Optional[bytes] = None) -> Tuple[str, bytes]:
+    def encrypt(data: str, key: bytes | None = None) -> tuple[str, bytes]:
         if not _HAS_CRYPTO or not Fernet:
             raise ImportError("pip install cryptography")
         key = key or Fernet.generate_key()
@@ -1191,7 +1184,7 @@ class Security:
         return Fernet(key).decrypt(token.encode()).decode()
 
     @staticmethod
-    def security_headers(csp: Optional[str] = None) -> Dict[str, str]:
+    def security_headers(csp: str | None = None) -> dict[str, str]:
         return {
             "X-Content-Type-Options": "nosniff",
             "X-Frame-Options": "DENY",
@@ -1204,7 +1197,7 @@ class SystemMonitor:
     """System resource monitoring."""
 
     @staticmethod
-    def memory_info() -> Dict[str, Any]:
+    def memory_info() -> dict[str, Any]:
         if _HAS_PSUTIL and psutil:
             mem = psutil.Process().memory_info()
             return {"rss_mb": round(mem.rss / 1048576, 2), "vms_mb": round(mem.vms / 1048576, 2)}
@@ -1218,7 +1211,7 @@ class SystemMonitor:
 
     @staticmethod
     def start_memory_watchdog(
-        *, max_mb: float = 2048, interval: float = 30, callback: Optional[Callable[..., Any]] = None,
+        *, max_mb: float = 2048, interval: float = 30, callback: Callable[..., Any] | None = None,
     ) -> threading.Thread:
         def _watchdog() -> None:
             while True:
@@ -1239,12 +1232,12 @@ class AuditLog(metaclass=_SingletonMeta):
     """Audit log collector."""
 
     def __init__(self, *, max_entries: int = 10000) -> None:
-        self._entries: deque[Dict[str, Any]] = deque(maxlen=max_entries)
+        self._entries: deque[dict[str, Any]] = deque(maxlen=max_entries)
         self._lock = threading.Lock()
 
-    def record(self, action: str, *, actor: str = "", resource: str = "", details: Any = None) -> Dict[str, Any]:
+    def record(self, action: str, *, actor: str = "", resource: str = "", details: Any = None) -> dict[str, Any]:
         entry = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "action": action,
             "actor": actor or RequestContext.user_id() or "system",
             "trace_id": RequestContext.trace_id(),
@@ -1255,7 +1248,7 @@ class AuditLog(metaclass=_SingletonMeta):
             self._entries.append(entry)
         return entry
 
-    def query(self, *, action: str = "", actor: str = "", last_n: int = 50) -> List[Dict[str, Any]]:
+    def query(self, *, action: str = "", actor: str = "", last_n: int = 50) -> list[dict[str, Any]]:
         with self._lock:
             entries = list(self._entries)
         if action:
@@ -1269,8 +1262,8 @@ class MetricsCollector(metaclass=_SingletonMeta):
     """Metrics collector with optional Prometheus integration."""
 
     def __init__(self) -> None:
-        self._counters: Dict[str, Any] = {}
-        self._simple: Dict[str, float] = defaultdict(float)
+        self._counters: dict[str, Any] = {}
+        self._simple: dict[str, float] = defaultdict(float)
         self._lock = threading.Lock()
 
     def counter(self, name: str) -> None:
@@ -1281,7 +1274,7 @@ class MetricsCollector(metaclass=_SingletonMeta):
                     self._counters[name] = prometheus_client.Counter(name, f"Counter: {name}")
                 self._counters[name].inc()
 
-    def snapshot(self) -> Dict[str, float]:
+    def snapshot(self) -> dict[str, float]:
         with self._lock:
             return dict(self._simple)
 
@@ -1290,7 +1283,7 @@ class GracefulShutdown(metaclass=_SingletonMeta):
     """Graceful shutdown manager."""
 
     def __init__(self) -> None:
-        self._handlers: List[Tuple[int, Callable[..., Any]]] = []
+        self._handlers: list[tuple[int, Callable[..., Any]]] = []
         self._event = threading.Event()
         self._installed = False
 
@@ -1316,7 +1309,7 @@ class GracefulShutdown(metaclass=_SingletonMeta):
         signal.signal(signal.SIGTERM, _handler)
         signal.signal(signal.SIGINT, _handler)
 
-    def wait(self, timeout: Optional[float] = None) -> bool:
+    def wait(self, timeout: float | None = None) -> bool:
         return self._event.wait(timeout)
 
 
@@ -1335,25 +1328,25 @@ class HealthChecker(metaclass=_SingletonMeta):
     """
 
     def __init__(self) -> None:
-        self._checks: Dict[str, Callable[[], Any]] = {}
+        self._checks: dict[str, Callable[[], Any]] = {}
         self._lock = threading.Lock()
 
     @overload
     def register(
         self, name: str,
-    ) -> Callable[[Callable[[], Dict[str, Any]]], Callable[[], Dict[str, Any]]]: ...
+    ) -> Callable[[Callable[[], dict[str, Any]]], Callable[[], dict[str, Any]]]: ...
     @overload
     def register(
-        self, name: str, check_fn: Callable[[], Dict[str, Any]],
-    ) -> Callable[[], Dict[str, Any]]: ...
+        self, name: str, check_fn: Callable[[], dict[str, Any]],
+    ) -> Callable[[], dict[str, Any]]: ...
 
     def register(
         self,
         name: str,
-        check_fn: Optional[Callable[[], Dict[str, Any]]] = None,
+        check_fn: Callable[[], dict[str, Any]] | None = None,
     ) -> Union[
-        Callable[[Callable[[], Dict[str, Any]]], Callable[[], Dict[str, Any]]],
-        Callable[[], Dict[str, Any]],
+        Callable[[Callable[[], dict[str, Any]]], Callable[[], dict[str, Any]]],
+        Callable[[], dict[str, Any]],
     ]:
         """
         ✅ P0-3 修复：同时支持两种用法。
@@ -1367,8 +1360,8 @@ class HealthChecker(metaclass=_SingletonMeta):
             HEALTH.register("db", check_db)
         """
         def _do_register(
-            fn: Callable[[], Dict[str, Any]],
-        ) -> Callable[[], Dict[str, Any]]:
+            fn: Callable[[], dict[str, Any]],
+        ) -> Callable[[], dict[str, Any]]:
             with self._lock:
                 self._checks[name] = fn
             log.debug("🩺 HealthCheck registered: %s", name)
@@ -1383,18 +1376,18 @@ class HealthChecker(metaclass=_SingletonMeta):
         with self._lock:
             self._checks.pop(name, None)
 
-    def _snapshot_checks(self) -> Dict[str, Callable[[], Any]]:
+    def _snapshot_checks(self) -> dict[str, Callable[[], Any]]:
         with self._lock:
             return dict(self._checks)
 
-    def _normalize_result(self, result: Any) -> Dict[str, Any]:
+    def _normalize_result(self, result: Any) -> dict[str, Any]:
         """把任意返回值规范成 {"status": ..., ...} 格式。"""
         if not isinstance(result, dict):
             return {"status": "degraded", "value": result}
         result.setdefault("status", "ok")
         return result
 
-    def _aggregate_overall(self, results: Dict[str, Dict[str, Any]]) -> str:
+    def _aggregate_overall(self, results: dict[str, dict[str, Any]]) -> str:
         overall = "ok"
         for r in results.values():
             st = r.get("status")
@@ -1404,7 +1397,7 @@ class HealthChecker(metaclass=_SingletonMeta):
                 overall = "degraded"
         return overall
 
-    def run(self, timeout: float = 5.0) -> Dict[str, Any]:
+    def run(self, timeout: float = 5.0) -> dict[str, Any]:
         """
         同步运行所有健康检查。
 
@@ -1420,7 +1413,7 @@ class HealthChecker(metaclass=_SingletonMeta):
         except RuntimeError:
             has_running_loop = False
 
-        results: Dict[str, Dict[str, Any]] = {}
+        results: dict[str, dict[str, Any]] = {}
         for name, fn in self._snapshot_checks().items():
             if inspect.iscoroutinefunction(fn):
                 if has_running_loop:
@@ -1451,18 +1444,18 @@ class HealthChecker(metaclass=_SingletonMeta):
 
         return {
             "status": self._aggregate_overall(results),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "checks": results,
         }
 
-    async def run_async(self, timeout: float = 5.0) -> Dict[str, Any]:
+    async def run_async(self, timeout: float = 5.0) -> dict[str, Any]:
         """
         ✅ P0-1 修复：异步版本，推荐在 asyncio 上下文里使用。
 
         - 异步检查函数 → `await asyncio.wait_for(fn(), timeout)`
         - 同步检查函数 → 直接调用（如很慢应改为 async）
         """
-        results: Dict[str, Dict[str, Any]] = {}
+        results: dict[str, dict[str, Any]] = {}
         for name, fn in self._snapshot_checks().items():
             try:
                 if inspect.iscoroutinefunction(fn):
@@ -1478,7 +1471,7 @@ class HealthChecker(metaclass=_SingletonMeta):
 
         return {
             "status": self._aggregate_overall(results),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "checks": results,
         }
 
@@ -1532,7 +1525,7 @@ _memory_limit_mb: float = 2048.0
 
 
 @_HEALTH.register("system")
-def _system_health() -> Dict[str, Any]:
+def _system_health() -> dict[str, Any]:
     mem = SystemMonitor.memory_info()
     cpu = SystemMonitor.cpu_percent()
     rss = mem.get("rss_mb", 0)
@@ -1544,7 +1537,7 @@ def _system_health() -> Dict[str, Any]:
     }
 
 @_HEALTH.register("eventbus")
-def _eventbus_health() -> Dict[str, Any]:
+def _eventbus_health() -> dict[str, Any]:
     """通过公开 API 读取 EventBus 状态。"""
     history = EVENTS.get_history(last_n=1000)
     subs_count = EVENTS.subscriber_count()
@@ -1598,7 +1591,7 @@ def _is_dash_app(app: Any) -> bool:
     return False
 
 
-def _enhance_web_app(app: Any, csp_policy: Optional[str] = None) -> None:
+def _enhance_web_app(app: Any, csp_policy: str | None = None) -> None:
     """v6.0: Enhanced with distributed tracing support."""
     is_dash = _is_dash_app(app)
     framework = "Dash" if is_dash else "Flask"
@@ -1790,9 +1783,9 @@ def boost(
     rich_logging: bool = True,
     sanitize_logs: bool = True,
     exception_fingerprint: bool = True,
-    csp_policy: Optional[str] = None,
-    json_log: Optional[bool] = None,
-) -> Dict[str, Any]:
+    csp_policy: str | None = None,
+    json_log: bool | None = None,
+) -> dict[str, Any]:
     """
     Bootstrap the runtime enhancement layer.
 
@@ -1877,7 +1870,7 @@ def diag(*, perf_top: int = 15, audit_last: int = 20, include_health: bool = Tru
     v6.0: 增强诊断——集成健康检查输出。
     快速诊断函数，一键输出性能/审计/系统/事件总线/健康状态。
     """
-    sections: List[str] = []
+    sections: list[str] = []
 
     # Performance
     sections.append("═══ Performance ═══")
@@ -1916,7 +1909,7 @@ def diag(*, perf_top: int = 15, audit_last: int = 20, include_health: bool = Tru
     recent = EVENTS.get_history(last_n=10)
     if recent:
         for e in recent:
-            ts = datetime.fromtimestamp(e["time"], tz=timezone.utc).strftime("%H:%M:%S")
+            ts = datetime.fromtimestamp(e["time"], tz=UTC).strftime("%H:%M:%S")
             sections.append(f"  {ts} | {e['event']:<25} | seq={e['seq']}")
     else:
         sections.append("  (empty)")

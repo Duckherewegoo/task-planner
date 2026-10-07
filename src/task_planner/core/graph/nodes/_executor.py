@@ -8,7 +8,6 @@ import asyncio
 import json
 from typing import (
     Any,
-    Optional,
 )
 
 from task_planner.infrastructure.cog import hub as _hub
@@ -30,8 +29,8 @@ async def execute_single_node(
     node: dict[str, Any],
     user_input: str,
     intent: dict[str, Any],
-    cancel_event: Optional[asyncio.Event] = None,
-    req_id: Optional[str] = None,
+    cancel_event: asyncio.Event | None = None,
+    req_id: str | None = None,
 ) -> dict[str, Any]:
     """
     执行单个节点：构建 Prompt + 委托 LLM + 异常分级响应

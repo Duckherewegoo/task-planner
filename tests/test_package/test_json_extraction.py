@@ -10,6 +10,7 @@ test_json_extraction.py — 锁定 P0-1 修复
 from __future__ import annotations
 
 import json
+
 import pytest
 
 from task_planner.infrastructure.llm.json_utils import extract_tail_json as _extract_tail_json

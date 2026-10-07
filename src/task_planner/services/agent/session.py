@@ -11,7 +11,6 @@ import asyncio
 import time
 from typing import (
     Any,
-    Optional,
 )
 
 from task_planner.infrastructure.cog import hub as _hub
@@ -33,13 +32,13 @@ class TaskSession:
     """单个任务会话 - 完全异步化"""
 
     __slots__ = (
+        "_runner_task",
+        "cancel_event",
+        "config",
+        "progress_q",
+        "start_time",
         "thread_id",
         "user_input",
-        "cancel_event",
-        "start_time",
-        "progress_q",
-        "_runner_task",
-        "config",
     )
 
     def __init__(self, thread_id: str, user_input: str):
@@ -52,7 +51,7 @@ class TaskSession:
         # 有界队列，最多缓存 100 条进度；满了丢最老
         self.progress_q: asyncio.Queue = asyncio.Queue(maxsize=100)
 
-        self._runner_task: Optional[asyncio.Task] = None
+        self._runner_task: asyncio.Task | None = None
 
         # LangGraph 兼容
         self.config: dict[str, Any] = {
@@ -78,12 +77,12 @@ _session_store: SessionStore = InMemorySessionStore()
 _sessions_lock = asyncio.Lock()
 
 
-async def get_session(thread_id: str) -> Optional[TaskSession]:
+async def get_session(thread_id: str) -> TaskSession | None:
     """异步获取会话"""
     return await _session_store.get(thread_id)
 
 
-async def pop_session(thread_id: str) -> Optional[TaskSession]:
+async def pop_session(thread_id: str) -> TaskSession | None:
     """异步移除会话（供 stream 的 finally 使用）"""
     return await _session_store.pop(thread_id)
 

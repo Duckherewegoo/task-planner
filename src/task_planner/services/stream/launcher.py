@@ -2,10 +2,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import (
-    Callable,
-    Optional,
-)
+from collections.abc import Callable
 
 from task_planner.core.graph.workflow import (
     get_thread_state_async,
@@ -69,9 +66,9 @@ async def start_stream(
 async def resume_stream(
     thread_id: str,
     user_action: str = "continue",
-    modified_input: Optional[str] = None,
-    target_node_index: Optional[int] = None,
-    run_task_stream_fn: Optional[Callable] = None,
+    modified_input: str | None = None,
+    target_node_index: int | None = None,
+    run_task_stream_fn: Callable | None = None,
 ) -> str:
     """从 LangGraph checkpoint 恢复历史任务并启动后台流式执行"""
     from task_planner.services.agent import run_task_stream as _default_run

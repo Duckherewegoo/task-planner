@@ -4,11 +4,10 @@ ui_styles.py — Dash/Gradio 内联样式字典。
 """
 from typing import (
     Any,
-    Dict,
 )
 
 # ── 基础按钮 ──
-BASE_BTN_STYLE: Dict[str, Any] = {
+BASE_BTN_STYLE: dict[str, Any] = {
     "border": "none",
     "padding": "8px 16px",
     "borderRadius": "6px",
@@ -59,7 +58,7 @@ EMPTY_BAR_MINI_STYLE = {"width": "0%", "height": "100%", "background": "transpar
 
 # ── 空对象 ──
 EMPTY_DAG = {"nodes": [], "edges": []}
-EMPTY_STATES: Dict[str, Any] = {}
+EMPTY_STATES: dict[str, Any] = {}
 
 # ── Markdown ──
 MARKDOWN_PRE_STYLE = {"whiteSpace": "pre-wrap", "fontSize": "14px", "lineHeight": "1.8"}

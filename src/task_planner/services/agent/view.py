@@ -4,7 +4,6 @@ from __future__ import annotations
 import time
 from typing import (
     Any,
-    Optional,
 )
 
 from task_planner.services.view_model import FRONTEND_FIELDS
@@ -14,7 +13,7 @@ def extract_snapshot(
     event: dict[str, Any],
     session: Any,   # TaskSession（避免循环 import）
     mode: str = "values",
-) -> Optional[dict[str, Any]]:
+) -> dict[str, Any] | None:
     """从 graph event 中提取前端需要的快照"""
     if mode == "updates":
         return None

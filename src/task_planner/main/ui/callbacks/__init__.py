@@ -4,7 +4,7 @@ from . import (
     graph_js,
     history,
     new_task,
-)  # noqa: F401
+)
 
 
 def register_all() -> None:

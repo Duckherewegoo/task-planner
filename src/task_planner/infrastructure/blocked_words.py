@@ -19,16 +19,8 @@ from __future__ import annotations
 
 import logging
 import os
+from collections.abc import Iterator
 from pathlib import Path
-from typing import (
-    Dict,
-    FrozenSet,
-    Iterator,
-    List,
-    Optional,
-    Set,
-    Tuple,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +39,7 @@ _MAX_WORD_LEN = 50     # 超长多半是 URL 或误录
 
 # ── 停用词：明确不作为违禁词的高频常用词 ──
 # 这层是"最后一道保险"：即使某词库里误录了，也不会进匹配器
-_COMMON_WORDS: FrozenSet[str] = frozenset({
+_COMMON_WORDS: frozenset[str] = frozenset({
     # 代词
     "一个", "这个", "那个", "这些", "那些", "什么", "怎么", "怎样",
     "我们", "你们", "他们", "她们", "它们",
@@ -62,7 +54,7 @@ _COMMON_WORDS: FrozenSet[str] = frozenset({
 # ── 分级：文件名 → tier ──
 # 说明：明确列出的进 block（拦截），其余默认 review（标记待审）
 _DEFAULT_TIER = "review"
-_FILE_TIER_MAP: Dict[str, str] = {
+_FILE_TIER_MAP: dict[str, str] = {
     # —— Block：强违禁，直接拦截 ——
     "反动词库.txt": "block",
     "暴恐词库.txt": "block",
@@ -113,14 +105,14 @@ class BlockedWordMatcher:
 
     def __init__(
         self,
-        block_words: Set[str],
-        review_words: Set[str],
-        whitelist: Set[str],
+        block_words: set[str],
+        review_words: set[str],
+        whitelist: set[str],
     ) -> None:
-        self.block_words: Set[str] = set(block_words)
-        self.review_words: Set[str] = set(review_words) - self.block_words
-        self.whitelist: Set[str] = set(whitelist)
-        self.all_words: Set[str] = self.block_words | self.review_words
+        self.block_words: set[str] = set(block_words)
+        self.review_words: set[str] = set(review_words) - self.block_words
+        self.whitelist: set[str] = set(whitelist)
+        self.all_words: set[str] = self.block_words | self.review_words
         self._aho = None
         self._build()
 
@@ -133,7 +125,7 @@ class BlockedWordMatcher:
             self._aho.make_automaton()
 
     # ---- 对外 API ----
-    def match(self, text: str) -> Dict[str, List[str]]:
+    def match(self, text: str) -> dict[str, list[str]]:
         """
         返回：
           {
@@ -145,9 +137,9 @@ class BlockedWordMatcher:
         if not text:
             return {"blocked": [], "review": [], "whitelisted": []}
 
-        blocked: Set[str] = set()
-        review: Set[str] = set()
-        whitelisted: Set[str] = set()
+        blocked: set[str] = set()
+        review: set[str] = set()
+        whitelisted: set[str] = set()
 
         for word, start, end in self._iter_hits(text):
             if self._is_whitelisted(text, start, end):
@@ -169,7 +161,7 @@ class BlockedWordMatcher:
         return bool(self.match(text)["blocked"])
 
     # ---- 内部 ----
-    def _iter_hits(self, text: str) -> Iterator[Tuple[str, int, int]]:
+    def _iter_hits(self, text: str) -> Iterator[tuple[str, int, int]]:
         """产出 (word, start, end)，end 为最后一个字符的下标"""
         if self._aho is not None:
             for end_idx, word in self._aho.iter(text):
@@ -231,7 +223,7 @@ def _read_text(path: Path, encoding: str = "utf-8") -> str:
     encodings = [encoding]
     if encoding.lower().replace("-", "") == "utf8":
         encodings.append("utf-8-sig")
-    last_err: Optional[Exception] = None
+    last_err: Exception | None = None
     for enc in encodings:
         try:
             return path.read_text(encoding=enc)
@@ -241,9 +233,9 @@ def _read_text(path: Path, encoding: str = "utf-8") -> str:
     raise last_err or RuntimeError(f"无法解码: {path}")
 
 
-def _parse_words(text: str) -> List[str]:
+def _parse_words(text: str) -> list[str]:
     """一行一个词；跳过空行 / # 注释 / 长度越界"""
-    out: List[str] = []
+    out: list[str] = []
     for line in text.splitlines():
         w = line.strip()
         if not w or w.startswith("#"):
@@ -256,11 +248,11 @@ def _parse_words(text: str) -> List[str]:
     return out
 
 
-def _load_words_by_tier(root: Path) -> Tuple[Set[str], Set[str]]:
+def _load_words_by_tier(root: Path) -> tuple[set[str], set[str]]:
     """返回 (block_words, review_words)"""
-    block: Set[str] = set()
-    review: Set[str] = set()
-    skipped_common: Set[str] = set()
+    block: set[str] = set()
+    review: set[str] = set()
+    skipped_common: set[str] = set()
 
     if not root.exists():
         logger.warning("词库目录不存在: %s", root)
@@ -276,7 +268,7 @@ def _load_words_by_tier(root: Path) -> Tuple[Set[str], Set[str]]:
             continue
 
         words = _parse_words(text)
-        clean: List[str] = []
+        clean: list[str] = []
         for w in words:
             if w in _COMMON_WORDS:
                 skipped_common.add(w)
@@ -295,7 +287,7 @@ def _load_words_by_tier(root: Path) -> Tuple[Set[str], Set[str]]:
         len(skipped_common), sorted(skipped_common)[:10],
     )
     return block, review
-def _load_whitelist(path: Path) -> Set[str]:
+def _load_whitelist(path: Path) -> set[str]:
     if not path.exists():
         logger.info("白名单不存在，跳过: %s", path)
         return set()
@@ -312,7 +304,7 @@ def _load_whitelist(path: Path) -> Set[str]:
 # ═══════════════════════════════════════════════════════════════════════
 #  全局单例（惰性）
 # ═══════════════════════════════════════════════════════════════════════
-_MATCHER_CACHE: Optional[BlockedWordMatcher] = None
+_MATCHER_CACHE: BlockedWordMatcher | None = None
 
 
 def get_matcher() -> BlockedWordMatcher:
@@ -336,7 +328,7 @@ def reload_matcher() -> BlockedWordMatcher:
 # ═══════════════════════════════════════════════════════════════════════
 #  对外便捷 API
 # ═══════════════════════════════════════════════════════════════════════
-def check_text(text: str) -> Dict[str, List[str]]:
+def check_text(text: str) -> dict[str, list[str]]:
     """检查文本，返回 {'blocked': [...], 'review': [...], 'whitelisted': [...]}"""
     return get_matcher().match(text)
 
@@ -370,11 +362,11 @@ def __getattr__(name: str):
 #  兼容旧 API：load_blocked_words()
 # ═══════════════════════════════════════════════════════════════════════
 def load_blocked_words(
-    root: Optional[Path] = None,
+    root: Path | None = None,
     *,
     encoding: str = "utf-8",
     strict: bool = False,
-) -> FrozenSet[str]:
+) -> frozenset[str]:
     """
     兼容旧接口：加载词库返回去重后的 frozenset。
     不传 root → 用全局单例；传 root → 现场加载（用于测试）。
@@ -387,7 +379,7 @@ def load_blocked_words(
         logger.warning("词库目录不存在: %s", root)
         return frozenset()
 
-    words: Set[str] = set()
+    words: set[str] = set()
     for txt in _iter_txt_files(root):
         try:
             text = _read_text(txt, encoding)

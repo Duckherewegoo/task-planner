@@ -12,8 +12,6 @@ import os
 from pathlib import Path
 from typing import (
     Any,
-    Dict,
-    Optional,
 )
 
 import yaml
@@ -24,7 +22,6 @@ from .entry import (
 )
 from .store import ConfigStore
 
-
 _TYPE_MAP = {"int": int, "str": str, "float": float, "bool": bool}
 
 
@@ -33,7 +30,7 @@ class ConfigLoader:
         self._store = store
 
     def load(
-        self, schema_path: Path, user_path: Optional[Path] = None
+        self, schema_path: Path, user_path: Path | None = None
     ) -> None:
         schema = self._read_yaml(schema_path)
         overrides = self._read_yaml(user_path) if user_path else {}
@@ -51,8 +48,8 @@ class ConfigLoader:
         self,
         section: str,
         name: str,
-        spec: Dict[str, Any],
-        overrides: Dict[str, Any],
+        spec: dict[str, Any],
+        overrides: dict[str, Any],
     ) -> ConfigEntry:
         t = _TYPE_MAP[spec["type"]]
         scope = Scope(spec["scope"])
@@ -98,7 +95,7 @@ class ConfigLoader:
         return t(raw)
 
     @staticmethod
-    def _read_yaml(path: Optional[Path]) -> Dict[str, Any]:
+    def _read_yaml(path: Path | None) -> dict[str, Any]:
         if not path or not path.exists():
             return {}
         with path.open("r", encoding="utf-8") as f:

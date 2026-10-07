@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Optional
 
 from openai import AsyncOpenAI
 
@@ -12,10 +11,10 @@ from task_planner.infrastructure.logger_setup import get_logger
 logger = get_logger(__name__)
 
 # 客户端与信号量（惰性，绑定当前事件循环）
-_client: Optional[AsyncOpenAI] = None
+_client: AsyncOpenAI | None = None
 _dashscope_available = False
-_client_lock: Optional[asyncio.Lock] = None
-_semaphore: Optional[asyncio.Semaphore] = None
+_client_lock: asyncio.Lock | None = None
+_semaphore: asyncio.Semaphore | None = None
 
 
 def _get_client_lock() -> asyncio.Lock:
@@ -36,7 +35,7 @@ def get_semaphore() -> asyncio.Semaphore:
         _semaphore = asyncio.Semaphore(_hub.dev.LLM_MAX_CONCURRENT)
     return _semaphore
 
-async def get_llm_client() -> Optional[AsyncOpenAI]:
+async def get_llm_client() -> AsyncOpenAI | None:
     """异步懒加载 AsyncOpenAI 客户端（协程安全）"""
     global _client, _dashscope_available
     if _client is not None:

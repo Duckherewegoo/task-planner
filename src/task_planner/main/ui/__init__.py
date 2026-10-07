@@ -7,10 +7,10 @@ from .app import (
     app,
     main,
 )
-from .layout import build_layout
 
 # 注册所有回调（副作用 import）
 from .callbacks import register_all
+from .layout import build_layout
 
 app.layout = build_layout()
 register_all()

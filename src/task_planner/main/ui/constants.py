@@ -7,9 +7,6 @@ import threading
 from dataclasses import dataclass
 from typing import (
     Any,
-    Dict,
-    List,
-    Tuple,
 )
 
 from dash import no_update
@@ -80,15 +77,15 @@ class HistoryTapNodeResult:
 # ═══════════════════════════════════════════════════════════════════
 #  Cytoscape 元素缓存
 # ═══════════════════════════════════════════════════════════════════
-_cyto_cache: Dict[str, Any] = {"hash": None, "elements": None}
+_cyto_cache: dict[str, Any] = {"hash": None, "elements": None}
 _cyto_lock = threading.Lock()
 
 
 def _stable_fingerprint(
-    nodes: List[dict],
-    edges: List[dict],
-    node_states: Dict[str, str],
-) -> Tuple[str, int]:
+    nodes: list[dict],
+    edges: list[dict],
+    node_states: dict[str, str],
+) -> tuple[str, int]:
     try:
         node_ids = tuple(sorted(str(n.get("id", i)) for i, n in enumerate(nodes)))
         edge_keys = tuple(
@@ -107,9 +104,9 @@ def _stable_fingerprint(
 
 
 def cytoscape_cached(
-    nodes: List[dict],
-    edges: List[dict],
-    node_states: Dict[str, str],
+    nodes: list[dict],
+    edges: list[dict],
+    node_states: dict[str, str],
 ) -> list:
     fingerprint, raw_size = _stable_fingerprint(nodes, edges, node_states)
     if raw_size > _MAX_CACHE_INPUT_BYTES:

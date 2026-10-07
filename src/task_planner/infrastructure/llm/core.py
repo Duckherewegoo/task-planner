@@ -5,14 +5,12 @@ import asyncio
 import random
 from typing import (
     Any,
-    Optional,
 )
 
 from task_planner.infrastructure.cog import hub as _hub
 from task_planner.infrastructure.logger_setup import get_logger
 
-from .client import get_llm_client  # noqa: F401
-
+from .client import get_llm_client
 from .errors import (
     LLMCancelledError,
     LLMClientError,
@@ -28,8 +26,8 @@ async def async_call_llm(
     prompt: str,
     enable_thinking: bool,
     req_id: str,
-    timeout: Optional[float] = None,
-    cancel_event: Optional[asyncio.Event] = None,
+    timeout: float | None = None,
+    cancel_event: asyncio.Event | None = None,
 ) -> str:
     """
     异步统一 LLM 调用入口。
@@ -48,7 +46,7 @@ async def async_call_llm(
     if timeout is None:
         timeout = _hub.dev.LLM_NODE_TIMEOUT if enable_thinking else _hub.dev.LLM_TIMEOUT
 
-    last_error: Optional[Exception] = None
+    last_error: Exception | None = None
 
     for attempt in range(1, _hub.dev.LLM_MAX_RETRIES + 1):
         # 进入前检查取消
@@ -62,7 +60,7 @@ async def async_call_llm(
                     model, attempt, timeout, enable_thinking, req_id,
                 )
 
-                extra_body: Optional[dict[str, Any]] = None
+                extra_body: dict[str, Any] | None = None
                 if enable_thinking:
                     extra_body = {
                         "enable_thinking": True,

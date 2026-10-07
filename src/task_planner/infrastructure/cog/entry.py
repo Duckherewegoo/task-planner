@@ -48,7 +48,7 @@ class ConfigEntry:
         if self.secret and not self.from_env:
             raise ValueError(f"{self.name}: secret 字段必须 from_env")
 
-    def with_value(self, v: Any) -> "ConfigEntry":
+    def with_value(self, v: Any) -> ConfigEntry:
         return replace(self, value=v)
 
     def to_dict(self) -> dict:

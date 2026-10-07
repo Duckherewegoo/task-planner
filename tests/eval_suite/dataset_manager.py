@@ -14,16 +14,16 @@ Changelog:
 """
 
 import json
-from pathlib import Path
-from typing import (
-    List,
-    Dict,
-    Any,
-    Optional,
-)
 from dataclasses import (
     dataclass,
     field,
+)
+from pathlib import Path
+from typing import (
+    Any,
+    Dict,
+    List,
+    Optional,
 )
 
 import yaml
@@ -38,12 +38,12 @@ class TestCase:
     """单个测试用例"""
     id: str
     input: str
-    expected_output: Optional[str] = None
+    expected_output: str | None = None
     category: str = "general"
     complexity: str = "medium"      # simple | medium | complex
-    expected_plan_nodes: Optional[int] = None
+    expected_plan_nodes: int | None = None
     expected_needs_planning: bool = True
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self):
         """✅ P0-3 修复：字段一致性校验"""
@@ -64,7 +64,7 @@ class TestCase:
             )
             self.complexity = "medium"
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "input": self.input,
@@ -80,20 +80,20 @@ class TestCase:
 class DatasetManager:
     """管理评估数据集"""
 
-    def __init__(self, data_dir: Optional[str] = None):
+    def __init__(self, data_dir: str | None = None):
         self.data_dir = (
             Path(data_dir) if data_dir else Path(__file__).parent / "data"
         )
         # ✅ P1-3 修复：parents=True 支持多层目录
         self.data_dir.mkdir(parents=True, exist_ok=True)
-        self._datasets: Dict[str, List[TestCase]] = {}
+        self._datasets: dict[str, list[TestCase]] = {}
 
     def load_dataset(
         self,
         name: str,
         file_format: str = "json",
         force_reload: bool = False,
-    ) -> List[TestCase]:
+    ) -> list[TestCase]:
         """
         从文件加载数据集。
 
@@ -114,7 +114,7 @@ class DatasetManager:
                            name, file_path)
             return []
 
-        with open(file_path, "r", encoding="utf-8") as f:
+        with open(file_path, encoding="utf-8") as f:
             if file_format == "json":
                 raw = json.load(f)
             elif file_format in ("yaml", "yml"):
@@ -139,7 +139,7 @@ class DatasetManager:
             self._datasets[name] = []
             return []
 
-        cases: List[TestCase] = []
+        cases: list[TestCase] = []
         seen_ids: set[str] = set()
 
         # ✅ P0-1 修复：记录 idx + id，让失败可定位
@@ -197,34 +197,34 @@ class DatasetManager:
         logger.info("[Dataset] 从 %s 加载 %d 条 case", name, len(cases))
         return cases
 
-    def register_dataset(self, name: str, cases: List[TestCase]) -> None:
+    def register_dataset(self, name: str, cases: list[TestCase]) -> None:
         """注册内存数据集（用于动态生成）"""
         self._datasets[name] = cases
         logger.debug("[Dataset] 注册内存数据集 %s (%d cases)", name, len(cases))
 
-    def get_dataset(self, name: str) -> List[TestCase]:
+    def get_dataset(self, name: str) -> list[TestCase]:
         return self._datasets.get(name, [])
 
     def split_by_category(
-        self, cases: List[TestCase],
-    ) -> Dict[str, List[TestCase]]:
+        self, cases: list[TestCase],
+    ) -> dict[str, list[TestCase]]:
         """按类别切分"""
-        splits: Dict[str, List[TestCase]] = {}
+        splits: dict[str, list[TestCase]] = {}
         for case in cases:
             splits.setdefault(case.category, []).append(case)
         return splits
 
     def split_by_complexity(
-        self, cases: List[TestCase],
-    ) -> Dict[str, List[TestCase]]:
+        self, cases: list[TestCase],
+    ) -> dict[str, list[TestCase]]:
         """按复杂度切分"""
-        splits: Dict[str, List[TestCase]] = {}
+        splits: dict[str, list[TestCase]] = {}
         for case in cases:
             splits.setdefault(case.complexity, []).append(case)
         return splits
 
     def save_dataset(
-        self, name: str, cases: List[TestCase], file_format: str = "json",
+        self, name: str, cases: list[TestCase], file_format: str = "json",
     ) -> Path:
         """✅ P2-2 补：把 TestCase 列表写回磁盘"""
         file_path = self.data_dir / f"{name}.{file_format}"

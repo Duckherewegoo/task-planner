@@ -4,9 +4,9 @@ from __future__ import annotations
 import asyncio
 import contextvars
 import traceback
+from collections.abc import AsyncGenerator
 from typing import (
     Any,
-    AsyncGenerator,
 )
 
 from task_planner.core.graph.workflow import graph
@@ -34,7 +34,7 @@ async def run_task_stream(
     thread_id: str,
     enable_refine: bool = True,
     resume: bool = False,
-) -> AsyncGenerator[dict[str, Any], None]:
+) -> AsyncGenerator[dict[str, Any]]:
     """
     异步生成器，实时推送任务执行进度。
     调用方应使用 `async for event in run_task_stream(...):` 消费。

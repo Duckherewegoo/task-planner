@@ -3,9 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import time
-from typing import Optional
 
-from task_planner.infrastructure.cog import hub as _hub
 from task_planner.infrastructure.logger_setup import get_logger
 
 from .state import TaskStreamState
@@ -27,7 +25,7 @@ class StreamStateCleaner:
     def __init__(self) -> None:
         self._states: dict[str, TaskStreamState] = {}
         self._lock = asyncio.Lock()
-        self._task: Optional[asyncio.Task] = None
+        self._task: asyncio.Task | None = None
         self._running = False
 
     # ── 注册 / 注销 ──
@@ -45,7 +43,7 @@ class StreamStateCleaner:
         if removed:
             logger.debug("[Cleaner] 主动移除任务 %s", thread_id)
 
-    async def get(self, thread_id: str) -> Optional[TaskStreamState]:
+    async def get(self, thread_id: str) -> TaskStreamState | None:
         async with self._lock:
             return self._states.get(thread_id)
 

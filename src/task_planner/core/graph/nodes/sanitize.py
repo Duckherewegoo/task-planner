@@ -22,13 +22,12 @@ from typing import (
     cast,
 )
 
-from langchain_core.runnables import RunnableConfig  # noqa: F401  （保留类型签名兼容性）
-
 from task_planner.infrastructure.constants import USER_VISIBLE_NODE_FIELDS
 from task_planner.infrastructure.logger_setup import get_logger
 from task_planner.infrastructure.regexes import SENSITIVE_PATTERNS
+
 # ✅ P1-1：唯一真源
-from task_planner.utils.context import get_cancel_event  # noqa: F401
+from task_planner.utils.context import get_cancel_event
 
 logger = get_logger(__name__)
 

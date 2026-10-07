@@ -2,10 +2,9 @@
 from __future__ import annotations
 
 from datetime import (
+    UTC,
     datetime,
-    timezone,
 )
-from typing import Optional
 
 from task_planner.infrastructure.constants import TASK_STATUS
 from task_planner.infrastructure.logger_setup import get_logger
@@ -33,7 +32,7 @@ async def update_node_status(
         logger.error("[DB] update_node_status: 任务无 Plan %s", task_id)
         return False
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     result = await db["plans"].update_one(
         {"plan_id": plan_id, "nodes.id": node_id},
         {
@@ -68,7 +67,7 @@ async def reset_node_status(task_id: str, node_id: int) -> bool:
         logger.error("[DB] reset_node_status: 任务无 Plan %s", task_id)
         return False
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     result = await db["plans"].update_one(
         {"plan_id": plan_id, "nodes.id": node_id},
         {
@@ -88,7 +87,7 @@ async def reset_node_status(task_id: str, node_id: int) -> bool:
     return True
 
 
-async def get_node_status(task_id: str, node_id: int) -> Optional[int]:
+async def get_node_status(task_id: str, node_id: int) -> int | None:
     """查询节点状态"""
     db = await get_db()
     task = await db["tasks"].find_one({"task_id": task_id})

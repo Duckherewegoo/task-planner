@@ -18,7 +18,7 @@ Changelog:
 from __future__ import annotations
 
 from enum import StrEnum
-from typing import Any, Literal
+from typing import Any
 
 from langgraph.graph import MessagesState
 

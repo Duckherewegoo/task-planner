@@ -3,12 +3,11 @@ from __future__ import annotations
 
 import time
 from datetime import (
+    UTC,
     datetime,
-    timezone,
 )
 from typing import (
     Any,
-    Optional,
 )
 
 from pymongo.errors import DuplicateKeyError
@@ -55,7 +54,7 @@ async def create_task_with_plan(
     plan_id = f"plan_{task_id}"
 
     plan_data = validate_plan(plan_data)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     task_doc = {
         "task_id": task_id,
@@ -100,7 +99,7 @@ async def create_direct_answer_task(
     db = await get_db()
     rid = req_id or get_req_id() or ""
     task_id = f"task_{int(time.time() * 1000)}"
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     task_doc = {
         "task_id": task_id,
@@ -124,7 +123,7 @@ async def create_direct_answer_task(
 # ══════════════════════════════════════════════════
 #  查询
 # ══════════════════════════════════════════════════
-async def get_task(task_id: str) -> Optional[dict[str, Any]]:
+async def get_task(task_id: str) -> dict[str, Any] | None:
     """返回 task 字段字典（补全 schema 默认值，防下游 KeyError）"""
     db = await get_db()
     doc = await db["tasks"].find_one({"task_id": task_id})
@@ -145,7 +144,7 @@ async def get_task(task_id: str) -> Optional[dict[str, Any]]:
     return doc
 
 
-async def load_task_with_plan(task_id: str) -> Optional[dict[str, Any]]:
+async def load_task_with_plan(task_id: str) -> dict[str, Any] | None:
     """
     Task + Plan 一起拿。返回语义：
       - task 不存在 → None
@@ -229,7 +228,7 @@ async def mark_task_success(task_id: str) -> None:
         {"task_id": task_id, "status": {"$nin": list(TERMINAL_STATUSES)}},
         {"$set": {
             "status": TASK_STATUS["SUCCESS"],
-            "updated_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(UTC),
         }},
     )
     if result.modified_count == 0:
@@ -243,7 +242,7 @@ async def mark_task_failed(task_id: str, error: str = "") -> None:
         {"$set": {
             "status": TASK_STATUS["FAILED"],
             "error_msg": error,
-            "updated_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(UTC),
         }},
     )
 
@@ -255,7 +254,7 @@ async def mark_task_timeout(task_id: str) -> None:
         {"$set": {
             "status": TASK_STATUS["TIMEOUT"],
             "error_msg": "超过总时限",
-            "updated_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(UTC),
         }},
     )
 
@@ -266,7 +265,7 @@ async def mark_task_running(task_id: str) -> None:
         {"task_id": task_id},
         {"$set": {
             "status": TASK_STATUS["RUNNING"],
-            "updated_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(UTC),
         }},
     )
 

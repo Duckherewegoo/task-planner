@@ -4,20 +4,14 @@ registry.py — Section 类注册表 + @register_section 装饰器。
 """
 from __future__ import annotations
 
-from typing import (
-    Dict,
-    Tuple,
-    Type,
-)
-
 from .section import ConfigSection
 
 
 class SectionRegistry:
     def __init__(self) -> None:
-        self._sections: Dict[str, Type[ConfigSection]] = {}
+        self._sections: dict[str, type[ConfigSection]] = {}
 
-    def register(self, cls: Type[ConfigSection]) -> Type[ConfigSection]:
+    def register(self, cls: type[ConfigSection]) -> type[ConfigSection]:
         if not (isinstance(cls, type) and issubclass(cls, ConfigSection)):
             raise TypeError(f"只能注册 ConfigSection 子类，收到 {cls!r}")
         name = cls.section
@@ -26,7 +20,7 @@ class SectionRegistry:
         self._sections[name] = cls
         return cls
 
-    def all(self) -> Tuple[Type[ConfigSection], ...]:
+    def all(self) -> tuple[type[ConfigSection], ...]:
         return tuple(self._sections.values())
 
     def clear(self) -> None:
@@ -38,11 +32,11 @@ class SectionRegistry:
 _SECTION_REGISTRY = SectionRegistry()
 
 
-def register_section(cls: Type[ConfigSection]) -> Type[ConfigSection]:
+def register_section(cls: type[ConfigSection]) -> type[ConfigSection]:
     """装饰器：类定义处声明，import 时自动进全局注册表"""
     return _SECTION_REGISTRY.register(cls)
 
-def get_registered_sections() -> Tuple[Type[ConfigSection], ...]:
+def get_registered_sections() -> tuple[type[ConfigSection], ...]:
     """
     返回所有已注册的 Section 类（对外只读接口）。
 

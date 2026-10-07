@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import time
 import uuid
-from typing import Any
 
 from dash import (
     Input,
@@ -17,15 +16,13 @@ from dash import (
     no_update,
 )
 
-from task_planner.core.graph.nodes import sanitize_node_for_user
 from task_planner.core.graph.state import NodeStatus
+from task_planner.infrastructure.cog import hub as _hub
 from task_planner.infrastructure.constants import (
     HINT_TEMPLATES,
-    NODE_STATUS_CODE_MAP,
     STATE_COLORS,
     STATE_LABELS,
 )
-from task_planner.infrastructure.cog import hub as _hub
 from task_planner.infrastructure.ui_styles import (
     BAR_DONE,
     BAR_ERROR,
@@ -479,8 +476,9 @@ def register() -> None:
         prevent_initial_call=True,
     )
     async def on_reset_node(n_clicks, selected_nid, dag, node_states, task_id):
-        from task_planner.core.db import reset_node_status
         import logging
+
+        from task_planner.core.db import reset_node_status
 
         if ctx.triggered_id != "reset-btn-panel":
             return (no_update,) * 5

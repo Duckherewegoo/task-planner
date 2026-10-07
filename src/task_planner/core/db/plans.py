@@ -4,7 +4,6 @@ from __future__ import annotations
 from datetime import datetime
 from typing import (
     Any,
-    Optional,
 )
 
 from task_planner.infrastructure.logger_setup import get_logger
@@ -37,7 +36,7 @@ async def create_plan(
     return plan_doc
 
 
-async def get_plan(plan_id: str) -> Optional[dict[str, Any]]:
+async def get_plan(plan_id: str) -> dict[str, Any] | None:
     """返回 plan 字段字典（去除 _id）"""
     db = await get_db()
     doc = await db["plans"].find_one({"plan_id": plan_id})

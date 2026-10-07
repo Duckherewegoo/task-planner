@@ -46,8 +46,6 @@ import threading
 import uuid
 from contextvars import ContextVar
 from pathlib import Path
-from typing import Optional
-
 
 # ================================================================
 #  0. 从 cog 导入配置
@@ -72,7 +70,7 @@ _PROJECT_ROOT: Path = Path(__file__).resolve().parents[3]
 _req_id_var: ContextVar[str] = ContextVar("req_id", default="-")
 
 
-def set_req_id(rid: Optional[str] = None) -> str:
+def set_req_id(rid: str | None = None) -> str:
     """
     设置当前协程/线程的 req_id。
 
@@ -152,9 +150,9 @@ class ReqIdLogger(logging.Logger):
         msg: str,
         args: tuple,
         exc_info,
-        func: Optional[str] = None,
-        extra: Optional[dict] = None,
-        sinfo: Optional[str] = None,
+        func: str | None = None,
+        extra: dict | None = None,
+        sinfo: str | None = None,
     ) -> logging.LogRecord:
         extra = dict(extra) if extra else {}
         extra.setdefault("req_id", get_req_id())
@@ -169,8 +167,8 @@ class ReqIdLogger(logging.Logger):
 # ================================================================
 _init_lock = threading.Lock()
 _initialized = False
-_queue_listener: Optional[logging.handlers.QueueListener] = None
-_log_queue: Optional[queue.Queue] = None
+_queue_listener: logging.handlers.QueueListener | None = None
+_log_queue: queue.Queue | None = None
 
 # 根 logger 名（所有子模块都是它的子 logger）
 _ROOT_LOGGER_NAME = "task_planner"
@@ -287,7 +285,7 @@ def _init_root_logger() -> None:
         )
         log_dir = None  # type: ignore
 
-    file_handler: Optional[logging.Handler] = None
+    file_handler: logging.Handler | None = None
     if log_dir is not None:
         log_path = os.path.join(log_dir, log_file)
         try:

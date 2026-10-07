@@ -22,7 +22,6 @@ from __future__ import annotations
 import asyncio
 import contextvars
 from contextlib import contextmanager
-from typing import Optional
 
 
 # ══════════════════════════════════════════════════
@@ -53,7 +52,7 @@ class OperationCancelled(Exception):
 #   - 但子 Task 里 set 的值**不会**传回父 Task。
 #   - agent.py 的 run_task_stream 用了 contextvars.copy_context() + ctx.run()
 #     来做显式的跨生成器绑定，那是另一套机制，两者不冲突。
-cancel_event_var: contextvars.ContextVar[Optional[asyncio.Event]] = (
+cancel_event_var: contextvars.ContextVar[asyncio.Event | None] = (
     contextvars.ContextVar("cancel_event", default=None)
 )
 
@@ -61,7 +60,7 @@ cancel_event_var: contextvars.ContextVar[Optional[asyncio.Event]] = (
 # ══════════════════════════════════════════════════
 #  读取 API（节点/LLM 调用方使用）
 # ══════════════════════════════════════════════════
-def get_cancel_event() -> Optional[asyncio.Event]:
+def get_cancel_event() -> asyncio.Event | None:
     """获取当前上下文的 cancel_event（None 表示无取消信号）。"""
     return cancel_event_var.get()
 

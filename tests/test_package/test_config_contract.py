@@ -75,6 +75,7 @@ class TestPromptTemplate:
     def test_all_prompts_are_template(self):
         """所有 prompt 都应是 string.Template 实例"""
         from string import Template
+
         from task_planner.infrastructure.prompts.loader import (
             EXECUTE_NODE_PROMPT,
             INTENT_PROMPT,
@@ -92,6 +93,7 @@ class TestPromptTemplate:
     def test_skip_planning_patterns_are_compiled(self):
         """SKIP_PLANNING_PATTERNS 应全是编译后的正则"""
         import re
+
         from task_planner.infrastructure.regexes import SKIP_PLANNING_PATTERNS
         for p in SKIP_PLANNING_PATTERNS:
             assert isinstance(p, re.Pattern)

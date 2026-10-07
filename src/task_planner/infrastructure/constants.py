@@ -2,11 +2,6 @@
 constants.py — 全项目共享的代码常量/枚举。
 不是配置，不接受运行时修改，不进 cog。
 """
-from typing import (
-    Dict,
-    FrozenSet,
-    List,
-)
 
 # ══════════════════════════════════════════════════
 #  任务状态
@@ -50,13 +45,13 @@ EDGE_TYPE_STYLE = {
     EDGE_TYPE_RETRY: "dotted",
 }
 
-EDGE_DASH_MAP: Dict[str, List[int]] = {
+EDGE_DASH_MAP: dict[str, list[int]] = {
     "dashed":  [10, 5],
     "dashdot": [15, 5, 5, 5],
     "dotted":  [3, 3],
 }
 
-VALID_EDGE_TYPES: FrozenSet[str] = frozenset({
+VALID_EDGE_TYPES: frozenset[str] = frozenset({
     EDGE_TYPE_HARD, EDGE_TYPE_SOFT,
     EDGE_TYPE_CONDITIONAL, EDGE_TYPE_RETRY,
 })
@@ -155,7 +150,7 @@ DEFAULT_EDGE_STYLE = EDGE_STYLES[EDGE_TYPE_HARD]
 # ══════════════════════════════════════════════════
 #  节点样式
 # ══════════════════════════════════════════════════
-NODE_STYLES: Dict[int, Dict[str, str]] = {
+NODE_STYLES: dict[int, dict[str, str]] = {
     code: {
         "bg": STATUS_COLOR[code],
         "border": STATUS_BORDER[code],
@@ -220,13 +215,13 @@ HINT_TEMPLATES = {
 # ══════════════════════════════════════════════════
 #  意图
 # ══════════════════════════════════════════════════
-VALID_INTENT_CATEGORIES: FrozenSet[str] = frozenset({
+VALID_INTENT_CATEGORIES: frozenset[str] = frozenset({
     "cooking", "engineering", "logistics",
     "learning", "life_admin", "creative",
     "consultation", "other",
 })
 
-VALID_INTENT_COMPLEXITIES: FrozenSet[str] = frozenset(
+VALID_INTENT_COMPLEXITIES: frozenset[str] = frozenset(
     {"simple", "medium", "complex"}
 )
 

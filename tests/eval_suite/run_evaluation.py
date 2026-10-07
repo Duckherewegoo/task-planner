@@ -11,21 +11,22 @@ Changelog:
   ✅ P2-1：移除未使用的 logger 引用（改用 get_logger 统一）
 """
 
-import asyncio
 import argparse
+import asyncio
 import sys
 from pathlib import Path
 
-from .dataset_manager import DatasetManager
-from .crucible_eval import (
-    CrucibleEvaluator,
-    create_default_dataset,
-)
-from .hitl_reviewer import HITLReviewer
 from task_planner.infrastructure.logger_setup import (
     get_logger,
     set_req_id,
 )
+
+from .crucible_eval import (
+    CrucibleEvaluator,
+    create_default_dataset,
+)
+from .dataset_manager import DatasetManager
+from .hitl_reviewer import HITLReviewer
 
 logger = get_logger("eval.runner")
 

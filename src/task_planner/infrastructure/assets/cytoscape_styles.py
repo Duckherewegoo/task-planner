@@ -1,12 +1,9 @@
 """cytoscape_styles.py — Cytoscape 样式表（原 config.py 第 11 节）"""
 from typing import (
     Any,
-    Dict,
-    List,
 )
 
-
-CYTO_STYLESHEET: List[Dict[str, Any]] = [
+CYTO_STYLESHEET: list[dict[str, Any]] = [
     {
         "selector": "node",
         "style": {
@@ -49,7 +46,7 @@ CYTO_STYLESHEET: List[Dict[str, Any]] = [
     }},
     {"selector": ".state-blocked", "style": {
         "background-color": "#f9fafb", "border-color": "#d1d5db", "opacity": 0.6,
-    }},    
+    }},
     {
         "selector": "edge",
         "style": {

@@ -6,10 +6,6 @@ hub.py — 配置系统唯一对外门面。
 from __future__ import annotations
 
 from pathlib import Path
-from typing import (
-    Optional,
-    Tuple,
-)
 
 from .entry import (
     ConfigEntry,
@@ -30,8 +26,8 @@ class ConfigHub:
 
     # ---------- 装配 ----------
     def bootstrap(
-        self, schema_path: Path, user_path: Optional[Path] = None
-    ) -> "ConfigHub":
+        self, schema_path: Path, user_path: Path | None = None
+    ) -> ConfigHub:
         # 1) YAML → store
         ConfigLoader(self._store).load(schema_path, user_path)
         # 2) Python @register_section → store（YAML 已存在的不覆盖）
@@ -56,14 +52,14 @@ class ConfigHub:
         return self.as_role(Role.USER)
 
     # ---------- 只读 ----------
-    def snapshot(self) -> Tuple[ConfigEntry, ...]:
+    def snapshot(self) -> tuple[ConfigEntry, ...]:
         return self._store.all()
 
     # ---------- 重载 ----------
     def reload(
         self,
         schema_path: Path,
-        user_path: Optional[Path] = None,
+        user_path: Path | None = None,
     ) -> int:
         """
         从磁盘重新加载配置。

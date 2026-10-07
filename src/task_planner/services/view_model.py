@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from typing import Any
 
-
 # 面向前端的字段白名单（除 nodes/edges 单独处理外）
 FRONTEND_FIELDS: tuple[str, ...] = (
     "task_id",

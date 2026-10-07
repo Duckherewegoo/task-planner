@@ -17,16 +17,17 @@ Changelog:
 """
 
 import json
-from pathlib import Path
-from typing import (
-    List,
-    Dict,
-    Any,
-    Optional,
-)
 from datetime import (
+    UTC,
     datetime,
     timezone,
+)
+from pathlib import Path
+from typing import (
+    Any,
+    Dict,
+    List,
+    Optional,
 )
 
 from task_planner.infrastructure.logger_setup import get_logger
@@ -55,10 +56,10 @@ class HITLReviewer:
 
     def flag_for_review(
         self,
-        results: List[Dict[str, Any]],
+        results: list[dict[str, Any]],
         threshold: float = 0.5,
         dry_run: bool = False,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         筛选需要审查的结果。
 
@@ -70,7 +71,7 @@ class HITLReviewer:
           - success == 0（完全失败）
           - 上游显式标记 hitl_required
         """
-        flagged: List[Dict[str, Any]] = []
+        flagged: list[dict[str, Any]] = []
 
         for r in results:
             metrics = r.get("metrics", {}) or {}
@@ -126,14 +127,14 @@ class HITLReviewer:
             )
         return full_path
 
-    def save_review_requests(self, flagged: List[Dict[str, Any]]) -> str:
+    def save_review_requests(self, flagged: list[dict[str, Any]]) -> str:
         """
         保存审查请求到文件。
 
         ✅ P0-1 修复：datetime.now(timezone.utc)
         ✅ P2-3 修复：路径安全校验
         """
-        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
         filename = f"review_requests_{timestamp}.json"
         file_path = self._safe_review_path(filename)
 
@@ -145,20 +146,20 @@ class HITLReviewer:
 
     def save_review_results(
         self,
-        reviewed: List[Dict[str, Any]],
-        source_path: Optional[str] = None,
+        reviewed: list[dict[str, Any]],
+        source_path: str | None = None,
     ) -> str:
         """
         ✅ P2-2 新增：把审查结果写回文件（原来 interactive_review 结果只在内存里）。
         """
-        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
         filename = f"review_results_{timestamp}.json"
         file_path = self._safe_review_path(filename)
 
         payload = {
             "source": source_path,
             "reviewed_count": len(reviewed),
-            "reviewed_at": datetime.now(timezone.utc).isoformat(),
+            "reviewed_at": datetime.now(UTC).isoformat(),
             "items": reviewed,
         }
         with open(file_path, "w", encoding="utf-8") as f:
@@ -168,7 +169,7 @@ class HITLReviewer:
                     file_path, len(reviewed))
         return str(file_path)
 
-    def load_review_results(self, file_path: str) -> List[Dict[str, Any]]:
+    def load_review_results(self, file_path: str) -> list[dict[str, Any]]:
         """
         加载已完成的审查结果。
 
@@ -183,7 +184,7 @@ class HITLReviewer:
             return []
 
         try:
-            with open(path, "r", encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 raw = json.load(f)
         except json.JSONDecodeError as e:
             logger.error("[HITL] Review file JSON 损坏: %s | err=%s", file_path, e)
@@ -217,7 +218,7 @@ class HITLReviewer:
     # ────────────────────────────────────────────
 
     @staticmethod
-    def _parse_score(raw: str) -> Optional[int]:
+    def _parse_score(raw: str) -> int | None:
         """
         ✅ P0-4 修复：解析用户输入评分。
           - 空串 / 非数字 → None
@@ -237,9 +238,9 @@ class HITLReviewer:
 
     def interactive_review(
         self,
-        flagged: List[Dict[str, Any]],
+        flagged: list[dict[str, Any]],
         autosave_every: int = 1,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         CLI 交互式审查。
 
@@ -255,12 +256,12 @@ class HITLReviewer:
         Returns:
             已审查的 items 列表（可能少于输入，若中途退出）
         """
-        reviewed: List[Dict[str, Any]] = []
+        reviewed: list[dict[str, Any]] = []
         interrupted = False
 
         print(f"\n{'=' * 60}")
         print(f"  Interactive Review: {len(flagged)} cases")
-        print(f"  Ctrl+C 或输入 q 退出（已审查部分会自动保存）")
+        print("  Ctrl+C 或输入 q 退出（已审查部分会自动保存）")
         print(f"{'=' * 60}\n")
 
         try:
@@ -275,13 +276,13 @@ class HITLReviewer:
                     elapsed = float(item.get("elapsed", 0))
                     print(f"  Elapsed:  {elapsed:.2f}s")
                 except (TypeError, ValueError):
-                    print(f"  Elapsed:  N/A")
+                    print("  Elapsed:  N/A")
                 print(f"  Metrics:  {item.get('metrics', {})}")
                 if item.get("_flag_reasons"):
                     print(f"  Flagged:  {item['_flag_reasons']}")
 
                 # ── 评分（带重试）──
-                score: Optional[int] = None
+                score: int | None = None
                 while True:
                     raw = input(
                         f"\n  Score ({_SCORE_MIN}-{_SCORE_MAX}, 回车跳过, q=退出): "
@@ -306,7 +307,7 @@ class HITLReviewer:
                     **item,
                     "human_score": score,
                     "human_comment": comment,
-                    "reviewed_at": datetime.now(timezone.utc).isoformat(),
+                    "reviewed_at": datetime.now(UTC).isoformat(),
                 })
 
                 # ── 自动落盘 ──
@@ -335,7 +336,7 @@ class HITLReviewer:
     #  汇总
     # ────────────────────────────────────────────
 
-    def review_summary(self, reviewed: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def review_summary(self, reviewed: list[dict[str, Any]]) -> dict[str, Any]:
         """
         生成审查摘要。
 
@@ -348,7 +349,7 @@ class HITLReviewer:
         ]
 
         # 分数分布 {1: n, 2: n, ...}
-        score_dist: Dict[int, int] = {i: 0 for i in range(_SCORE_MIN, _SCORE_MAX + 1)}
+        score_dist: dict[int, int] = dict.fromkeys(range(_SCORE_MIN, _SCORE_MAX + 1), 0)
         for s in scores:
             if _SCORE_MIN <= s <= _SCORE_MAX:
                 score_dist[s] = score_dist.get(s, 0) + 1

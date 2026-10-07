@@ -8,8 +8,6 @@ import tempfile
 from pathlib import Path
 from typing import (
     Any,
-    Dict,
-    Optional,
 )
 
 from task_planner.infrastructure.logger_setup import get_logger
@@ -21,7 +19,6 @@ try:
     from ruamel.yaml import YAML
     _HAS_RUAMEL = True
 except ImportError:
-    import yaml
     _HAS_RUAMEL = False
 
 
@@ -41,7 +38,7 @@ def _atomic_write(path: Path, content: str) -> None:
         raise
 
 
-def write_user_yaml(path: Path, updates: Dict[str, Any]) -> None:
+def write_user_yaml(path: Path, updates: dict[str, Any]) -> None:
     """
     写入 user.yaml。
     - 有 ruamel.yaml：合并更新，保留原注释
@@ -72,9 +69,9 @@ def write_user_yaml(path: Path, updates: Dict[str, Any]) -> None:
     logger.info("[ConfigUI] ✅ 已写入 %s (%d 项)", path, len(updates))
 
 
-def read_env(path: Path) -> Dict[str, str]:
+def read_env(path: Path) -> dict[str, str]:
     """解析 .env 为 dict（忽略注释和空行）"""
-    result: Dict[str, str] = {}
+    result: dict[str, str] = {}
     if not path.exists():
         return result
     for line in path.read_text(encoding="utf-8").splitlines():
@@ -86,7 +83,7 @@ def read_env(path: Path) -> Dict[str, str]:
     return result
 
 
-def write_env(path: Path, updates: Dict[str, str]) -> None:
+def write_env(path: Path, updates: dict[str, str]) -> None:
     """
     更新 .env 指定 key。
     保留原文件行序、注释、空行；新 key 追加到末尾。

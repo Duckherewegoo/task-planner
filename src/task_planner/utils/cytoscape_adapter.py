@@ -34,22 +34,14 @@ import re
 from functools import lru_cache
 from typing import (
     Any,
-    Dict,
-    List,
-    Optional,
-    Set,
-    Tuple,
 )
 
 from wcwidth import wcswidth
 
 from task_planner.infrastructure.constants import (
     DEFAULT_EDGE_TYPE,
-    EDGE_TYPE_CONDITIONAL,
     EDGE_TYPE_CSS,
     EDGE_TYPE_HARD,
-    EDGE_TYPE_RETRY,
-    EDGE_TYPE_SOFT,
     NODE_STYLES,
     STATUS_ICONS,
     VALID_EDGE_TYPES,
@@ -87,7 +79,7 @@ def _label_length(label: str) -> int:
 # ══════════════════════════════════════════════════
 @lru_cache(maxsize=32)
 def _detect_cycles_cached(
-    edge_tuple: Tuple[Tuple[str, str], ...],
+    edge_tuple: tuple[tuple[str, str], ...],
 ) -> frozenset:
     """
     调用方必须传 tuple（lru_cache 要求可哈希）。
@@ -98,13 +90,13 @@ def _detect_cycles_cached(
     return frozenset(f"{f}->{t}" for f, t in result)
 
 
-def _detect_cycles(edges: List[Dict[str, Any]]) -> Set[Tuple[str, str]]:
+def _detect_cycles(edges: list[dict[str, Any]]) -> set[tuple[str, str]]:
     """
     检测哪些边属于循环/回边（形成环的边）。
     迭代版三色 DFS，避免 RecursionError，支持多重边。
     """
-    adj: Dict[str, List[Tuple[str, int]]] = {}
-    nodes_order_dict: Dict[str, None] = {}
+    adj: dict[str, list[tuple[str, int]]] = {}
+    nodes_order_dict: dict[str, None] = {}
 
     for idx, e in enumerate(edges):
         f = str(e.get("from", ""))
@@ -116,7 +108,7 @@ def _detect_cycles(edges: List[Dict[str, Any]]) -> Set[Tuple[str, str]]:
         nodes_order_dict[t] = None
 
     WHITE, GRAY, BLACK = 0, 1, 2
-    color = {n: WHITE for n in nodes_order_dict}
+    color = dict.fromkeys(nodes_order_dict, WHITE)
     cycle_edge_indices: set[int] = set()
 
     for start_node in nodes_order_dict:
@@ -139,7 +131,7 @@ def _detect_cycles(edges: List[Dict[str, Any]]) -> Set[Tuple[str, str]]:
                 stack.pop()
                 color[node] = BLACK
 
-    cycle_edges: Set[Tuple[str, str]] = set()
+    cycle_edges: set[tuple[str, str]] = set()
     for idx in cycle_edge_indices:
         e = edges[idx]
         cycle_edges.add((str(e.get("from", "")), str(e.get("to", ""))))
@@ -161,7 +153,7 @@ def _safe_int(val: Any, default: int = 0) -> int:
 
 
 def _short_label(
-    text: Optional[str],
+    text: str | None,
     max_width: int = 24,
     ellipsis: str = "…",
 ) -> str:
@@ -208,7 +200,7 @@ def _warn_empty_endpoint(src: Any, tgt: Any) -> None:
     )
 
 
-def _is_loop_edge(edge: Dict[str, Any]) -> bool:
+def _is_loop_edge(edge: dict[str, Any]) -> bool:
     """判断是否为自环边"""
     src = edge.get("from")
     tgt = edge.get("to")
@@ -227,7 +219,7 @@ def _is_loop_edge(edge: Dict[str, Any]) -> bool:
 
 
 # P2-1fix
-def get_edge_type(edge: Dict[str, Any]) -> str:
+def get_edge_type(edge: dict[str, Any]) -> str:
     """提取并验证边的类型（大小写不敏感，未知降级为 hard）"""
     raw = edge.get("type")
     if raw is None:
@@ -263,7 +255,7 @@ _USER_STATE_ICON = {
 }
 
 
-def _icon_for_node(user_state: Optional[str], status: int) -> str:
+def _icon_for_node(user_state: str | None, status: int) -> str:
     """优先用 user_state 的 icon，退化为 status 的 icon"""
     if user_state in _USER_STATE_ICON:
         return _USER_STATE_ICON[user_state]
@@ -290,9 +282,9 @@ _STATUS_CLASS = {
 def _node_state_class(
     nid: str,
     status: int,
-    node_states: Dict[str, str],
-    done_nodes: Set[str],
-    edges: List[Dict[str, Any]],
+    node_states: dict[str, str],
+    done_nodes: set[str],
+    edges: list[dict[str, Any]],
 ) -> str:
     """节点状态 → CSS class"""
     user_state = node_states.get(nid)
@@ -316,7 +308,7 @@ def _node_state_class(
     return "state-ready" if all_hard_done else "state-blocked"
 
 
-def _edge_class(edge: Dict[str, Any], is_cycle: bool) -> str:
+def _edge_class(edge: dict[str, Any], is_cycle: bool) -> str:
     """边类型 + 循环 → CSS class"""
     t = get_edge_type(edge)
     base = EDGE_TYPE_CSS.get(t, EDGE_TYPE_CSS[DEFAULT_EDGE_TYPE])
@@ -330,18 +322,18 @@ def _edge_class(edge: Dict[str, Any], is_cycle: bool) -> str:
 #  主转换函数
 # ══════════════════════════════════════════════════
 def dag_to_cytoscape(
-    nodes: List[Dict[str, Any]],
-    edges: List[Dict[str, Any]],
-    node_states: Optional[Dict[str, str]] = None,
-) -> List[Dict[str, Any]]:
+    nodes: list[dict[str, Any]],
+    edges: list[dict[str, Any]],
+    node_states: dict[str, str] | None = None,
+) -> list[dict[str, Any]]:
     """把 DAG 节点/边转成 Cytoscape elements 数组"""
     if node_states is None:
         node_states = {}
 
-    elements: List[Dict[str, Any]] = []
+    elements: list[dict[str, Any]] = []
 
     # 已完成节点集合
-    done_nodes: Set[str] = {
+    done_nodes: set[str] = {
         nid for nid, st in node_states.items() if st == "done"
     }
     for n in nodes:
@@ -441,14 +433,14 @@ def dag_to_cytoscape(
     return elements
 
 
-def snapshot_to_elements(snapshot: Dict[str, Any]) -> List[Dict[str, Any]]:
+def snapshot_to_elements(snapshot: dict[str, Any]) -> list[dict[str, Any]]:
     """从 agent snapshot 提取 nodes/edges 并转换"""
     nodes = snapshot.get("nodes", []) or []
     edges = snapshot.get("edges", []) or []
     if not nodes:
         return []
 
-    node_states: Dict[str, str] = {}
+    node_states: dict[str, str] = {}
     node_results = snapshot.get("node_results", []) or []
     current_idx = snapshot.get("current_node_index", 0)
 
@@ -479,7 +471,7 @@ def snapshot_to_elements(snapshot: Dict[str, Any]) -> List[Dict[str, Any]]:
 # ══════════════════════════════════════════════════
 #  详情面板构造（Markdown 格式）
 # ══════════════════════════════════════════════════
-def build_detail_markdown(node_data: Optional[Dict[str, Any]]) -> str:
+def build_detail_markdown(node_data: dict[str, Any] | None) -> str:
     """生成节点详情的 Markdown 文本"""
     if not node_data:
         return "👆 **悬停或点击节点查看详细信息**"
@@ -522,7 +514,7 @@ def build_detail_markdown(node_data: Optional[Dict[str, Any]]) -> str:
 
 
 def build_history_detail_markdown(
-    task_id: str, nodes: List[Dict[str, Any]]
+    task_id: str, nodes: list[dict[str, Any]]
 ) -> str:
     """生成历史任务详情的 Markdown 文本"""
     lines = [

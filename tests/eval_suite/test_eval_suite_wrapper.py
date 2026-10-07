@@ -29,18 +29,18 @@ os.environ.setdefault("MONGO_HOST", "localhost")
 # ✅ P0-1 修复：优先用包绝对导入（pytest rootdir 模式），
 #    失败时回退到相对导入（eval_suite 被当作独立包安装的场景）。
 try:
-    from tests.eval_suite.dataset_manager import DatasetManager
     from tests.eval_suite.crucible_eval import (
         CrucibleEvaluator,
         create_default_dataset,
     )
+    from tests.eval_suite.dataset_manager import DatasetManager
     from tests.eval_suite.harness.evaluators import Evaluators
 except ImportError:
-    from .dataset_manager import DatasetManager
     from .crucible_eval import (
         CrucibleEvaluator,
         create_default_dataset,
     )
+    from .dataset_manager import DatasetManager
     from .harness.evaluators import Evaluators
 
 

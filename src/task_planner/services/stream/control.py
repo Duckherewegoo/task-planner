@@ -6,7 +6,7 @@ from typing import Any
 from task_planner.infrastructure.constants import EDGE_TYPE_HARD
 from task_planner.infrastructure.logger_setup import get_logger
 from task_planner.services.agent import cancel_task
-from task_planner.utils.cytoscape_adapter import get_edge_type 
+from task_planner.utils.cytoscape_adapter import get_edge_type
 
 from .cleaner import state_cleaner
 

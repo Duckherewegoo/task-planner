@@ -21,6 +21,7 @@ import asyncio
 import json
 from collections import defaultdict
 from datetime import (
+    UTC,
     datetime,
     timezone,
 )
@@ -30,21 +31,22 @@ from typing import (
     List,
 )
 
+from task_planner.infrastructure.logger_setup import get_logger
+
 from .dataset_manager import (
-    TestCase,
     DatasetManager,
+    TestCase,
 )
 from .harness.agent_harness import AgentHarness
 from .harness.evaluators import Evaluators
-from .hitl_reviewer import HITLReviewer
 from .harness.reporters import Reporters
-from task_planner.infrastructure.logger_setup import get_logger
+from .hitl_reviewer import HITLReviewer
 
 logger = get_logger("eval.crucible")
 
 
 # ── 失败 case 的兜底 metrics（保持 schema 完整） ──
-_EMPTY_METRICS: Dict[str, float] = {
+_EMPTY_METRICS: dict[str, float] = {
     "accuracy": 0.0,
     "exact_match": 0.0,
     "plan_generated": 0.0,
@@ -67,7 +69,7 @@ class CrucibleEvaluator:
 
     def __init__(
         self,
-        dataset: List[TestCase],
+        dataset: list[TestCase],
         enable_refine: bool = True,
         max_concurrent: int = 3,
         timeout: int = 300,
@@ -78,19 +80,19 @@ class CrucibleEvaluator:
         self.max_concurrent = max_concurrent
         self.timeout = timeout
         self.enable_hitl = enable_hitl
-        self.results: List[Dict[str, Any]] = []
-        self.summary: Dict[str, Any] = {}
+        self.results: list[dict[str, Any]] = []
+        self.summary: dict[str, Any] = {}
 
     # ══════════════════════════════════════════════════
     #  主流程
     # ══════════════════════════════════════════════════
 
-    async def run(self) -> Dict[str, Any]:
+    async def run(self) -> dict[str, Any]:
         """执行评估"""
         logger.info("Starting Crucible evaluation on %d cases", len(self.dataset))
         semaphore = asyncio.Semaphore(self.max_concurrent)
 
-        async def evaluate_one(case: TestCase) -> Dict[str, Any]:
+        async def evaluate_one(case: TestCase) -> dict[str, Any]:
             async with semaphore:
                 # ✅ P2-1 修复：单 case 独立 try/except，双保险
                 #    外层 asyncio.wait_for 是 harness 内部超时失效时的兜底
@@ -151,7 +153,7 @@ class CrucibleEvaluator:
         #    现在异常会被收集，然后统一转成"失败结果"。
         raw_results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        normalized: List[Dict[str, Any]] = []
+        normalized: list[dict[str, Any]] = []
         for case, r in zip(self.dataset, raw_results):
             if isinstance(r, BaseException):
                 logger.error(
@@ -193,8 +195,8 @@ class CrucibleEvaluator:
     def _compute_metrics(
         self,
         case: TestCase,
-        result: Dict[str, Any],
-    ) -> Dict[str, float]:
+        result: dict[str, Any],
+    ) -> dict[str, float]:
         """
         针对单个测试用例计算多个指标。
 
@@ -202,7 +204,7 @@ class CrucibleEvaluator:
           原实现中"规划任务"和"直接回答任务"共用 plan_generated 字段，
           导致聚合时把两种完全不同的东西平均在一起。
         """
-        metrics: Dict[str, float] = {}
+        metrics: dict[str, float] = {}
 
         # 1. 准确性
         if case.expected_output and result.get("direct_response"):
@@ -268,8 +270,8 @@ class CrucibleEvaluator:
 
     def _needs_hitl(
         self,
-        metrics: Dict[str, float],
-        result: Dict[str, Any],
+        metrics: dict[str, float],
+        result: dict[str, Any],
     ) -> bool:
         """
         判断哪些 case 需要人工审查。
@@ -298,29 +300,29 @@ class CrucibleEvaluator:
 
     def _aggregate_results(
         self,
-        results: List[Dict[str, Any]],
-    ) -> Dict[str, Any]:
+        results: list[dict[str, Any]],
+    ) -> dict[str, Any]:
         """聚合所有结果，生成汇总统计"""
         total = len(results)
         if total == 0:
             return {"total": 0}
 
-        categories: Dict[str, List] = defaultdict(list)
-        complexities: Dict[str, List] = defaultdict(list)
+        categories: dict[str, list] = defaultdict(list)
+        complexities: dict[str, list] = defaultdict(list)
 
         for r in results:
             categories[r.get("case_category", "unknown")].append(r)
             complexities[r.get("case_complexity", "unknown")].append(r)
 
         # ✅ P1-3 修复：用并集收集 keys，避免某个 case 缺字段导致漏指标
-        def agg_metrics(metric_list: List[Dict[str, Any]]) -> Dict[str, float]:
+        def agg_metrics(metric_list: list[dict[str, Any]]) -> dict[str, float]:
             if not metric_list:
                 return {}
             all_keys: set[str] = set()
             for m in metric_list:
                 all_keys.update((m.get("metrics") or {}).keys())
 
-            avg: Dict[str, float] = {}
+            avg: dict[str, float] = {}
             for k in all_keys:
                 values = [
                     m["metrics"][k]
@@ -340,7 +342,7 @@ class CrucibleEvaluator:
             return sum(vals) / len(vals) if vals else 0.0
 
         # ✅ P1-1 修复：带时区的 UTC
-        summary: Dict[str, Any] = {
+        summary: dict[str, Any] = {
             "total": total,
             "success_rate": sum(
                 1 for r in results
@@ -360,7 +362,7 @@ class CrucibleEvaluator:
             "hitl_required": [
                 r for r in results if r.get("hitl_required", False)
             ],
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
 
         for cat, cat_results in categories.items():
@@ -378,7 +380,7 @@ class CrucibleEvaluator:
         return summary
 
     @staticmethod
-    def _rate_planning_success(results: List[Dict[str, Any]]) -> float:
+    def _rate_planning_success(results: list[dict[str, Any]]) -> float:
         """
         期望规划的任务里，实际生成节点的比例。
 
@@ -418,7 +420,7 @@ class CrucibleEvaluator:
 #  默认测试数据集
 # ══════════════════════════════════════════════════
 
-def create_default_dataset() -> List[TestCase]:
+def create_default_dataset() -> list[TestCase]:
     """创建默认测试数据集（示例）"""
     return [
         TestCase(

@@ -33,14 +33,9 @@ Changelog:
 from __future__ import annotations
 
 import io
-import logging
 from pathlib import Path
 from typing import (
     Any,
-    Dict,
-    List,
-    Optional,
-    Tuple,
     Union,
 )
 
@@ -65,8 +60,8 @@ PathLike = Union[str, Path]
 #  内部工具
 # ══════════════════════════════════════════════════
 def _normalize_node_states(
-    node_states: Optional[Dict[str, str]],
-) -> Dict[str, str]:
+    node_states: dict[str, str] | None,
+) -> dict[str, str]:
     """确保 node_states 的 key 全部为 str"""
     if not node_states:
         return {}
@@ -108,7 +103,7 @@ def _escape_dot_text(s: str) -> str:
     )
 
 
-def _get_edge_type(edge: Dict) -> str:
+def _get_edge_type(edge: dict) -> str:
     """
     从 edge 字典提取边类型。
     查找顺序：edge["type"] > edge["edge_type"] > DEFAULT_EDGE_TYPE
@@ -126,13 +121,13 @@ def _get_edge_type(edge: Dict) -> str:
 
 
 def _estimate_canvas_size(
-    nodes: List[Dict],
-    edges: List[Dict],
+    nodes: list[dict],
+    edges: list[dict],
     max_width: int = 2400,
     max_height: int = 2000,
     min_width: int = 800,
     min_height: int = 600,
-) -> Tuple[int, int]:
+) -> tuple[int, int]:
     """根据节点/边数动态估算画布尺寸"""
     n = max(len(nodes), 1)
     e = max(len(edges), 1)
@@ -155,9 +150,9 @@ def _estimate_canvas_size(
 
 
 def _build_pydot_graph(
-    nodes: List[Dict],
-    edges: List[Dict],
-    node_states: Dict[str, str],
+    nodes: list[dict],
+    edges: list[dict],
+    node_states: dict[str, str],
     title: str,
     dpi: int,
     font_size: int = 14,
@@ -171,7 +166,7 @@ def _build_pydot_graph(
     """
     try:
         import networkx as nx
-        import pydot  # noqa: F401  （networkx 会用）
+        import pydot
     except ImportError as e:
         raise ImportError(
             "导出需要安装 pydot 和 networkx: pip install pydot networkx"
@@ -268,7 +263,7 @@ def _build_pydot_graph(
     return dot_graph
 
 
-def _write_if_requested(data: bytes, output_path: Optional[PathLike]) -> None:
+def _write_if_requested(data: bytes, output_path: PathLike | None) -> None:
     """可选写文件（自动建目录）"""
     if output_path is None:
         return
@@ -281,10 +276,10 @@ def _write_if_requested(data: bytes, output_path: Optional[PathLike]) -> None:
 #  导出接口
 # ══════════════════════════════════════════════════
 def export_dag_to_svg(
-    nodes: List[Dict],
-    edges: List[Dict],
-    output_path: Optional[PathLike] = None,
-    node_states: Optional[Dict[str, str]] = None,
+    nodes: list[dict],
+    edges: list[dict],
+    output_path: PathLike | None = None,
+    node_states: dict[str, str] | None = None,
     title: str = "流程图",
     dpi: int = 96,
     font_size: int = 14,
@@ -313,13 +308,13 @@ def export_dag_to_svg(
 
 
 def export_dag_to_png(
-    nodes: List[Dict],
-    edges: List[Dict],
-    output_path: Optional[PathLike] = None,
-    node_states: Optional[Dict[str, str]] = None,
+    nodes: list[dict],
+    edges: list[dict],
+    output_path: PathLike | None = None,
+    node_states: dict[str, str] | None = None,
     title: str = "流程图",
-    width: Optional[int] = None,
-    height: Optional[int] = None,
+    width: int | None = None,
+    height: int | None = None,
     dpi: int = 300,
     font_size: int = 14,
 ) -> bytes:
@@ -388,10 +383,10 @@ def export_dag_to_png(
 
 
 def export_dag_to_pdf(
-    nodes: List[Dict],
-    edges: List[Dict],
-    output_path: Optional[PathLike] = None,
-    node_states: Optional[Dict[str, str]] = None,
+    nodes: list[dict],
+    edges: list[dict],
+    output_path: PathLike | None = None,
+    node_states: dict[str, str] | None = None,
     title: str = "流程图",
     dpi: int = 300,
     font_size: int = 14,
@@ -431,9 +426,9 @@ def export_dag_to_pdf(
 
 
 def export_dag_to_dot(
-    nodes: List[Dict],
-    edges: List[Dict],
-    node_states: Optional[Dict[str, str]] = None,
+    nodes: list[dict],
+    edges: list[dict],
+    node_states: dict[str, str] | None = None,
     title: str = "流程图",
     dpi: int = 300,
     font_size: int = 14,
@@ -455,9 +450,9 @@ def export_dag_to_dot(
 
 
 def export_from_dag_store(
-    dag_store: Dict,
-    output_path: Optional[PathLike] = None,
-    node_states: Optional[Dict[str, str]] = None,
+    dag_store: dict,
+    output_path: PathLike | None = None,
+    node_states: dict[str, str] | None = None,
     title: str = "流程图",
     fmt: str = "png",
     **kwargs,

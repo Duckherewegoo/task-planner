@@ -25,6 +25,7 @@ from typing import (
 )
 
 from task_planner.infrastructure.cog import hub as _hub
+
 LATENCY_ACCEPTANCE_THRESHOLD = _hub.dev.LATENCY_ACCEPTANCE_THRESHOLD
 
 
@@ -114,7 +115,7 @@ class Evaluators:
         return normalize(expected) == normalize(actual)
 
     @staticmethod
-    def contains_keyword(text: str, keywords: List[str]) -> bool:
+    def contains_keyword(text: str, keywords: list[str]) -> bool:
         """检查文本是否包含任一关键词（忽略大小写）"""
         text_lower = (text or "").lower()
         return any(kw.lower() in text_lower for kw in keywords)
@@ -155,15 +156,15 @@ class Evaluators:
         return 1.0 - (abs(expected_count - actual_count) / max_count)
 
     @staticmethod
-    def check_acyclic(nodes: List[Dict], edges: List[Dict]) -> bool:
+    def check_acyclic(nodes: list[dict], edges: list[dict]) -> bool:
         """
         检查 DAG 是否无环（Kahn 拓扑排序，O(V+E)）。
 
         对"边指向不存在节点"的情况静默跳过——LLM 经常会生成这种幻觉边，
         应该视为正常噪声，而不是让整个评估失败。
         """
-        graph: Dict[str, List[str]] = defaultdict(list)
-        indegree: Dict[str, int] = defaultdict(int)
+        graph: dict[str, list[str]] = defaultdict(list)
+        indegree: dict[str, int] = defaultdict(int)
         all_ids = {str(n["id"]) for n in nodes}
 
         for e in edges:
@@ -213,7 +214,7 @@ class Evaluators:
     @staticmethod
     def latency_acceptance(
         elapsed: float,
-        threshold: Optional[float] = None,
+        threshold: float | None = None,
     ) -> bool:
         """
         延迟是否可接受（秒）。

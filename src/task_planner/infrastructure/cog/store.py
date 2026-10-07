@@ -3,12 +3,8 @@ store.py — 内存配置仓库。只干 CRUD，不判权限、不读文件。
 """
 from __future__ import annotations
 
+from collections.abc import Iterator
 from threading import RLock
-from typing import (
-    Dict,
-    Iterator,
-    Tuple,
-)
 
 from .entry import ConfigEntry
 
@@ -17,7 +13,7 @@ class ConfigStore:
     """内存仓库。四个动词：create / read / update / delete。"""
 
     def __init__(self) -> None:
-        self._data: Dict[str, ConfigEntry] = {}
+        self._data: dict[str, ConfigEntry] = {}
         self._lock = RLock()
 
     # ---- Create ----
@@ -38,7 +34,7 @@ class ConfigStore:
     def has(self, name: str) -> bool:
         return name in self._data
 
-    def all(self) -> Tuple[ConfigEntry, ...]:
+    def all(self) -> tuple[ConfigEntry, ...]:
         with self._lock:
             return tuple(self._data.values())
 

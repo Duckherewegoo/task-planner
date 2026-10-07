@@ -10,7 +10,6 @@ from abc import (
 )
 from typing import (
     TYPE_CHECKING,
-    Tuple,
 )
 
 if TYPE_CHECKING:
@@ -23,7 +22,7 @@ class ConfigSection(ABC):
     section: str = "base"  # 子类覆盖，作为分组名
 
     @abstractmethod
-    def define(self) -> Tuple["ConfigEntry", ...]:
+    def define(self) -> tuple[ConfigEntry, ...]:
         """声明本组所有配置项，返回不可变元组"""
         raise NotImplementedError
 

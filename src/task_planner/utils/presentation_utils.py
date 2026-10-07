@@ -19,9 +19,6 @@ Changelog:
 """
 from typing import (
     Any,
-    Dict,
-    List,
-    Optional,
     Union,
 )
 
@@ -71,8 +68,8 @@ def _display_truncate(text: str, max_width: int) -> str:
 
 
 def build_history_dropdown_options(
-    tasks: List[Dict[str, Any]],
-) -> List[Dict[str, str]]:
+    tasks: list[dict[str, Any]],
+) -> list[dict[str, str]]:
     """
     从任务列表构建下拉选项。
 
@@ -82,7 +79,7 @@ def build_history_dropdown_options(
     Returns:
         适合 Dash dcc.Dropdown 的 options 列表。
     """
-    options: List[Dict[str, str]] = []
+    options: list[dict[str, str]] = []
     for t in tasks:
         tid = t.get("task_id")
         if not tid:
@@ -100,8 +97,8 @@ def build_history_dropdown_options(
 
 
 def extract_first_task_id(
-    task_ids: Union[None, str, List[str]],
-) -> Optional[str]:
+    task_ids: Union[None, str, list[str]],
+) -> str | None:
     """
     安全提取第一个任务 ID。
 

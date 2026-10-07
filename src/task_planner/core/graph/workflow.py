@@ -32,7 +32,6 @@ import os
 import threading
 from typing import (
     Any,
-    Optional,
 )
 
 from langgraph.graph import (
@@ -63,7 +62,7 @@ logger = get_logger(__name__)
 # ══════════════════════════════════════════════════
 #  单例状态（顶部定义，供下方所有函数引用）
 # ══════════════════════════════════════════════════
-_graph_instance: Optional[Any] = None
+_graph_instance: Any | None = None
 _graph_lock = threading.Lock()
 
 
@@ -295,9 +294,9 @@ graph: Any = _LazyGraphProxy()
 async def resume_graph_async(
     thread_id: str,
     user_action: str = "continue",
-    modified_input: Optional[str] = None,
-    target_node_index: Optional[int] = None,
-    as_node: Optional[str] = None,
+    modified_input: str | None = None,
+    target_node_index: int | None = None,
+    as_node: str | None = None,
 ) -> dict[str, Any]:
     """
     异步恢复历史任务。
@@ -350,7 +349,7 @@ async def resume_graph_async(
     }
 
 
-async def get_thread_state_async(thread_id: str) -> Optional[dict[str, Any]]:
+async def get_thread_state_async(thread_id: str) -> dict[str, Any] | None:
     """异步获取指定 thread 的 checkpoint 状态"""
     g = get_graph()
     config = {"configurable": {"thread_id": thread_id}}
@@ -402,7 +401,7 @@ def resume_graph(thread_id: str, **kwargs) -> dict[str, Any]:
     )
 
 
-def get_thread_state(thread_id: str) -> Optional[dict[str, Any]]:
+def get_thread_state(thread_id: str) -> dict[str, Any] | None:
     """
     同步版本（仅用于没有 event loop 的同步上下文）。
 

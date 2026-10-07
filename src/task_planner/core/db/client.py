@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Optional
 
 from motor.motor_asyncio import (
     AsyncIOMotorClient,
@@ -19,8 +18,8 @@ from task_planner.infrastructure.logger_setup import get_logger
 
 logger = get_logger("task_planner.core.db.client")
 
-_client: Optional[AsyncIOMotorClient] = None
-_db: Optional[AsyncIOMotorDatabase] = None
+_client: AsyncIOMotorClient | None = None
+_db: AsyncIOMotorDatabase | None = None
 _db_lock = asyncio.Lock()
 _initialized = False
 

@@ -4,7 +4,6 @@ from __future__ import annotations
 import json
 import re
 from json import JSONDecoder
-from typing import Any
 
 from task_planner.infrastructure.logger_setup import get_logger
 

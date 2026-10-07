@@ -23,7 +23,6 @@ import asyncio
 import time
 from typing import (
     Any,
-    Optional,
     Protocol,
     runtime_checkable,
 )
@@ -48,9 +47,9 @@ class SessionStore(Protocol):
         # store: SessionStore = RedisSessionStore(url=...)
     """
 
-    async def get(self, tid: str) -> Optional[Any]: ...
+    async def get(self, tid: str) -> Any | None: ...
     async def set(self, tid: str, session: Any, *, created_at: float | None = None,) -> None: ...
-    async def pop(self, tid: str) -> Optional[Any]: ...
+    async def pop(self, tid: str) -> Any | None: ...
     async def cleanup_stale(self, ttl: int) -> int: ...
 
 
@@ -80,7 +79,7 @@ class InMemorySessionStore:
         self._lock = asyncio.Lock()
 
     # ── 读 ──
-    async def get(self, tid: str) -> Optional[Any]:
+    async def get(self, tid: str) -> Any | None:
         async with self._lock:
             entry = self._data.get(tid)
             if not entry:
@@ -120,7 +119,7 @@ class InMemorySessionStore:
             }
 
     # ── 移除 ──
-    async def pop(self, tid: str) -> Optional[Any]:
+    async def pop(self, tid: str) -> Any | None:
         async with self._lock:
             entry = self._data.pop(tid, None)
             return entry["session"] if entry else None

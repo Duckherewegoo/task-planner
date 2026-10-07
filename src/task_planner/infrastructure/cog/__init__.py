@@ -7,7 +7,7 @@ cog — 配置中枢。
 from pathlib import Path
 
 # 1) 触发所有内置 section 注册（副作用 import）
-from . import sections  # noqa: F401
+from . import sections
 
 # 2) 组装 hub
 from .entry import (

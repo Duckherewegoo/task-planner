@@ -27,8 +27,6 @@ from datetime import (
 )
 from typing import (
     Any,
-    Dict,
-    List,
 )
 
 from task_planner.infrastructure.logger_setup import get_logger
@@ -106,7 +104,7 @@ class CrucibleEvaluator:
                         harness.run(case.input),
                         timeout=self.timeout + 10,
                     )
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     logger.error(
                         "[Eval] case %s 外层超时 (%ds)",
                         case.id, self.timeout + 10,

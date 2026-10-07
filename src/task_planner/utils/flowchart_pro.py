@@ -557,9 +557,9 @@ class ProFlowchartRenderer:
         except ImportError:
             raise ValueError(
                 f"导出 {fmt.upper()} 需要安装 cairosvg: pip install cairosvg"
-            )
+            ) from None
         except (OSError, RuntimeError, ValueError) as e:
-            raise ValueError(f"{fmt.upper()} 导出失败: {e}")
+            raise ValueError(f"{fmt.upper()} 导出失败: {e}") from e
 
     # ── 错误页 ──
     def _error_html(self, message: str, req_id: str) -> str:
@@ -702,7 +702,7 @@ def export(
 
     if fmt == "dot":
         try:
-            import pydot  # type: ignore
+            import pydot  # type: ignore  # noqa: F401
 
             g = nx.DiGraph()
             for n in nodes:
@@ -721,9 +721,9 @@ def export(
             dot_data = nx.nx_pydot.to_pydot(g)
             return dot_data.to_string()
         except ImportError:
-            raise ValueError("导出 DOT 需要安装 pydot: pip install pydot")
+            raise ValueError("导出 DOT 需要安装 pydot: pip install pydot") from None
         except (OSError, RuntimeError) as e:
-            raise ValueError(f"DOT 导出失败: {e}")
+            raise ValueError(f"DOT 导出失败: {e}") from e
 
     raise ValueError(
         f"不支持的导出格式: {fmt}（支持 svg / png / pdf / dot / html / json）"

@@ -37,7 +37,7 @@ def register() -> None:
     async def on_export_data(n_clicks, history_task_ids, dag_store, fmt):
         # ✅ Bug 1 修复：node_states 从 dag_store 里取
         dag_store = dag_store or {}
-        nodes, edges, node_states, task_id_str = await resolve_dag_data(
+        nodes, edges, _node_states, task_id_str = await resolve_dag_data(
             history_task_ids, dag_store, dag_store.get("node_states")
         )
 
@@ -68,7 +68,7 @@ def register() -> None:
         prevent_initial_call=True,
     )
     async def on_export_image(n_clicks, history_task_ids, dag_store, node_states, image_format):
-        nodes, edges, node_states, task_id_str = await resolve_dag_data(
+        nodes, edges, _node_states, task_id_str = await resolve_dag_data(
             history_task_ids, dag_store, node_states
         )
 

@@ -64,7 +64,7 @@ def register() -> None:
         env_updates: dict = {}
         errors: list[str] = []
 
-        for id_dict, val in zip(ids, values):
+        for id_dict, val in zip(ids, values, strict=False):
             name = id_dict["name"]
             try:
                 entry = hub.dev.entry(name)

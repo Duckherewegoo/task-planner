@@ -103,7 +103,6 @@ from datetime import (
 from typing import (
     Any,
     TypeVar,
-    Union,
     cast,
     overload,
 )
@@ -523,7 +522,7 @@ def get_logger(name: str = "") -> logging.Logger:
     return logger
 
 
-def set_log_level(level: Union[str, int]) -> None:
+def set_log_level(level: str | int) -> None:
     """
     v6.0: 运行时安全修改日志级别。
     同时修改 root logger 和 good_addons logger。
@@ -616,7 +615,7 @@ def trace(*, level: int = logging.DEBUG, slow_ms: float = 200, log_args: bool = 
 def trace(
     _func: F | None = None, *, level: int = logging.DEBUG, slow_ms: float = 200,
     log_args: bool = False, memory: bool = False, name: str = "",
-) -> Union[F, Callable[[F], F]]:
+) -> F | Callable[[F], F]:
     """Performance tracing decorator."""
     def decorator(func: F) -> F:
         fname = name or f"{func.__module__}.{func.__qualname__}"
@@ -697,7 +696,7 @@ def timed(*, slow_ms: float = 200, name: str = "") -> Callable[[F], F]: ...
 
 def timed(
     _func: F | None = None, *, slow_ms: float = 200, name: str = "",
-) -> Union[F, Callable[[F], F]]:
+) -> F | Callable[[F], F]:
     """
     v6.0: 轻量级性能计时装饰器（@trace 的简化版）。
     仅记录耗时，不记录参数、不追踪内存。
@@ -746,7 +745,7 @@ def fallback(*, value: Any = None, catch: tuple[type[Exception], ...] = (Excepti
 def fallback(
     _func: F | None = None, *, value: Any = None,
     catch: tuple[type[Exception], ...] = (Exception,), log_error: bool = True,
-) -> Union[F, Callable[[F], F]]:
+) -> F | Callable[[F], F]:
     """
     v6.0: 优雅降级装饰器——主函数失败时返回备用值，不抛出异常。
     适用于非关键路径的降级场景。
@@ -795,7 +794,7 @@ def retry(
     _func: F | None = None, *, max_attempts: int = 3, base_delay: float = 1.0,
     max_delay: float = 60.0, exponential: bool = True, jitter: bool = True,
     exceptions: tuple[type[Exception], ...] = (Exception,), backoff_factor: float = 2.0,
-) -> Union[F, Callable[[F], F]]:
+) -> F | Callable[[F], F]:
     """Retry decorator with exponential backoff."""
     def decorator(func: F) -> F:
         def _delay(attempt: int) -> float:
@@ -947,7 +946,7 @@ def circuit_breaker(*, failure_threshold: int = 5, recovery_timeout: float = 30.
 def circuit_breaker(
     _func: F | None = None, *, failure_threshold: int = 5,
     recovery_timeout: float = 30.0, fallback: Callable[..., Any] | None = None,
-) -> Union[F, Callable[[F], F]]:
+) -> F | Callable[[F], F]:
     breaker = CircuitBreaker(failure_threshold, recovery_timeout, fallback=fallback)
     if _func is not None:
         return breaker(_func)
@@ -1056,7 +1055,7 @@ def validated(**type_hints: Any) -> Callable[[F], F]:
                     try:
                         bound.arguments[name] = expected(bound.arguments[name])
                     except (ValueError, TypeError) as e:
-                        raise TypeError(f"Param '{name}': expected {expected.__name__}, got {type(bound.arguments[name]).__name__} ({e})")
+                        raise TypeError(f"Param '{name}': expected {expected.__name__}, got {type(bound.arguments[name]).__name__} ({e})") from e
             return func(*bound.args, **bound.kwargs)
         return cast(F, wrapper)
     return decorator
@@ -1070,7 +1069,7 @@ def guarded(*, fallback: Any = None, catch: tuple[type[Exception], ...] = (Excep
 def guarded(
     _func: F | None = None, *, fallback: Any = None,
     catch: tuple[type[Exception], ...] = (Exception,), log_error: bool = True, reraise: bool = False,
-) -> Union[F, Callable[[F], F]]:
+) -> F | Callable[[F], F]:
     def decorator(func: F) -> F:
         @functools.wraps(func)
         def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
@@ -1344,10 +1343,7 @@ class HealthChecker(metaclass=_SingletonMeta):
         self,
         name: str,
         check_fn: Callable[[], dict[str, Any]] | None = None,
-    ) -> Union[
-        Callable[[Callable[[], dict[str, Any]]], Callable[[], dict[str, Any]]],
-        Callable[[], dict[str, Any]],
-    ]:
+    ) -> Callable[[Callable[[], dict[str, Any]]], Callable[[], dict[str, Any]]] | Callable[[], dict[str, Any]]:
         """
         ✅ P0-3 修复：同时支持两种用法。
 
@@ -1429,7 +1425,7 @@ class HealthChecker(metaclass=_SingletonMeta):
                 # 无运行中循环 → 可以用 asyncio.run
                 try:
                     result = asyncio.run(asyncio.wait_for(fn(), timeout=timeout))
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     result = {"status": "down", "error": f"timeout after {timeout}s"}
                 except Exception as e:
                     result = {"status": "down", "error": str(e)}
@@ -1462,7 +1458,7 @@ class HealthChecker(metaclass=_SingletonMeta):
                     result = await asyncio.wait_for(fn(), timeout=timeout)
                 else:
                     result = fn()
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 result = {"status": "down", "error": f"timeout after {timeout}s"}
             except Exception as e:
                 result = {"status": "down", "error": str(e)}
@@ -1570,7 +1566,7 @@ def fast_json_dumps(obj: Any, *, pretty: bool = False) -> str:
     return json.dumps(obj, default=_default_encoder, ensure_ascii=False, indent=2 if pretty else None)
 
 
-def fast_json_loads(data: Union[str, bytes]) -> Any:
+def fast_json_loads(data: str | bytes) -> Any:
     if _HAS_ORJSON and orjson:
         return orjson.loads(data.encode() if isinstance(data, str) else data)
     return json.loads(data)
@@ -1690,7 +1686,7 @@ def _enhance_web_app(app: Any, csp_policy: str | None = None) -> None:
                     }
                 }), status
             except ImportError:
-                raise exc
+                raise exc from None
 
         # ── Dash callback wrapping ──
         if is_dash:
@@ -1725,7 +1721,7 @@ def _wrap_dash_callbacks(app: Any) -> None:
             return
 
         wrapped_count = 0
-        for output_key, cb_info in callback_map.items():
+        for _output_key, cb_info in callback_map.items():
             original_func = cb_info.get("callback")
             if original_func is None:
                 continue

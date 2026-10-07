@@ -137,7 +137,7 @@ async def async_call_llm(
         except LLMResponseError:
             raise
 
-        except (asyncio.TimeoutError, TimeoutError):
+        except TimeoutError:
             last_error = LLMTimeoutError(f"请求超时 ({timeout}s)", req_id)
 
         except Exception as e:

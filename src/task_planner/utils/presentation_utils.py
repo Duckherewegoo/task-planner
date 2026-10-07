@@ -19,7 +19,6 @@ Changelog:
 """
 from typing import (
     Any,
-    Union,
 )
 
 from wcwidth import wcswidth
@@ -97,7 +96,7 @@ def build_history_dropdown_options(
 
 
 def extract_first_task_id(
-    task_ids: Union[None, str, list[str]],
+    task_ids: str | list[str] | None,
 ) -> str | None:
     """
     安全提取第一个任务 ID。

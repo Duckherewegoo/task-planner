@@ -74,7 +74,7 @@ class ConfigHub:
             需要重新从 hub 读取（正常用法下没人持有 entry 引用）
           - 不会重载 from_env 字段（那些从 os.environ 读，运行时不可改）
         """
-        cleared = self._store.clear()
+        self._store.clear()
 
         # 1) 从 YAML 重载
         ConfigLoader(self._store).load(schema_path, user_path)

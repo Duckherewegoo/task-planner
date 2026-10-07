@@ -21,7 +21,6 @@ import time
 import uuid
 from typing import (
     Any,
-    Dict,
     Optional,
 )
 
@@ -59,7 +58,7 @@ else:
         except asyncio.CancelledError:
             if handle.cancelled():
                 # 是超时触发的 cancel，转成 TimeoutError
-                raise asyncio.TimeoutError() from None
+                raise TimeoutError() from None
             # 是外部取消，原样抛出
             raise
         finally:
@@ -182,7 +181,7 @@ class AgentHarness:
             has_output = bool(result["direct_response"]) or bool(result["nodes"])
             result["success"] = result["error"] is None and has_output
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             result["error"] = f"Timeout after {self.timeout}s"
             logger.warning("[Harness] 超时 | thread=%s elapsed=%ds",
                            self.thread_id, self.timeout)

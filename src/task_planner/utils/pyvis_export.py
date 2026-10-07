@@ -36,7 +36,6 @@ import io
 from pathlib import Path
 from typing import (
     Any,
-    Union,
 )
 
 from wcwidth import wcswidth
@@ -53,7 +52,7 @@ from task_planner.infrastructure.logger_setup import get_logger
 logger = get_logger("task_planner.pyvis_export")
 
 # 类型别名
-PathLike = Union[str, Path]
+PathLike = str | Path
 
 
 # ══════════════════════════════════════════════════
@@ -166,7 +165,7 @@ def _build_pydot_graph(
     """
     try:
         import networkx as nx
-        import pydot
+        import pydot  # noqa: F401
     except ImportError as e:
         raise ImportError(
             "导出需要安装 pydot 和 networkx: pip install pydot networkx"

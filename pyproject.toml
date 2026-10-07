@@ -4,9 +4,9 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "task-planner"
-version = "3.1.0"
+version = "3.1.1"
 description = "基于 LangGraph 与大语言模型的自主任务规划引擎，支持动态 DAG 编排、多模态意图识别与全流程可观测性评估（异步版）。"
-requires-python = ">=3.10"
+requires-python = ">=3.14"
 license = { text = "GPL-3.0-or-later" }
 authors = [
     { name = "JiangDake", email = "dakeginger@qq.com" },
@@ -47,10 +47,6 @@ classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Software Development :: Libraries :: Application Frameworks",
@@ -129,12 +125,12 @@ exclude = ["task_planner.abandon*"]
 [tool.black]
 line-length = 100
 # ✅ 加上 py313（black 24+ 支持）
-target-version = ["py310", "py311", "py312", "py313"]
+target-version = ["py314"]
 
 [tool.ruff]
 line-length = 100
-# ✅ 从 py312 升到 py313
-target-version = "py313"
+# ✅ 从 py312 升到 py314
+target-version = "py314"
 src = ["src", "tests"]
 
 [tool.ruff.lint]
@@ -149,7 +145,6 @@ ignore = [
     "RUF022",
 
     # ── 新增 ──
-    "UP047",   # PEP 695 泛型语法需 3.12+，项目支持 3.10
     "RUF012",  # 类默认可变值——GoodAddons/_SingletonMeta 依赖此模式
     "RUF005",   # 列表拼接——`+` 比 `[*...]` 可读
 ]
@@ -165,7 +160,7 @@ indent-style = "space"
 
 [tool.pyright]
 typeCheckingMode = "strict"
-pythonVersion = "3.10"
+pythonVersion = "3.14"
 extraPaths = ["src", "tests"]
 # ✅ 归档代码不检查（旧版本语法/缺依赖）
 exclude = [

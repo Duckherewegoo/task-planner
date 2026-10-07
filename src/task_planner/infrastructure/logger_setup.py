@@ -91,7 +91,7 @@ def get_req_id() -> str:
 
 def _make_req_id() -> str:
     """生成 8 字符短请求 ID"""
-    return uuid.uuid4().hex[:8]
+    return uuid.uuid7().hex[:-8]
 
 
 def propagate_req_id() -> contextvars.Context:

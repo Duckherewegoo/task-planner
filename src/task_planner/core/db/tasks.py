@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import time
+import uuid
 from datetime import (
     UTC,
     datetime,
@@ -50,7 +51,7 @@ async def create_task_with_plan(
     """
     db = await get_db()
     rid = req_id or get_req_id() or ""
-    task_id = f"task_{int(time.time() * 1000)}"
+    task_id = f"task_{uuid.uuid7().hex}"
     plan_id = f"plan_{task_id}"
 
     plan_data = validate_plan(plan_data)
@@ -98,7 +99,7 @@ async def create_direct_answer_task(
     """为直接回答创建 Task 记录（无 Plan）"""
     db = await get_db()
     rid = req_id or get_req_id() or ""
-    task_id = f"task_{int(time.time() * 1000)}"
+    task_id = f"task_{uuid.uuid7().hex}"
     now = datetime.now(UTC)
 
     task_doc = {

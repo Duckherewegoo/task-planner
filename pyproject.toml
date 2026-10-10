@@ -69,6 +69,10 @@ orjson = [
 config-ui = [
     "ruamel.yaml>=0.18.0",
 ]
+# ── Redis 会话存储（多 worker 部署）──
+redis = [
+    "redis>=5.0.0",
+]
 # ── 评估套件依赖 ──
 eval = [
     "python-Levenshtein>=0.25.0",   # 字符串相似度计算
@@ -85,6 +89,7 @@ dev = [
     "mypy>=1.13.0",
     "python-Levenshtein>=0.25.0",   # 评估套件需要
     "pyahocorasick>=2.1.0",         # 违禁词匹配性能测试需要
+    "fakeredis>=2.20.0",   # ←如果没装redis还要测试需要
 ]
 
 [project.urls]

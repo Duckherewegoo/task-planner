@@ -364,7 +364,7 @@ def is_initialized() -> bool:
     return _initialized
 
 
-def shutdown_logging(timeout: float = 2.0) -> None:
+def shutdown_logging() -> None:
     """
     优雅关闭日志系统：等待队列清空后停止 listener。
 
@@ -374,12 +374,13 @@ def shutdown_logging(timeout: float = 2.0) -> None:
     global _queue_listener, _initialized
 
     # ── 1. 停止 QueueListener ──
-    if _queue_listener is not None:
-        try:
-            _queue_listener.stop()
-        except Exception:
-            pass
-        _queue_listener = None
+    with _init_lock:
+        if _queue_listener is not None:
+            try:
+                _queue_listener.stop()
+            except Exception:
+                pass
+            _queue_listener = None
 
     # ── 2. 清理 root_logger 上的 handlers ──
     # ✅ P1-8：防止重新初始化时挂上第二个 QueueHandler 导致日志翻倍

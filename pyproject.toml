@@ -4,10 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "task-planner"
-version = "3.1.1"
+version = "3.1.4"
 description = "基于 LangGraph 与大语言模型的自主任务规划引擎，支持动态 DAG 编排、多模态意图识别与全流程可观测性评估（异步版）。"
 requires-python = ">=3.14"
-license = { text = "GPL-3.0-or-later" }
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE"]
 authors = [
     { name = "JiangDake", email = "dakeginger@qq.com" },
 ]
@@ -46,7 +47,6 @@ dependencies = [
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
     "Programming Language :: Python :: 3.14",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Software Development :: Libraries :: Application Frameworks",

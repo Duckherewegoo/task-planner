@@ -1,5 +1,5 @@
 """
-ui_styles.py — Dash/Gradio 内联样式字典。
+ui_styles.py — Dash 内联样式字典。
 集中管理，避免散落在回调里。
 """
 from typing import Any

@@ -172,19 +172,7 @@ mongo:
     scope: developer
     purpose: MongoDB 数据库名
 
-web:
-  GRADIO_HOST:
-    type: str
-    default: 0.0.0.0
-    scope: developer
-    purpose: Gradio 监听地址
-
-  GRADIO_PORT:
-    type: int
-    default: 7860
-    scope: user
-    purpose: Gradio 端口，冲突时改 7861+
-
+web: 
   ENABLE_MCP:
     type: bool
     default: false

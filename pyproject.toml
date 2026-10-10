@@ -91,7 +91,6 @@ dev = [
     "pyahocorasick>=2.1.0",         # 违禁词匹配性能测试需要
     "fakeredis>=2.20.0",   # ←如果没装redis还要测试需要
 ]
-
 [project.urls]
 Homepage = "https://github.com/Duckherewegoo/task-planner"
 Repository = "https://github.com/Duckherewegoo/task-planner"

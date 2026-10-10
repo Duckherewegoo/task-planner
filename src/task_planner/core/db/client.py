@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 from pymongo import ASCENDING, DESCENDING, IndexModel
@@ -13,8 +14,17 @@ logger = get_logger("task_planner.core.db.client")
 
 _client: AsyncIOMotorClient | None = None
 _db: AsyncIOMotorDatabase | None = None
-_db_lock = asyncio.Lock()
+_db_lock: asyncio.Lock | None = None     # ← 惰性
 _initialized = False
+_last_fail_time: float = 0.0
+_FAIL_COOLDOWN = 10.0   # 10 秒内不重试
+
+def _get_db_lock() -> asyncio.Lock:
+    """惰性创建协程锁（首次调用时绑定当前事件循环）"""
+    global _db_lock
+    if _db_lock is None:
+        _db_lock = asyncio.Lock()
+    return _db_lock
 
 
 async def init_db() -> None:
@@ -22,7 +32,7 @@ async def init_db() -> None:
     global _client, _db, _initialized
     if _initialized:
         return
-    async with _db_lock:
+    async with _get_db_lock():
         if _initialized:
             return
 
@@ -74,9 +84,16 @@ async def _create_indexes_on(db: AsyncIOMotorDatabase) -> None:
 
 
 async def get_db() -> AsyncIOMotorDatabase:
-    """获取数据库实例（自动初始化）"""
+    global _last_fail_time
     if not _initialized:
-        await init_db()
+        # DB 最近刚失败过 —— 直接拒，别让请求都卡 5 秒
+        if time.time() - _last_fail_time < _FAIL_COOLDOWN:
+            raise RuntimeError("[DB] MongoDB 最近连接失败，冷却中")
+        try:
+            await init_db()
+        except Exception:
+            _last_fail_time = time.time()
+            raise
     if _db is None:
         raise RuntimeError("[DB] 数据库未初始化")
     return _db
@@ -85,7 +102,7 @@ async def get_db() -> AsyncIOMotorDatabase:
 async def close_db() -> None:
     """显式关闭连接（用于测试/进程退出）"""
     global _client, _db, _initialized
-    async with _db_lock:
+    async with _get_db_lock():
         if _client is not None:
             try:
                 _client.close()

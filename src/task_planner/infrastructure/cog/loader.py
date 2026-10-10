@@ -10,16 +10,11 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import (
-    Any,
-)
+from typing import Any
 
 import yaml
 
-from .entry import (
-    ConfigEntry,
-    Scope,
-)
+from .entry import ConfigEntry, Scope
 from .store import ConfigStore
 
 _TYPE_MAP = {"int": int, "str": str, "float": float, "bool": bool}

@@ -4,12 +4,11 @@ from __future__ import annotations
 import time
 
 from task_planner.core.db import load_task_with_plan
-from task_planner.infrastructure.constants import (
-    EDGE_TYPE_HARD,
-    NODE_ACTION_CONFIG,
-)
+from task_planner.infrastructure.constants import (EDGE_TYPE_HARD,
+                                                   NODE_ACTION_CONFIG)
 from task_planner.infrastructure.logger_setup import get_logger
-from task_planner.utils.cytoscape_adapter import dag_to_cytoscape, get_edge_type
+from task_planner.utils.cytoscape_adapter import (dag_to_cytoscape,
+                                                  get_edge_type)
 from task_planner.utils.presentation_utils import extract_first_task_id
 
 logger = get_logger(__name__)

@@ -9,9 +9,6 @@ config_ui — 独立配置工具（可选套件）
 启动：task-planner-config
 默认端口：8051（可用 CONFIG_UI_PORT 覆盖）
 """
-from task_planner.config_ui.app import (
-    app,
-    main,
-)
+from task_planner.config_ui.app import app, main
 
 __all__ = ["app", "main"]

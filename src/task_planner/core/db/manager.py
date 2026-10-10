@@ -3,10 +3,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .tasks import (
-    get_recent_tasks,
-    list_tasks,
-)
+from .tasks import get_recent_tasks, list_tasks
 
 
 class DBManager:

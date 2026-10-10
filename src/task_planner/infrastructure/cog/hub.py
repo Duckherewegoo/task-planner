@@ -7,10 +7,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .entry import (
-    ConfigEntry,
-    Role,
-)
+from .entry import ConfigEntry, Role
 from .guard import ConfigGuard
 from .loader import ConfigLoader
 from .registry import get_registered_sections

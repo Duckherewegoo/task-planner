@@ -38,14 +38,7 @@ import sys
 import types
 from pathlib import Path
 from string import Template
-from typing import (
-    Any,
-    Dict,
-    List,
-    Set,
-    Tuple,
-)
-
+from typing import Any, Dict, List, Set, Tuple
 
 # ═══════════════════════════════════════════════════════════════════
 #  1. 忽略清单 —— 有意删除 / 内部辅助 / 标准库，不报警

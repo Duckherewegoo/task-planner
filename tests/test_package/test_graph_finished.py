@@ -10,7 +10,8 @@ from __future__ import annotations
 
 import pytest
 
-from task_planner.services.agent.view import is_graph_finished as _is_graph_finished
+from task_planner.services.agent.view import \
+    is_graph_finished as _is_graph_finished
 
 
 class TestIsGraphFinished:

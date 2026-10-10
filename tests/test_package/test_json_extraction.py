@@ -13,7 +13,8 @@ import json
 
 import pytest
 
-from task_planner.infrastructure.llm.json_utils import extract_tail_json as _extract_tail_json
+from task_planner.infrastructure.llm.json_utils import \
+    extract_tail_json as _extract_tail_json
 
 
 class TestExtractTailJson:

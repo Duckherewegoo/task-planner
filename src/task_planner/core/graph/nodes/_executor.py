@@ -6,21 +6,14 @@ from __future__ import annotations
 
 import asyncio
 import json
-from typing import (
-    Any,
-)
+from typing import Any
 
 from task_planner.infrastructure.cog import hub as _hub
-from task_planner.infrastructure.llm import (
-    LLMCancelledError,
-    LLMTimeoutError,
-    execute_node_llm,
-)
+from task_planner.infrastructure.llm import (LLMCancelledError,
+                                             LLMTimeoutError, execute_node_llm)
 from task_planner.infrastructure.logger_setup import get_logger
-from task_planner.infrastructure.prompts.loader import (
-    EXECUTE_NODE_PROMPT,
-    render_template,
-)
+from task_planner.infrastructure.prompts.loader import (EXECUTE_NODE_PROMPT,
+                                                        render_template)
 
 logger = get_logger(__name__)
 

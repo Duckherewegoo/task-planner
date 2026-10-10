@@ -5,16 +5,10 @@ agent.py — 【兼容壳】
 """
 from __future__ import annotations
 
-from task_planner.services.agent import (  # noqa: F401
-    TaskSession,
-    cancel_task,
-    cleanup_stale_sessions,
-    get_session,
-    modify_task,
-    resume_task,
-    retry_node_cmd,
-    run_task_stream,
-)
+from task_planner.services.agent import (TaskSession,  # noqa: F401
+                                         cancel_task, cleanup_stale_sessions,
+                                         get_session, modify_task, resume_task,
+                                         retry_node_cmd, run_task_stream)
 
 __all__ = [
     "run_task_stream",

@@ -12,10 +12,7 @@ from task_planner.core.graph.workflow import graph
 from task_planner.infrastructure.logger_setup import get_logger
 from task_planner.utils.context import cancel_event_var
 
-from .session import (
-    TaskSession,
-    get_session,
-)
+from .session import TaskSession, get_session
 
 logger = get_logger(__name__)
 

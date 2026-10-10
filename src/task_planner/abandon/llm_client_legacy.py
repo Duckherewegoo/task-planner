@@ -2,31 +2,26 @@
 llm_client.py — 异步 LLM 调用封装（OpenAI 兼容版）
 支持 async/await，使用 AsyncOpenAI 客户端，含取消、重试、超时控制。
 """
-import json
-import re
 import asyncio
+import json
 import random
+import re
 from json import JSONDecoder
 from typing import Any, Optional
+
 from openai import AsyncOpenAI
 
 from task_planner.infrastructure.cog import hub as _hub
-from task_planner.infrastructure.constants import (
-    MOCK_RESPONSE_PREFIX,
-    VALID_INTENT_CATEGORIES,
-    VALID_INTENT_COMPLEXITIES,
-)
-from task_planner.infrastructure.regexes import (
-    SKIP_PLANNING_PATTERNS,
-    THINK_RE,
-    UNREPLACED_PATTERN,
-)
-from task_planner.infrastructure.prompts.loader import (
-    EXECUTE_NODE_PROMPT,
-    INTENT_PROMPT,
-    NODE_REFINE_PROMPT,
-    PLANNER_PROMPT,
-)
+from task_planner.infrastructure.constants import (MOCK_RESPONSE_PREFIX,
+                                                   VALID_INTENT_CATEGORIES,
+                                                   VALID_INTENT_COMPLEXITIES)
+from task_planner.infrastructure.prompts.loader import (EXECUTE_NODE_PROMPT,
+                                                        INTENT_PROMPT,
+                                                        NODE_REFINE_PROMPT,
+                                                        PLANNER_PROMPT)
+from task_planner.infrastructure.regexes import (SKIP_PLANNING_PATTERNS,
+                                                 THINK_RE, UNREPLACED_PATTERN)
+
 DASHSCOPE_API_KEY = _hub.dev.DASHSCOPE_API_KEY
 DASHSCOPE_BASE_URL = _hub.dev.DASHSCOPE_BASE_URL
 LLM_INTENT_ENABLE_THINKING = _hub.dev.LLM_INTENT_ENABLE_THINKING

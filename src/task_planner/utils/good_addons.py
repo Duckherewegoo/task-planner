@@ -90,22 +90,11 @@ import sys
 import threading
 import time
 import traceback
-from collections import (
-    defaultdict,
-    deque,
-)
+from collections import defaultdict, deque
 from collections.abc import Callable, Generator
 from contextlib import contextmanager
-from datetime import (
-    UTC,
-    datetime,
-)
-from typing import (
-    Any,
-    TypeVar,
-    cast,
-    overload,
-)
+from datetime import UTC, datetime
+from typing import Any, TypeVar, cast, overload
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #  Optional Dependencies (Graceful Degradation)
@@ -1618,6 +1607,7 @@ def _enhance_web_app(app: Any, csp_policy: str | None = None) -> None:
         def trace_req() -> None:
             try:
                 from flask import request
+
                 # v6.0: 尝试从 Header 提取 trace_id
                 for header in ("X-Trace-ID", "X-Request-ID", "X-Correlation-ID"):
                     val = request.headers.get(header, "")

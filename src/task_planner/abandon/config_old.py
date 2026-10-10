@@ -24,17 +24,16 @@ Changelog:
   - ✅ 统一：logger 全部改为 %s 延迟格式化风格
 """
 
+import logging
 import os
 import re
-import logging
 import warnings
-from typing import Any, Callable, Dict, List, Set, FrozenSet
-from string import Template
-
 # =============================================================================
 # 0. 项目根目录与基础环境加载
 # =============================================================================
 from pathlib import Path
+from string import Template
+from typing import Any, Callable, Dict, FrozenSet, List, Set
 
 # config.py = <root>/src/task_planner/infrastructure/config.py
 #   parents[0] = infrastructure/
@@ -43,8 +42,9 @@ from pathlib import Path
 #   parents[3] = <root>/
 
 try:
-    from dotenv import load_dotenv
     from pathlib import Path
+
+    from dotenv import load_dotenv
     _PROJECT_ROOT = Path(__file__).resolve().parents[3]
     # 显式指定，无论从哪个目录跑都能找到同一个 .env
     load_dotenv(_PROJECT_ROOT / ".env", override=False)

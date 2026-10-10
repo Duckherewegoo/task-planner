@@ -1,10 +1,7 @@
 """routes.py — 路由函数（纯计算，无 IO）"""
 from __future__ import annotations
 
-from task_planner.core.graph.state import (
-    TaskState,
-    UserAction,
-)
+from task_planner.core.graph.state import TaskState, UserAction
 
 
 def route_after_intent(state: TaskState) -> str:

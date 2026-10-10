@@ -1,10 +1,5 @@
 """callbacks — 触发所有回调注册。import 副作用。"""
-from . import (
-    export_cb,
-    graph_js,
-    history,
-    new_task,
-)
+from . import export_cb, graph_js, history, new_task
 
 
 def register_all() -> None:

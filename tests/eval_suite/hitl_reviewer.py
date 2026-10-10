@@ -17,16 +17,9 @@ Changelog:
 """
 
 import json
-from datetime import (
-    UTC,
-    datetime,
-    timezone,
-)
+from datetime import UTC, datetime, timezone
 from pathlib import Path
-from typing import (
-    Any,
-    Optional,
-)
+from typing import Any, Optional
 
 from task_planner.infrastructure.logger_setup import get_logger
 

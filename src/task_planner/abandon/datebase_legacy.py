@@ -25,11 +25,12 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
-from pymongo import IndexModel, ASCENDING, DESCENDING
+from pymongo import ASCENDING, DESCENDING, IndexModel
 from pymongo.errors import DuplicateKeyError
 
 from task_planner.infrastructure.cog import hub as _hub
 from task_planner.infrastructure.constants import TASK_STATUS
+
 MONGO_DB = _hub.dev.MONGO_DB
 MONGO_HOST = _hub.dev.MONGO_HOST
 MONGO_PORT = _hub.dev.MONGO_PORT

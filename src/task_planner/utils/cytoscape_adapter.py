@@ -32,20 +32,15 @@ from __future__ import annotations
 
 import re
 from functools import lru_cache
-from typing import (
-    Any,
-)
+from typing import Any
 
 from wcwidth import wcswidth
 
-from task_planner.infrastructure.constants import (
-    DEFAULT_EDGE_TYPE,
-    EDGE_TYPE_CSS,
-    EDGE_TYPE_HARD,
-    NODE_STYLES,
-    STATUS_ICONS,
-    VALID_EDGE_TYPES,
-)
+from task_planner.infrastructure.constants import (DEFAULT_EDGE_TYPE,
+                                                   EDGE_TYPE_CSS,
+                                                   EDGE_TYPE_HARD, NODE_STYLES,
+                                                   STATUS_ICONS,
+                                                   VALID_EDGE_TYPES)
 from task_planner.infrastructure.logger_setup import get_logger
 
 logger = get_logger("task_planner.cytoscape_adapter")

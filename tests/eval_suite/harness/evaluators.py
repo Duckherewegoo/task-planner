@@ -13,14 +13,8 @@ Changelog:
 
 import re
 import string
-from collections import (
-    defaultdict,
-    deque,
-)
-from typing import (
-    Any,
-    Optional,
-)
+from collections import defaultdict, deque
+from typing import Any, Optional
 
 from task_planner.infrastructure.cog import hub as _hub
 

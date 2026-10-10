@@ -1,7 +1,5 @@
 """cytoscape_js.py — 前端 JS 模板（原 config.py 第 14 节后半）"""
-from typing import (
-    Any,
-)
+from typing import Any
 
 # >>>>> GRAPH_CONFIGS  <<<<<
 GRAPH_CONFIGS: dict[str, dict[str, Any]]  = {'main': {'element_id': 'flowchart', 'fit_btn_id': 'fit-btn', 'zoom_in_btn_id': 'zoom-in-btn', 'zoom_out_btn_id': 'zoom-out-btn', 'zoom_slider_id': 'zoom-slider', 'layout_options': {'name': 'dagre', 'rankDir': 'TB', 'nodeSep': 300, 'rankSep': 450, 'edgeSep': 80, 'padding': 80}}, 'history': {'element_id': 'history-flowchart', 'fit_btn_id': 'history-fit-btn', 'zoom_in_btn_id': 'history-zoom-in-btn', 'zoom_out_btn_id': 'history-zoom-out-btn', 'zoom_slider_id': 'history-zoom-slider', 'layout_options': {'name': 'dagre', 'rankDir': 'TB', 'nodeSep': 250, 'rankSep': 380, 'edgeSep': 60, 'padding': 60}}}

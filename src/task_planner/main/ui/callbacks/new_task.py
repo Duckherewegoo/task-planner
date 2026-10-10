@@ -4,50 +4,26 @@ from __future__ import annotations
 import time
 import uuid
 
-from dash import (
-    Input,
-    Output,
-    Patch,
-    State,
-    callback,
-    ctx,
-    dcc,
-    html,
-    no_update,
-)
+from dash import (Input, Output, Patch, State, callback, ctx, dcc, html,
+                  no_update)
 
 from task_planner.core.graph.state import NodeStatus
 from task_planner.infrastructure.cog import hub as _hub
-from task_planner.infrastructure.constants import (
-    HINT_TEMPLATES,
-    STATE_COLORS,
-    STATE_LABELS,
-)
-from task_planner.infrastructure.ui_styles import (
-    BAR_DONE,
-    BAR_ERROR,
-    BAR_LOADING,
-    BASE_BTN_STYLE,
-    EMPTY_BAR_MINI_STYLE,
-    EMPTY_BAR_STYLE,
-    EMPTY_DAG,
-    EMPTY_STATES,
-    HINT_STYLES,
-    MARKDOWN_PRE_STYLE,
-)
+from task_planner.infrastructure.constants import (HINT_TEMPLATES,
+                                                   STATE_COLORS, STATE_LABELS)
+from task_planner.infrastructure.ui_styles import (BAR_DONE, BAR_ERROR,
+                                                   BAR_LOADING, BASE_BTN_STYLE,
+                                                   EMPTY_BAR_MINI_STYLE,
+                                                   EMPTY_BAR_STYLE, EMPTY_DAG,
+                                                   EMPTY_STATES, HINT_STYLES,
+                                                   MARKDOWN_PRE_STYLE)
 from task_planner.services.agent import run_task_stream
-from task_planner.services.stream import (
-    cancel_stream,
-    get_stream_state,
-    start_stream,
-)
+from task_planner.services.stream import (cancel_stream, get_stream_state,
+                                          start_stream)
 from task_planner.utils.cytoscape_adapter import build_detail_markdown
 
 from ..constants import cytoscape_cached
-from ..data_ops import (
-    auto_unlock_downstream,
-    safe_elapsed,
-)
+from ..data_ops import auto_unlock_downstream, safe_elapsed
 
 
 def register() -> None:

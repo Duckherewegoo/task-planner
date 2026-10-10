@@ -30,9 +30,7 @@ redis = pytest.importorskip("redis.asyncio", reason="需要 redis 包")
 fakeredis = pytest.importorskip("fakeredis.aioredis", reason="需要 fakeredis 包")
 
 from task_planner.infrastructure.session_store import (  # noqa: E402
-    RedisSessionStore,
-    SessionStore,
-)
+    RedisSessionStore, SessionStore)
 
 
 # ═══════════════════════════════════════════════════════════════════

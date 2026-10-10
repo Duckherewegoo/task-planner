@@ -9,16 +9,12 @@ from __future__ import annotations
 
 import asyncio
 import time
-from typing import (
-    Any,
-)
+from typing import Any
 
 from task_planner.infrastructure.cog import hub as _hub
 from task_planner.infrastructure.logger_setup import get_logger
-from task_planner.infrastructure.session_store import (
-    InMemorySessionStore,
-    SessionStore,
-)
+from task_planner.infrastructure.session_store import (InMemorySessionStore,
+                                                       SessionStore)
 
 logger = get_logger(__name__)
 

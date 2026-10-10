@@ -12,28 +12,12 @@ stream — 后台流式任务管理（拆分版）
   control    取消/完成/跳过/失败/可操作查询
   view       视图辅助（纯函数）
 """
-from .cleaner import (
-    StreamStateCleaner,
-    state_cleaner,
-)
-from .control import (
-    cancel_stream,
-    complete_node,
-    fail_node,
-    get_node_states,
-    get_ready_nodes,
-    get_stream_state,
-    skip_node,
-)
-from .launcher import (
-    resume_stream,
-    start_stream,
-)
+from .cleaner import StreamStateCleaner, state_cleaner
+from .control import (cancel_stream, complete_node, fail_node, get_node_states,
+                      get_ready_nodes, get_stream_state, skip_node)
+from .launcher import resume_stream, start_stream
 from .state import TaskStreamState
-from .view import (
-    get_status_text,
-    snapshot_to_elements,
-)
+from .view import get_status_text, snapshot_to_elements
 
 __all__ = [
     # 类

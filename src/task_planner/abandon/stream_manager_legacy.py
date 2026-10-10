@@ -23,14 +23,16 @@ Changelog:
 """
 import asyncio
 import time
-from typing import Any, Callable, Optional
 from collections import deque
+from typing import Any, Callable, Optional
 
-from task_planner.services.agent import cancel_task
-from task_planner.core.graph.workflow import resume_graph_async, get_thread_state_async
-from task_planner.utils.cytoscape_adapter import dag_to_cytoscape
-from task_planner.infrastructure.logger_setup import get_logger
+from task_planner.core.graph.workflow import (get_thread_state_async,
+                                              resume_graph_async)
 from task_planner.infrastructure.cog import hub as _hub
+from task_planner.infrastructure.logger_setup import get_logger
+from task_planner.services.agent import cancel_task
+from task_planner.utils.cytoscape_adapter import dag_to_cytoscape
+
 _SESSION_TTL = _hub.dev.SESSION_TTL
 
 logger = get_logger("task_planner.stream_manager")

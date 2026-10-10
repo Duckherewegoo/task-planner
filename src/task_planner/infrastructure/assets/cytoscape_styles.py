@@ -1,7 +1,5 @@
 """cytoscape_styles.py — Cytoscape 样式表（原 config.py 第 11 节）"""
-from typing import (
-    Any,
-)
+from typing import Any
 
 CYTO_STYLESHEET: list[dict[str, Any]] = [
     {

@@ -1,8 +1,5 @@
 """dashscope — 代码内置项（YAML 里已声明的会被跳过）"""
-from ..entry import (
-    ConfigEntry,
-    Scope,
-)
+from ..entry import ConfigEntry, Scope
 from ..registry import register_section
 from ..section import ConfigSection
 

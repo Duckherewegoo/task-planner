@@ -3,35 +3,17 @@ from __future__ import annotations
 
 import time
 import uuid
-import uuid
-from datetime import (
-    UTC,
-    datetime,
-)
-from typing import (
-    Any,
-)
+from datetime import UTC, datetime
+from typing import Any
 
 from pymongo.errors import DuplicateKeyError
 
 from task_planner.infrastructure.constants import TASK_STATUS
-from task_planner.infrastructure.logger_setup import (
-    get_logger,
-    get_req_id,
-)
+from task_planner.infrastructure.logger_setup import get_logger, get_req_id
 
 from .client import get_db
-from .plans import (
-    create_plan,
-    delete_plan,
-    delete_plans,
-    get_plan,
-)
-from .schema import (
-    TERMINAL_STATUSES,
-    status_name,
-    validate_plan,
-)
+from .plans import create_plan, delete_plan, delete_plans, get_plan
+from .schema import TERMINAL_STATUSES, status_name, validate_plan
 
 logger = get_logger("task_planner.core.db.tasks")
 

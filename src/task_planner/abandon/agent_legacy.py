@@ -19,17 +19,19 @@ from typing import Any, AsyncGenerator, Optional
 
 from langgraph.types import Command
 
-from task_planner.utils.context import cancel_event_var
 from task_planner.core.graph.nodes import sanitize_input as _sanitize_input
-from task_planner.infrastructure.logger_setup import get_logger, set_req_id
-from task_planner.core.graph.workflow import graph
 from task_planner.core.graph.state import TaskState, UserAction
-from task_planner.services.view_model import FRONTEND_FIELDS
+from task_planner.core.graph.workflow import graph
 from task_planner.infrastructure.cog import hub as _hub
+from task_planner.infrastructure.logger_setup import get_logger, set_req_id
 from task_planner.infrastructure.regexes import SKIP_PLANNING_PATTERNS
+from task_planner.services.view_model import FRONTEND_FIELDS
+from task_planner.utils.context import cancel_event_var
+
 SESSION_TTL = _hub.dev.SESSION_TTL
 # ✅ P0-2 修复：同时导入 Protocol 和实现
-from task_planner.infrastructure.session_store import SessionStore, InMemorySessionStore
+from task_planner.infrastructure.session_store import (InMemorySessionStore,
+                                                       SessionStore)
 
 logger = get_logger(__name__)
 _SESSION_TTL = SESSION_TTL

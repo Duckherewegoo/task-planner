@@ -17,9 +17,7 @@ Changelog:
   ✅ P2-4：extract_first_task_id 的 else 分支显式拒绝 dict/tuple，
            避免 str({'a': 1}) 产出垃圾字符串。
 """
-from typing import (
-    Any,
-)
+from typing import Any
 
 from wcwidth import wcswidth
 

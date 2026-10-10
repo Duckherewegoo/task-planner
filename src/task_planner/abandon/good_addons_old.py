@@ -51,20 +51,8 @@ import traceback
 from collections import defaultdict, deque
 from contextlib import contextmanager
 from datetime import datetime, timezone
-from typing import (
-    Any,
-    Callable,
-    Dict,
-    Generator,
-    List,
-    Optional,
-    Tuple,
-    Type,
-    TypeVar,
-    Union,
-    cast,
-    overload,
-)
+from typing import (Any, Callable, Dict, Generator, List, Optional, Tuple,
+                    Type, TypeVar, Union, cast, overload)
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #  Optional Dependencies (Graceful Degradation)
@@ -84,10 +72,10 @@ except ImportError:
     psutil = None  # type: ignore
 
 try:
+    from rich import box
     from rich.console import Console
     from rich.logging import RichHandler
     from rich.table import Table
-    from rich import box
     _HAS_RICH = True
 except ImportError:
     Console = None  # type: ignore
@@ -1578,6 +1566,7 @@ def _enhance_web_app(app: Any, csp_policy: Optional[str] = None) -> None:
         def trace_req() -> None:
             try:
                 from flask import request
+
                 # v6.0: 尝试从 Header 提取 trace_id
                 for header in ("X-Trace-ID", "X-Request-ID", "X-Correlation-ID"):
                     val = request.headers.get(header, "")

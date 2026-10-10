@@ -6,73 +6,60 @@ dash_app.py — 完整 Dash UI + 交互式任务执行（异步回调版）
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
-import sys
 import os
+import sys
 import threading
 import time
 import uuid
-from typing import Any, Dict, List, Tuple
 from dataclasses import dataclass, fields
-import hashlib
-import dash
-from dash import dcc, html, Input, Output, State, callback, clientside_callback, no_update, ctx
-import dash_cytoscape as cyto
+from typing import Any, Dict, List, Tuple
 
-from task_planner.utils.cytoscape_adapter import _get_edge_type
-from task_planner.utils.pyvis_export import export_dag_to_svg, export_dag_to_png
-from task_planner.services.agent import run_task_stream
-from task_planner.utils.good_addons import boost
-from task_planner.utils.cytoscape_adapter import dag_to_cytoscape, build_detail_markdown, build_history_detail_markdown
+import dash
+import dash_cytoscape as cyto
+from dash import (Input, Output, State, callback, clientside_callback, ctx,
+                  dcc, html, no_update)
+
+from task_planner.core.database import (batch_delete_tasks, init_db,
+                                        list_tasks, load_task_with_plan,
+                                        reset_node_status)
 from task_planner.core.graph.nodes import sanitize_node_for_user
-from task_planner.services.stream_manager import (
-    start_stream,
-    get_stream_state,
-    cancel_stream,
-    complete_node,
-    skip_node,
-    fail_node,
-    get_ready_nodes,
-)
-from task_planner.core.database import (
-    init_db,
-    list_tasks,
-    load_task_with_plan,
-    batch_delete_tasks,
-    reset_node_status,
-)
-from task_planner.utils.presentation_utils import build_history_dropdown_options, extract_first_task_id
-from task_planner.infrastructure.cog import hub as _hub
-from task_planner.infrastructure.constants import (
-    EDGE_TYPE_HARD,
-    NODE_ACTION_CONFIG,
-    NODE_OPERABLE_STATES,
-    NODE_STATUS_CODE_MAP,
-    STATE_COLORS,
-    STATE_LABELS,
-    VALID_PORT_RANGE,
-)
-from task_planner.infrastructure.ui_styles import (
-    BAR_DONE,
-    BAR_ERROR,
-    BAR_LOADING,
-    BASE_BTN_STYLE,
-    BUTTON_STYLE_DANGER,
-    BUTTON_STYLE_PRIMARY,
-    BUTTON_STYLE_SECONDARY,
-    EMPTY_BAR_MINI_STYLE,
-    EMPTY_BAR_STYLE,
-    MARKDOWN_PRE_STYLE,
-    SECTION_HEADER_STYLE,
-    ZOOM_TOOLBAR_STYLE,
-)
-from task_planner.infrastructure.assets.cytoscape_styles import CYTO_STYLESHEET
 from task_planner.infrastructure.assets.cytoscape_js import (
-    FIT_JS_TEMPLATE,
-    GRAPH_CONFIGS,
-    ZOOM_BTN_JS_TEMPLATE,
-    ZOOM_SLIDER_JS_TEMPLATE,
-)
+    FIT_JS_TEMPLATE, GRAPH_CONFIGS, ZOOM_BTN_JS_TEMPLATE,
+    ZOOM_SLIDER_JS_TEMPLATE)
+from task_planner.infrastructure.assets.cytoscape_styles import CYTO_STYLESHEET
+from task_planner.infrastructure.cog import hub as _hub
+from task_planner.infrastructure.constants import (EDGE_TYPE_HARD,
+                                                   NODE_ACTION_CONFIG,
+                                                   NODE_OPERABLE_STATES,
+                                                   NODE_STATUS_CODE_MAP,
+                                                   STATE_COLORS, STATE_LABELS,
+                                                   VALID_PORT_RANGE)
+from task_planner.infrastructure.ui_styles import (BAR_DONE, BAR_ERROR,
+                                                   BAR_LOADING, BASE_BTN_STYLE,
+                                                   BUTTON_STYLE_DANGER,
+                                                   BUTTON_STYLE_PRIMARY,
+                                                   BUTTON_STYLE_SECONDARY,
+                                                   EMPTY_BAR_MINI_STYLE,
+                                                   EMPTY_BAR_STYLE,
+                                                   MARKDOWN_PRE_STYLE,
+                                                   SECTION_HEADER_STYLE,
+                                                   ZOOM_TOOLBAR_STYLE)
+from task_planner.services.agent import run_task_stream
+from task_planner.services.stream_manager import (cancel_stream, complete_node,
+                                                  fail_node, get_ready_nodes,
+                                                  get_stream_state, skip_node,
+                                                  start_stream)
+from task_planner.utils.cytoscape_adapter import (
+    _get_edge_type, build_detail_markdown, build_history_detail_markdown,
+    dag_to_cytoscape)
+from task_planner.utils.good_addons import boost
+from task_planner.utils.presentation_utils import (
+    build_history_dropdown_options, extract_first_task_id)
+from task_planner.utils.pyvis_export import (export_dag_to_png,
+                                             export_dag_to_svg)
+
 DASH_DISABLE_VERSION_CHECK = _hub.dev.DASH_DISABLE_VERSION_CHECK
 DASH_HOST = _hub.dev.DASH_HOST
 DASH_PORT = _hub.dev.DASH_PORT
@@ -894,9 +881,9 @@ def _cytoscape_cached(
     State("dag-store", "data"),
 )
 def on_node_hint(node_data, node_states, dag):
+    from task_planner.core.graph.state import NodeStatus
     from task_planner.infrastructure.constants import HINT_TEMPLATES
     from task_planner.infrastructure.ui_styles import HINT_STYLES
-    from task_planner.core.graph.state import NodeStatus
     _STYLES = HINT_STYLES
     if not dag or not dag.get("nodes"):
         return (
@@ -992,11 +979,8 @@ def on_tap_node(node_data, dag, node_states):
 )
 async def on_submit(n_clicks, user_input, refine_value):
     from task_planner.infrastructure.cog import hub as _hub
-    from task_planner.infrastructure.ui_styles import (
-        EMPTY_BAR_STYLE,
-        EMPTY_DAG,
-        EMPTY_STATES,
-    )
+    from task_planner.infrastructure.ui_styles import (EMPTY_BAR_STYLE,
+                                                       EMPTY_DAG, EMPTY_STATES)
     MAX_INPUT_LENGTH = _hub.dev.MAX_INPUT_LENGTH
     if not user_input or not user_input.strip():
         return ("", True, False, "⚠️ 请输入任务需求", [], False, True, True,

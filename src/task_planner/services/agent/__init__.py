@@ -15,17 +15,8 @@ agent — 异步 Agent 主入口（拆分版）
   commands   5 个命令（取消/修改/继续/重试）
   view       快照提取 + 完成判断（纯函数）
 """
-from .commands import (
-    cancel_task,
-    modify_task,
-    resume_task,
-    retry_node_cmd,
-)
-from .session import (
-    TaskSession,
-    cleanup_stale_sessions,
-    get_session,
-)
+from .commands import cancel_task, modify_task, resume_task, retry_node_cmd
+from .session import TaskSession, cleanup_stale_sessions, get_session
 from .stream import run_task_stream
 
 __all__ = [

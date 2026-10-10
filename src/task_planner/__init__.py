@@ -5,13 +5,10 @@ task_planner — 智能任务计划规划生成流程图助手 v6.0
 __version__ = "6.0.0"
 
 from task_planner.infrastructure.cog import hub as _hub
-from task_planner.infrastructure.constants import (
-    STATUS_BORDER,
-    STATUS_COLOR,
-    STATUS_TEXT,
-    SUPPORTED_EXPORT_FORMATS,
-    TASK_STATUS,
-)
+from task_planner.infrastructure.constants import (STATUS_BORDER, STATUS_COLOR,
+                                                   STATUS_TEXT,
+                                                   SUPPORTED_EXPORT_FORMATS,
+                                                   TASK_STATUS)
 
 DASHSCOPE_API_KEY = _hub.dev.DASHSCOPE_API_KEY
 DEBUG = _hub.dev.DEBUG
@@ -36,11 +33,8 @@ RENDER_FONT = _hub.dev.RENDER_FONT
 RENDER_HEIGHT = _hub.dev.RENDER_HEIGHT
 RENDER_WIDTH = _hub.dev.RENDER_WIDTH
 USE_MOCK_LLM = _hub.dev.USE_MOCK_LLM
-from task_planner.infrastructure.logger_setup import (
-    get_req_id,
-    set_req_id,
-    setup_logger,
-)
+from task_planner.infrastructure.logger_setup import (get_req_id, set_req_id,
+                                                      setup_logger)
 
 # logger 是 setup_logger() 的返回值（单例）
 logger = setup_logger("task_planner")

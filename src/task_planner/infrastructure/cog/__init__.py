@@ -8,13 +8,8 @@ from pathlib import Path
 
 # 1) 触发所有内置 section 注册（副作用 import）
 from . import sections
-
 # 2) 组装 hub
-from .entry import (
-    ConfigEntry,
-    Role,
-    Scope,
-)
+from .entry import ConfigEntry, Role, Scope
 from .hub import ConfigHub
 from .registry import register_section
 from .section import ConfigSection

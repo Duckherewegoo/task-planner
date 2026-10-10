@@ -13,9 +13,7 @@ Changelog:
 
 import datetime
 import html
-from typing import (
-    Any,
-)
+from typing import Any
 
 
 class Reporters:

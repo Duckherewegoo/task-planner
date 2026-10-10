@@ -5,9 +5,7 @@ import hashlib
 import json
 import threading
 from dataclasses import dataclass
-from typing import (
-    Any,
-)
+from typing import Any
 
 from dash import no_update
 

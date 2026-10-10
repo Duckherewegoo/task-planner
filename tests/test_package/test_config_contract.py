@@ -18,9 +18,7 @@ class TestStatusContract:
     def test_node_status_map_has_all_codes(self):
         """NODE_STATUS_CODE_MAP 覆盖 TASK_STATUS 的所有状态码"""
         from task_planner.infrastructure.constants import (
-            NODE_STATUS_CODE_MAP,
-            TASK_STATUS,
-        )
+            NODE_STATUS_CODE_MAP, TASK_STATUS)
         for name, code in TASK_STATUS.items():
             assert code in NODE_STATUS_CODE_MAP, \
                 f"P0-2 回归：status code {code} ({name}) 不在 NODE_STATUS_CODE_MAP"
@@ -39,12 +37,10 @@ class TestStatusContract:
 
     def test_all_maps_have_consistent_length(self):
         """STATUS_TEXT / STATUS_COLOR / STATUS_BORDER 数量一致"""
-        from task_planner.infrastructure.constants import (
-            STATUS_BORDER,
-            STATUS_COLOR,
-            STATUS_ICONS,
-            STATUS_TEXT,
-        )
+        from task_planner.infrastructure.constants import (STATUS_BORDER,
+                                                           STATUS_COLOR,
+                                                           STATUS_ICONS,
+                                                           STATUS_TEXT)
         assert len(STATUS_TEXT) == len(STATUS_COLOR) == len(STATUS_BORDER) == len(STATUS_ICONS)
 
 
@@ -52,7 +48,8 @@ class TestIntentContract:
 
     def test_consultation_in_whitelist(self):
         """P1-1：consultation 应在白名单"""
-        from task_planner.infrastructure.constants import VALID_INTENT_CATEGORIES
+        from task_planner.infrastructure.constants import \
+            VALID_INTENT_CATEGORIES
         assert "consultation" in VALID_INTENT_CATEGORIES
 
     def test_prompt_mentions_consultation(self):
@@ -77,11 +74,8 @@ class TestPromptTemplate:
         from string import Template
 
         from task_planner.infrastructure.prompts.loader import (
-            EXECUTE_NODE_PROMPT,
-            INTENT_PROMPT,
-            NODE_REFINE_PROMPT,
-            PLANNER_PROMPT,
-        )
+            EXECUTE_NODE_PROMPT, INTENT_PROMPT, NODE_REFINE_PROMPT,
+            PLANNER_PROMPT)
         for name, p in [
             ("INTENT_PROMPT", INTENT_PROMPT),
             ("PLANNER_PROMPT", PLANNER_PROMPT),

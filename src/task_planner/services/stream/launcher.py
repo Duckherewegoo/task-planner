@@ -4,10 +4,8 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Callable
 
-from task_planner.core.graph.workflow import (
-    get_thread_state_async,
-    resume_graph_async,
-)
+from task_planner.core.graph.workflow import (get_thread_state_async,
+                                              resume_graph_async)
 from task_planner.infrastructure.logger_setup import get_logger
 
 from .cleaner import state_cleaner

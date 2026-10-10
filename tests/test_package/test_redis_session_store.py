@@ -278,6 +278,27 @@ async def test_real_redis_roundtrip():
         - 本地 6379 有 Redis
         - pytest -m integration 显式启用
     """
+    # ── 先探测 Redis 是否可达 ──
+    from redis.asyncio import Redis
+    from redis.exceptions import RedisError
+
+    probe = Redis.from_url("redis://localhost:6379/15")
+    try:
+        await probe.ping()
+    except (RedisError, OSError) as e:
+        await probe.aclose() if hasattr(probe, "aclose") else await probe.close()
+        pytest.skip(f"本地 Redis 不可达：{e}")
+    finally:
+        # 保证关闭
+        try:
+            if hasattr(probe, "aclose"):
+                await probe.aclose()
+            else:
+                await probe.close()
+        except Exception:
+            pass
+
+    # ── 真跑 ──
     store = RedisSessionStore("redis://localhost:6379/15")
     try:
         await store.set("test_real", {"a": 1})

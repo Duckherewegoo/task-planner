@@ -180,9 +180,11 @@ reportMissingTypeStubs = false
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
-# ✅ 默认排除 eval marker：日常 pytest 只跑单元/集成测试（快、免费）
-#    跑 eval 需要显式：pytest -m eval
-addopts = "-v --tb=short -m 'not eval'"
+# ✅ 默认排除 eval + integration：日常 pytest 只跑单元测试（快、免费）
+#    跑 eval:        pytest -m eval
+#    跑 integration: pytest -m integration
+#    跑所有:         pytest -m "eval or integration or not (eval or integration)"
+addopts = "-v --tb=short -m 'not eval and not integration'"
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks integration tests requiring external services",

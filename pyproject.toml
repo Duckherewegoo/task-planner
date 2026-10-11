@@ -181,15 +181,16 @@ reportMissingTypeStubs = false
 asyncio_mode = "auto"
 testpaths = ["tests"]
 # ✅ 默认排除 eval + integration：日常 pytest 只跑单元测试（快、免费）
-#    跑 eval:        pytest -m eval
+#    跑 eval:        pytest -m eval_live
 #    跑 integration: pytest -m integration
 #    跑所有:         pytest -m "eval or integration or not (eval or integration)"
-addopts = "-v --tb=short -m 'not eval and not integration'"
+addopts = "-m 'not eval_live and not integration'"
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks integration tests requiring external services",
     "eval: marks evaluation suite tests (REAL LLM by default, use USE_MOCK_LLM=true to skip)",
     "unit: marks pure unit tests (no I/O, no Agent, no DB)",
+    "eval_live: 真实 LLM 评估（默认跳过，需 --eval-live）",
 ]
 
 [tool.coverage.run]

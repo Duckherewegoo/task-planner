@@ -11,10 +11,9 @@ db — MongoDB 异步数据层（拆分版）
   plans     Plan CRUD
   tasks     Task CRUD + 状态更新
   nodes     nodes 数组操作
-  manager   DBManager 兼容类
 """
+
 from .client import close_db, get_db, init_db
-from .manager import DBManager, db_manager
 from .nodes import get_node_status, reset_node_status, update_node_status
 from .plans import create_plan, delete_plan, delete_plans, get_plan
 from .schema import TERMINAL_STATUSES, safe_int, status_name, validate_plan
@@ -58,7 +57,4 @@ __all__ = [
     "status_name",
     "safe_int",
     "TERMINAL_STATUSES",
-    # 兼容类
-    "DBManager",
-    "db_manager",
 ]

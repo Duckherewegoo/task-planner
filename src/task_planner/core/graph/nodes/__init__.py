@@ -29,8 +29,7 @@ from .plan import plan_node
 from .refine import refine_node_fn
 from .render import render_node
 from .routes import route_after_execute, route_after_intent, route_after_render
-from .sanitize import (SafeNodeView, sanitize_input, sanitize_node_for_user,
-                       sanitize_nodes_for_user)
+from .sanitize import SafeNodeView, sanitize_input, sanitize_node_for_user, sanitize_nodes_for_user
 from .save import save_node
 
 __all__ = [

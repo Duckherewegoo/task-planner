@@ -38,10 +38,13 @@ from typing import Any
 
 from wcwidth import wcswidth
 
-from task_planner.infrastructure.constants import (DEFAULT_EDGE_STYLE,
-                                                   DEFAULT_EDGE_TYPE,
-                                                   EDGE_STYLES, FONT_FACE,
-                                                   NODE_COLORS)
+from task_planner.infrastructure.constants import (
+    DEFAULT_EDGE_STYLE,
+    DEFAULT_EDGE_TYPE,
+    EDGE_STYLES,
+    FONT_FACE,
+    NODE_COLORS,
+)
 from task_planner.infrastructure.logger_setup import get_logger
 
 logger = get_logger("task_planner.pyvis_export")

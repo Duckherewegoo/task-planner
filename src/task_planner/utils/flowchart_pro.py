@@ -43,13 +43,16 @@ import networkx as nx
 from pyvis.network import Network  # type: ignore
 
 from task_planner.infrastructure.cog import hub as _hub
-from task_planner.infrastructure.constants import (EDGE_DASH_MAP,
-                                                   EDGE_TYPE_COLOR,
-                                                   EDGE_TYPE_HARD,
-                                                   EDGE_TYPE_SOFT,
-                                                   EDGE_TYPE_STYLE,
-                                                   NODE_STYLES, STATUS_BORDER,
-                                                   STATUS_TEXT)
+from task_planner.infrastructure.constants import (
+    EDGE_DASH_MAP,
+    EDGE_TYPE_COLOR,
+    EDGE_TYPE_HARD,
+    EDGE_TYPE_SOFT,
+    EDGE_TYPE_STYLE,
+    NODE_STYLES,
+    STATUS_BORDER,
+    STATUS_TEXT,
+)
 from task_planner.infrastructure.logger_setup import get_logger
 
 logger = get_logger("task_planner.flowchart_pro")

@@ -78,9 +78,13 @@ class RedisSessionStore:
     """
 
     __slots__ = (
-        "_url", "_prefix", "_default_ttl",
-        "_serialize", "_deserialize",
-        "_client", "_client_lock",
+        "_client",
+        "_client_lock",
+        "_default_ttl",
+        "_deserialize",
+        "_prefix",
+        "_serialize",
+        "_url",
     )
 
     def __init__(

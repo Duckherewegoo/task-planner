@@ -5,11 +5,13 @@ import dash_cytoscape as cyto
 from dash import dcc, html
 
 from task_planner.infrastructure.assets.cytoscape_styles import CYTO_STYLESHEET
-from task_planner.infrastructure.ui_styles import (BUTTON_STYLE_DANGER,
-                                                   BUTTON_STYLE_PRIMARY,
-                                                   BUTTON_STYLE_SECONDARY,
-                                                   SECTION_HEADER_STYLE,
-                                                   ZOOM_TOOLBAR_STYLE)
+from task_planner.infrastructure.ui_styles import (
+    BUTTON_STYLE_DANGER,
+    BUTTON_STYLE_PRIMARY,
+    BUTTON_STYLE_SECONDARY,
+    SECTION_HEADER_STYLE,
+    ZOOM_TOOLBAR_STYLE,
+)
 
 
 # ── 布局 ──

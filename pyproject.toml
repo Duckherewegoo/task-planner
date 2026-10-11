@@ -151,6 +151,7 @@ ignore = [
     # ── 新增 ──
     "RUF012",  # 类默认可变值——GoodAddons/_SingletonMeta 依赖此模式
     "RUF005",   # 列表拼接——`+` 比 `[*...]` 可读
+    "UP047",   # PEP 695 泛型语法需 3.12+，good_addons 保持 3.10 兼容
 ]
 
 [tool.ruff.lint.per-file-ignores]

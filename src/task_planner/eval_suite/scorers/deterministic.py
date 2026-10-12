@@ -1,5 +1,4 @@
 """deterministic.py — 确定性评分（无需 LLM）"""
-from __future__ import annotations
 from ..types import AgentTrace, DeterministicScores, GoldenCase
 
 

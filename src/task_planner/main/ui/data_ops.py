@@ -1,5 +1,4 @@
 """data_ops.py — 数据源解析 / 节点状态更新 / 历史回填"""
-from __future__ import annotations
 
 import time
 

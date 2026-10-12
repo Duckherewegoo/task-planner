@@ -1,5 +1,4 @@
 """new_task.py — 新建任务的回调"""
-from __future__ import annotations
 
 import time
 import uuid

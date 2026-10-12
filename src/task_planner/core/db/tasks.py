@@ -1,5 +1,4 @@
 """tasks.py — Task CRUD + 状态更新"""
-from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime

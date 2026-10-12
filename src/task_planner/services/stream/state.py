@@ -1,5 +1,4 @@
 """state.py — TaskStreamState：单个流式任务的状态快照 + 节点状态"""
-from __future__ import annotations
 
 import asyncio
 import time

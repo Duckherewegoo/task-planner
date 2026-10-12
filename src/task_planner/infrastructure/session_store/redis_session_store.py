@@ -39,7 +39,6 @@ redis_session_store.py — 会话存储的 Redis 实现
     value = 序列化后的 session
     ttl   = default_ttl（或按 created_at 算剩余）
 """
-from __future__ import annotations
 
 import asyncio
 import pickle

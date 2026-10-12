@@ -2,7 +2,6 @@
 section.py — ConfigSection 抽象基类。
 子类只负责实现 define()，不管存储/权限/IO。
 """
-from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING

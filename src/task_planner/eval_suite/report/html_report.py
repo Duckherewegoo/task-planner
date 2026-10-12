@@ -1,5 +1,4 @@
 """html_report.py — HTML 评估报告输出。"""
-from __future__ import annotations
 import html as H
 from datetime import datetime
 from pathlib import Path

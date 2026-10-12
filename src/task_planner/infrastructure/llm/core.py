@@ -1,5 +1,4 @@
 """core.py — 一次 LLM 调用的完整生命周期（重试 / 超时 / 流式 / 取消）"""
-from __future__ import annotations
 
 import asyncio
 import random

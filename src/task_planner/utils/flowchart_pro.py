@@ -29,7 +29,6 @@ Changelog:
   ✅ P2-10：__init__ 注释与代码对齐（去掉"死 try/except"措辞）。
   ✅ P2-11：_build_tooltip / _build_card_data 的 node['id'] 改 .get。
 """
-from __future__ import annotations
 
 import base64
 import html

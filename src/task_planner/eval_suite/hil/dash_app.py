@@ -4,7 +4,6 @@ dash_app.py — 独立的 HIL 人工审查 Dash 前端。
 不 import main UI 的任何模块。只读 eval_suite 生成的 JSON。
 启动：python -m task_planner.eval_suite.hil.dash_app
 """
-from __future__ import annotations
 
 import json
 import os

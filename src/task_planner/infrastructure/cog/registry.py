@@ -2,7 +2,6 @@
 registry.py — Section 类注册表 + @register_section 装饰器。
 只存"类"，不存实例、不存值。
 """
-from __future__ import annotations
 
 from .section import ConfigSection
 

@@ -2,7 +2,9 @@
 task_planner — 智能任务计划规划生成流程图助手 v6.0
 """
 
-__version__ = "6.0.0"
+import importlib
+
+__version__ = importlib.metadata.version("task-planner")
 
 from task_planner.infrastructure.cog import hub as _hub
 from task_planner.infrastructure.constants import (

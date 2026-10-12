@@ -70,7 +70,6 @@ Usage:
   - 无。本文件保持零内部依赖，便于复制到其他项目。
 """
 
-from __future__ import annotations
 
 import asyncio
 import contextvars

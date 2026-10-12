@@ -1,5 +1,4 @@
 """client.py — MongoDB 连接生命周期管理（异步，协程安全）"""
-from __future__ import annotations
 
 import asyncio
 import time

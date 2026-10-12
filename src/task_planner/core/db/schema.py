@@ -1,5 +1,4 @@
 """schema.py — 数据清洗 / 状态名辅助 / 常量"""
-from __future__ import annotations
 
 from typing import Any
 

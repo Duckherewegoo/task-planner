@@ -6,7 +6,6 @@ agent_runner.py — 运行 Agent 并收集轨迹。
     - timeout 真正生效：用 asyncio.wait_for 包裹
     - 从 snapshot 的正确字段提取数据（不猜字段名）
 """
-from __future__ import annotations
 
 import asyncio
 import time

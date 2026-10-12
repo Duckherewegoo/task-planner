@@ -5,7 +5,6 @@ session.py — TaskSession 定义 + 会话池管理
 - 会话池: 全局单例 SessionStore + asyncio.Lock
 - 提供: get_session / acquire_session / cleanup_stale_sessions
 """
-from __future__ import annotations
 
 import asyncio
 import time

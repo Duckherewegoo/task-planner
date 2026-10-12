@@ -1,5 +1,4 @@
 """history.py — 历史记录回调"""
-from __future__ import annotations
 
 import logging
 

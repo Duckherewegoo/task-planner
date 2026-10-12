@@ -6,7 +6,6 @@ llm_judge.py — 单个 LLM 评委评分。
     - 布尔判断比数字评分更可靠
     - 用不同模型家族减少自我偏好偏差
 """
-from __future__ import annotations
 
 import json
 

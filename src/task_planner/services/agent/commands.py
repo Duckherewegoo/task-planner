@@ -1,5 +1,4 @@
 """commands.py — 任务命令（取消 / 修改 / 继续 / 重试）"""
-from __future__ import annotations
 
 import contextvars
 from typing import Any

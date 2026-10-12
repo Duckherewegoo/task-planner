@@ -15,7 +15,6 @@ blocked_words.py — 违禁词库加载与匹配
   BLOCKED_WORDS_DIR         覆盖词库目录
   BLOCKED_WORDS_WHITELIST   覆盖白名单路径
 """
-from __future__ import annotations
 
 import logging
 import os

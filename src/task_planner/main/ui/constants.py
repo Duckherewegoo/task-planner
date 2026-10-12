@@ -1,5 +1,4 @@
 """constants.py — 数据类 + 全局缓存 + 指纹计算"""
-from __future__ import annotations
 
 import hashlib
 import json

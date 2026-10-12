@@ -30,7 +30,6 @@ Changelog:
   ✅ P2-4：删除文件末尾废弃的 _render_pyvis_html 注释块。
   ✅ P2-5：加 __all__，明确公开接口。
 """
-from __future__ import annotations
 
 import io
 from pathlib import Path

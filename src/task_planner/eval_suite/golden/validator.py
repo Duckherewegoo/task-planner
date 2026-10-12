@@ -2,7 +2,6 @@
 validator.py — 程序化验证黄金标准 DAG 的结构有效性。
 不依赖 LLM，纯确定性检查。
 """
-from __future__ import annotations
 
 from typing import Any
 

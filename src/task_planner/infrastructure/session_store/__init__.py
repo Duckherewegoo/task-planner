@@ -18,7 +18,6 @@ session_store — 会话存储抽象与实现
        from ...session_store import SessionStore, InMemorySessionStore  # ✅ 永远可用
        from ...session_store import RedisSessionStore                   # ⚠️ 需要 redis
 """
-from __future__ import annotations
 
 from .in_memory_session_store import InMemorySessionStore
 

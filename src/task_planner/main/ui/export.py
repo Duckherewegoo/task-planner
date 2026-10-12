@@ -1,5 +1,4 @@
 """export.py — 数据/图片导出（JSON/DOT/HTML/SVG/PNG）"""
-from __future__ import annotations
 
 import json
 import textwrap

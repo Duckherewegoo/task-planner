@@ -20,7 +20,6 @@ Changelog:
   __ V3 __
   将源文件拆包，只保留独立的protocol接口，便于修改和观察
 """
-from __future__ import annotations
 
 from typing import Any, Protocol, runtime_checkable
 

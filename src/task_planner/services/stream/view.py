@@ -1,5 +1,4 @@
 """view.py — 视图层辅助函数（纯函数）"""
-from __future__ import annotations
 
 from task_planner.utils.cytoscape_adapter import dag_to_cytoscape
 

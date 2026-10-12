@@ -1,5 +1,4 @@
 """app.py — 配置工具 Dash 实例与启动入口"""
-from __future__ import annotations
 
 import os
 import sys

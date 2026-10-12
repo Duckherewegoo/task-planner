@@ -1,5 +1,4 @@
 """mocks.py — USE_MOCK_LLM=True 时的返回数据"""
-from __future__ import annotations
 
 from typing import Any
 

@@ -1,7 +1,6 @@
 """
 writer.py — 配置写回（原子操作 + 保留注释优先）
 """
-from __future__ import annotations
 
 import os
 import tempfile

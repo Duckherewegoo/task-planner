@@ -1,7 +1,6 @@
 """
 form_builder.py — 从 cog.hub 读取配置，自动生成 Dash 表单组件
 """
-from __future__ import annotations
 
 from typing import Any
 

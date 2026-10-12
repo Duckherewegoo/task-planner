@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "task-planner"
-version = "3.1.4"
+version = "3.1.5"
 description = "基于 LangGraph 与大语言模型的自主任务规划引擎，支持动态 DAG 编排、多模态意图识别与全流程可观测性评估（异步版）。"
 requires-python = ">=3.14"
 license = "GPL-3.0-or-later"
@@ -89,7 +89,7 @@ dev = [
     "mypy>=1.13.0",
     "python-Levenshtein>=0.25.0",   # 评估套件需要
     "pyahocorasick>=2.1.0",         # 违禁词匹配性能测试需要
-    "fakeredis>=2.20.0",   # ←如果没装redis还要测试需要
+    "fakeredis>=2.20.0",            # Redis session store 测试用（无需真 Redis）
 ]
 [project.urls]
 Homepage = "https://github.com/Duckherewegoo/task-planner"
@@ -100,7 +100,9 @@ Issues = "https://github.com/Duckherewegoo/task-planner/issues"
 task-planner = "task_planner.main.ui.app:main"
 task-planner-config = "task_planner.config_ui.app:main"
 # ⚠️ 下面这条只在 `pip install -e .` 开发模式下有效（tests/ 不打包）
-task-planner-eval = "tests.eval_suite.run_evaluation:main"
+#task-planner-eval = "tests.eval_suite.run_evaluation:main"
+# eval 工具通过 `pytest -m eval_live` 或 `python -m tests.eval_suite.run_evaluation` 调用，
+# 不注册为 entry point（tests/ 不打包，注册后普通用户 pip install 会得到坏命令）
 
 
 # ══════════════════════════════════════════════════
@@ -179,7 +181,13 @@ reportMissingTypeStubs = false
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+asyncio_default_test_loop_scope = "function"
 testpaths = ["tests"]
+filterwarnings = [
+    "error",                              # 所有 warning 变成 error
+    "ignore::DeprecationWarning:third_party_module.*",  # 第三方库的 warning 放行
+]
 # ✅ 默认排除 eval + integration：日常 pytest 只跑单元测试（快、免费）
 #    跑 eval:        pytest -m eval_live
 #    跑 integration: pytest -m integration

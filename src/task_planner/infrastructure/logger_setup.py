@@ -34,7 +34,6 @@ Changelog:
   ✅ P2-4：暴露 is_initialized() 供测试/健康检查使用
 """
 
-from __future__ import annotations
 
 import contextvars
 import logging

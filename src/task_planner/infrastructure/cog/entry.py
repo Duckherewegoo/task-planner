@@ -2,7 +2,6 @@
 entry.py — 配置条目的数据结构。
 只负责定义"一条配置长什么样"，不含任何行为。
 """
-from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from enum import Enum

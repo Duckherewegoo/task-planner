@@ -1,5 +1,4 @@
 """json_report.py — JSON 评估报告输出。"""
-from __future__ import annotations
 import json
 from dataclasses import asdict
 from pathlib import Path

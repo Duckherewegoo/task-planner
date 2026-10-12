@@ -1,5 +1,4 @@
 """api.py — 5 个业务接口（意图 / 规划 / 细化 / 执行 / 直答）"""
-from __future__ import annotations
 
 import asyncio
 import json

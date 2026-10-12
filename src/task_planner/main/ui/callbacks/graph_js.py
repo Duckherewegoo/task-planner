@@ -1,5 +1,4 @@
 """graph_js.py — 客户端回调（fit / zoom）"""
-from __future__ import annotations
 
 import json
 

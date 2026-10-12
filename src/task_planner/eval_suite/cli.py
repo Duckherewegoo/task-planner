@@ -1,5 +1,4 @@
 """cli.py — eval_suite 命令行入口。"""
-from __future__ import annotations
 import argparse, asyncio, json, sys
 from pathlib import Path
 

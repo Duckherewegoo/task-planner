@@ -1,5 +1,10 @@
 """轻量经验检索：从 golden 里挑 top-k 相似案例，喂 planner 做 few-shot。
 
+⚠️ 本模块当前未接入主图（缺 golden set 与 golden 标准）。
+   代码本身完成度已高，state 契约与函数签名已对齐——
+   待 golden 就绪后，只需在图构建处 add_node("retrieve", retrieve_node)
+   并在 plan 之前加一条边即可。
+
 设计要点：
   - 零依赖：不引 embedding / 向量库，纯 token 重叠 + Jaccard
   - 中文按【单字】切，英文数字按【词】切
@@ -16,7 +21,6 @@
   TP_RETRIEVAL_TOP_K      返回条数（默认 3）
   TP_RETRIEVAL_STRICT_CAT "1" 严格按 category 过滤（默认 "1"）
 """
-from __future__ import annotations
 
 import json
 import os
@@ -25,6 +29,9 @@ import threading
 from pathlib import Path
 from typing import Any
 
+from langchain_core.runnables import RunnableConfig
+
+from task_planner.core.graph.state import TaskState
 from task_planner.infrastructure.logger_setup import get_logger
 
 logger = get_logger("task_planner.retrieve")
@@ -268,22 +275,43 @@ def reset_cache() -> None:
 
 
 # ---------- 图节点 ----------
-async def retrieve(state: dict) -> dict:
-    """图节点：把相似案例写进 state['retrieved_examples']。
+async def retrieve_node(
+    state: TaskState,
+    config: RunnableConfig,
+) -> dict[str, Any]:
+    """
+    图节点：把相似案例写进 state["retrieved_examples"]。
 
     未启用 / 无命中时返回空 list，下游 plan 节点按"无案例"分支处理。
-    注：首次调用会同步加载 golden（毫秒级）；若日后 golden 大到几十 MB，
-    可把 r.search 包进 asyncio.to_thread 避免短暂阻塞事件循环。
+
+    Args:
+        state:  全局状态。读 state["user_input"] 与 state["intent"]["category"]。
+        config: LangGraph 节点签名约定保留。当前未使用——
+                检索本身无 IO 依赖 config；未来若要支持取消（golden 大时），
+                可从此读 cancel_event。签名与项目其他节点统一。
+
+    Returns:
+        {"retrieved_examples": list[dict]}——未启用时为空 list。
+
+    ⚠️ category 来源：
+       从 state["intent"]["category"] 取，不从 state["category"]。
+       intent 是 recognize_intent 的输出，里面有 category 字段；
+       state 顶层没有 category——这是跨文件契约。
+
+    ⚠️ 同步阻塞：
+       首次调用会同步加载 golden（毫秒级）；若日后 golden 大到几十 MB，
+       可把 r.search 包进 asyncio.to_thread 避免短暂阻塞事件循环。
     """
     r = get_retriever()
     if r is None:
         return {"retrieved_examples": []}
 
-    if not isinstance(state, dict):
-        return {"retrieved_examples": []}
+    # intent 来自 LLM，防御性读取（理论上 TaskState 声明为 dict，但 LLM 输出不可信）
+    intent = state.get("intent")
+    category = intent.get("category") if isinstance(intent, dict) else None
 
     hits = r.search(
         query=state.get("user_input", ""),
-        category=state.get("category"),
+        category=category,
     )
     return {"retrieved_examples": hits}

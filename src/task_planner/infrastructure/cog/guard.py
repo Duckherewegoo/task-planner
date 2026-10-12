@@ -1,7 +1,6 @@
 """
 guard.py — 权限策略。无状态，可单测。
 """
-from __future__ import annotations
 
 from .entry import ConfigEntry, Role, Scope
 

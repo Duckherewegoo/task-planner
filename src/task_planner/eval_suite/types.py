@@ -2,7 +2,6 @@
 types.py — eval_suite 的所有数据类型。
 用 dataclass / TypedDict 替代裸 dict，保证类型严谨。
 """
-from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum

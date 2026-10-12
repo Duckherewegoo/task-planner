@@ -2,7 +2,6 @@
 
 不再到处用 except Exception，而是有明确的异常类型。
 """
-from __future__ import annotations
 
 
 class EvalSuiteError(Exception):

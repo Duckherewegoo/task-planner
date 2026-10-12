@@ -1,5 +1,4 @@
 """errors.py — LLM 异常体系"""
-from __future__ import annotations
 
 
 class LLMClientError(Exception):

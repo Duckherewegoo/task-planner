@@ -1,5 +1,4 @@
 """launcher.py — 启动/恢复后台流式任务"""
-from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable

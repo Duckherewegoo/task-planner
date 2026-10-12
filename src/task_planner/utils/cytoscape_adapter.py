@@ -28,7 +28,6 @@ Changelog:
   ✅ P2-5：抽 _icon_for_node，统一节点 icon 判断（原 node 循环内嵌 if-elif）。
   ✅ P2-6：类型注解精确化 Dict → Dict[str, Any]。
 """
-from __future__ import annotations
 
 import re
 from functools import lru_cache

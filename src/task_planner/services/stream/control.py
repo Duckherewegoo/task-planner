@@ -1,5 +1,4 @@
 """control.py — 任务操作接口（取消/完成/跳过/失败/可操作查询）"""
-from __future__ import annotations
 
 from typing import Any
 

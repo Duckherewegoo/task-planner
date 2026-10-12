@@ -1,5 +1,4 @@
 """plans.py — Plan 独立 CRUD"""
-from __future__ import annotations
 
 from datetime import datetime
 from typing import Any

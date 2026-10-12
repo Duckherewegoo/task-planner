@@ -1,5 +1,4 @@
 """app.py — Dash app 实例 + DB 初始化 + main()"""
-from __future__ import annotations
 
 import asyncio
 import os

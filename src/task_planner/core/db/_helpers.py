@@ -8,7 +8,6 @@ _helpers.py — db 包内部共享工具（私有模块）
     三个函数都需要"从 task_id 解析出 plan_id"这同一段逻辑，
     抽到此处避免重复。
 """
-from __future__ import annotations
 
 from task_planner.infrastructure.logger_setup import get_logger
 

@@ -1,5 +1,4 @@
 """cleaner.py — StreamStateCleaner：全局状态池 + TTL 清理"""
-from __future__ import annotations
 
 import asyncio
 import time

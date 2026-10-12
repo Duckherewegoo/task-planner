@@ -4,7 +4,6 @@ view_model.py — 领域状态 → 前端 DTO 的投影层
 把「哪些字段要给前端看」这个关注点从 state.py / config.py 收敛到这里。
 前端新增字段、v2 API 变更，都在这一层完成。
 """
-from __future__ import annotations
 
 from typing import Any
 

@@ -12,7 +12,6 @@ calibrated_judge.py — 多评委聚合。
     用不同模型家族，不是同一模型跑三次。
     如果只有一个 API Key，退而求其次用不同 prompt 策略。
 """
-from __future__ import annotations
 
 import asyncio
 import statistics

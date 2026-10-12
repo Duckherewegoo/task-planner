@@ -6,7 +6,6 @@ loader.py — 读 YAML schema + user 覆盖 → 构建 ConfigEntry → 灌进 st
   2. user.yaml（仅 scope=user 的字段）
   3. schema.yaml 的 default
 """
-from __future__ import annotations
 
 import os
 from pathlib import Path

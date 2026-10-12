@@ -1,5 +1,4 @@
 """view.py — 快照提取 + 完成判断（纯函数，无 I/O）"""
-from __future__ import annotations
 
 import time
 from typing import Any

@@ -1,5 +1,4 @@
 """stream.py — run_task_stream 核心生成器"""
-from __future__ import annotations
 
 import asyncio
 import contextvars

@@ -1,5 +1,4 @@
 """layout.py — Dash 页面布局"""
-from __future__ import annotations
 
 import dash_cytoscape as cyto
 from dash import dcc, html

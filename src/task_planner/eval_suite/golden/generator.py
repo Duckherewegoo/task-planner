@@ -5,7 +5,6 @@ generator.py — 用 LLM 合成黄金标准数据集。
     合成数据生成流水线，将工具执行建模为 DAG，复杂度可控。
     不依赖人工标注，用程序化规则验证结构有效性。
 """
-from __future__ import annotations
 import asyncio
 import hashlib
 

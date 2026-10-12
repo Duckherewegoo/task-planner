@@ -1,5 +1,4 @@
 """client.py — AsyncOpenAI 客户端单例 + 并发信号量"""
-from __future__ import annotations
 
 import asyncio
 

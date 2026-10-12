@@ -1,5 +1,4 @@
 """callbacks.py — 保存、重新加载、预览"""
-from __future__ import annotations
 
 from pathlib import Path
 

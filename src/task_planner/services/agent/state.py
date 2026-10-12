@@ -1,5 +1,4 @@
 """state.py — 初始状态构建 + 跳过规划判断"""
-from __future__ import annotations
 
 from typing import Any
 
@@ -36,6 +35,7 @@ def make_initial_state(user_input: str, thread_id: str) -> dict[str, Any]:
         "plan": {},
         "nodes": [],
         "edges": [],
+        "retrieved_examples": [],
         "refined_nodes": [],
         "task_id": "",
         "current_node_index": 0,

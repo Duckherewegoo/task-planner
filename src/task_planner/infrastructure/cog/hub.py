@@ -3,7 +3,6 @@ hub.py — 配置系统唯一对外门面。
 职责只有：装配 / 转发 / 提供角色视图。
 ✋ 不实现 CRUD、不判权限、不读文件。
 """
-from __future__ import annotations
 
 from pathlib import Path
 

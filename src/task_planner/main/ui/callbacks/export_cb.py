@@ -1,5 +1,4 @@
 """export_cb.py — 数据/图片导出回调"""
-from __future__ import annotations
 
 import asyncio
 import logging

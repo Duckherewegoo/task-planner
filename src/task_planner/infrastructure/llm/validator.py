@@ -1,5 +1,4 @@
 """validator.py — 意图枚举校验（只纠偏，不兜底）"""
-from __future__ import annotations
 
 from task_planner.infrastructure.constants import VALID_INTENT_CATEGORIES, VALID_INTENT_COMPLEXITIES
 from task_planner.infrastructure.logger_setup import get_logger

@@ -17,7 +17,6 @@ Changelog:
            会被 stream/agent 层误捕为外部取消）。
   ✅ P1-2：__all__ 补 OperationCancelled。
 """
-from __future__ import annotations
 
 import asyncio
 import contextvars

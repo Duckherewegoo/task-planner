@@ -1,5 +1,4 @@
 """nodes.py — Plan 内 nodes 数组的状态操作"""
-from __future__ import annotations
 
 from datetime import UTC, datetime
 

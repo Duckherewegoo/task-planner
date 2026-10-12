@@ -1,5 +1,4 @@
 """direct.py — 直接回答节点（不规划）"""
-from __future__ import annotations
 
 from typing import Any
 
@@ -10,7 +9,7 @@ from task_planner.core.graph.state import TaskState
 from task_planner.infrastructure.llm import direct_chat
 from task_planner.infrastructure.logger_setup import get_logger, set_req_id
 
-from .sanitize import get_cancel_event
+from task_planner.utils.context import get_cancel_event
 
 logger = get_logger(__name__)
 
@@ -20,7 +19,7 @@ async def direct_answer_node(state: TaskState, config: RunnableConfig) -> dict[s
     rid = set_req_id()
     logger.info("[Graph] direct_answer_node (req=%s)", rid)
 
-    cancel_event = get_cancel_event(config)
+    cancel_event = get_cancel_event()
     answer = await direct_chat(state["user_input"], rid, cancel_event=cancel_event)
 
     try:

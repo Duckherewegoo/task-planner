@@ -9,7 +9,7 @@ nodes — LangGraph 异步节点函数（拆分版）
     )
 
 拆分子模块：
-  sanitize      横切：脱敏 / 视图过滤 / 取消事件
+  sanitize      横切：脱敏 / 视图过滤 
   intent        意图识别
   plan          DAG 规划
   refine        节点细化（并发）
@@ -26,17 +26,22 @@ from .direct import direct_answer_node
 from .execute import execute_node
 from .intent import intent_node
 from .plan import plan_node
-from .refine import refine_node_fn
+from .refine import refine_node
 from .render import render_node
 from .routes import route_after_execute, route_after_intent, route_after_render
 from .sanitize import SafeNodeView, sanitize_input, sanitize_node_for_user, sanitize_nodes_for_user
 from .save import save_node
 
+# ⚠️ NodeExecResult 是 execute_single_node 的返回契约，
+#    外部若需类型注解会用到——但由于 _executor 是包内部模块，
+#    这里导出等于把 _executor 的类型契约提升到包级。
+#    当前选择不导出，外部注解请从 _executor 直接引用。
+
 __all__ = [
     # 节点函数
     "intent_node",
     "plan_node",
-    "refine_node_fn",
+    "refine_node",
     "save_node",
     "render_node",
     "execute_node",

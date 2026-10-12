@@ -1,5 +1,4 @@
 """in_memory_session_store.py — 内存版会话存储"""
-from __future__ import annotations
 
 import asyncio
 import time

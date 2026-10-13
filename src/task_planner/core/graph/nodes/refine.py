@@ -199,7 +199,17 @@ async def refine_node(state: TaskState, config: RunnableConfig) -> dict[str, Any
                 len(tasks), len(nodes_raw), rid,
             )
             break
+
         tasks.append(_refine_one(dict(n)))
+        # ✅ 让出控制权：给事件循环一个调度点，让外部取消信号
+        #    （session.cancel_event.set() 由 commands.cancel_task 触发）
+        #    有机会在循环迭代之间被感知。
+        #    不加这行：主循环是同步的——1000 个协程对象瞬间创建完毕，
+        #    中途任何外部 set 都无法被 break 检测到。
+        #    加了之后：每次迭代让出 → 外部任务可运行 → set →
+        #    下一轮检测到 → break。
+        #    代价：每节点一次事件循环调度（微秒级）。
+        await asyncio.sleep(0)
 
     results = await asyncio.gather(*tasks, return_exceptions=True)
 

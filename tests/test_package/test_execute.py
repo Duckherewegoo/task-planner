@@ -58,7 +58,7 @@ def _patch_execute_common(monkeypatch, interrupt_return=None, exec_result=None):
     )
     monkeypatch.setattr(
         "task_planner.core.graph.nodes.execute.get_cancel_event",
-        lambda cfg: None,
+        lambda: None,
     )
     monkeypatch.setattr(
         "task_planner.core.graph.nodes.execute.set_req_id",
@@ -165,7 +165,7 @@ async def test_cancel_branch_clears_pointers(monkeypatch):
     from task_planner.infrastructure.llm import LLMCancelledError
     monkeypatch.setattr(
         "task_planner.core.graph.nodes.execute.execute_single_node",
-        AsyncMock(side_effect=LLMCancelledError()),
+        AsyncMock(side_effect=LLMCancelledError("test cancel")),   # ← 加 message
     )
     state = _make_state(retry_node_id=1, resume_from_node_index=0)
     updates = await execute_node(state, {})

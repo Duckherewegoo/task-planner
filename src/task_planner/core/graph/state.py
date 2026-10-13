@@ -229,6 +229,10 @@ def create_initial_state(
     empty_node_results: list[NodeResult] = []
 
     state: TaskState = {
+        # ✅ 显式初始化 messages——MessagesState 的 add_messages reducer
+        #    对 [] 是 no-op，显式给 [] 保证字段完整性（下游按字段存在性
+        #    做契约检查时不会误判）。
+        "messages": [],
         "user_input": user_input,
         "thread_id": thread_id,
         "intent": {},

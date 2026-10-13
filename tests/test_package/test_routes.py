@@ -1,7 +1,7 @@
 """路由函数的冒烟测试——覆盖本轮归一化与拒绝逻辑的改动。"""
 import pytest
 
-from task_planner.core.graph.routes import (
+from task_planner.core.graph.nodes.routes import (
     route_after_execute,
     route_after_intent,
     route_after_render,

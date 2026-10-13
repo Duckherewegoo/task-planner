@@ -17,7 +17,7 @@ async def create_plan(
     now: datetime,
 ) -> dict[str, Any]:
     """插入 Plan 文档，返回被插入的 dict"""
-    db = await get_db()
+    db = get_db()
     plan_doc = {
         "plan_id": plan_id,
         "graph_title": plan_data.get("task_name", "未命名计划"),
@@ -29,14 +29,14 @@ async def create_plan(
         "created_at": now,
         "updated_at": now,
     }
-    await db["plans"].insert_one(plan_doc)
+    db["plans"].insert_one(plan_doc)
     return plan_doc
 
 
 async def get_plan(plan_id: str) -> dict[str, Any] | None:
     """返回 plan 字段字典（去除 _id）"""
-    db = await get_db()
-    doc = await db["plans"].find_one({"plan_id": plan_id})
+    db = get_db()
+    doc = db["plans"].find_one({"plan_id": plan_id})
     if not doc:
         return None
     doc.pop("_id", None)
@@ -45,8 +45,8 @@ async def get_plan(plan_id: str) -> dict[str, Any] | None:
 
 async def delete_plan(plan_id: str) -> bool:
     """删除单个 Plan"""
-    db = await get_db()
-    result = await db["plans"].delete_one({"plan_id": plan_id})
+    db = get_db()
+    result = db["plans"].delete_one({"plan_id": plan_id})
     return result.deleted_count > 0
 
 
@@ -54,8 +54,8 @@ async def delete_plans(plan_ids: list[str]) -> int:
     """批量删除 Plan，返回删除数量"""
     if not plan_ids:
         return 0
-    db = await get_db()
-    result = await db["plans"].delete_many({"plan_id": {"$in": plan_ids}})
+    db = get_db()
+    result = db["plans"].delete_many({"plan_id": {"$in": plan_ids}})
     return result.deleted_count
 
 

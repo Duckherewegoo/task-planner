@@ -34,8 +34,8 @@ async def resolve_plan_id(
     Returns:
         plan_id 字符串；task 不存在 或 task 无 plan_id 时返回 None
     """
-    db = await get_db()
-    task = await db["tasks"].find_one({"task_id": task_id})
+    db = get_db()
+    task = db["tasks"].find_one({"task_id": task_id})
 
     if not task:
         if not quiet:

@@ -33,10 +33,22 @@ Changelog:
            顺带修掉 str(None) → "None" 污染 prompt / UI 的问题。
   ✅ P4-4：category 取值从 str(intent.get("category", "other")) 改为
            _coerce_text(...) or "other"——同一类 None 处理问题。
+
+  ── v5 ──
+  ✅ P5-1：NodeExecResult 从 TypedDict → Pydantic BaseModel。
+           收益：消费方（execute.py）用属性访问（result.status）而非
+           下标访问（result["status"]）——IDE 补全 + 拼错字段立刻报错。
+           _make_result 仍是唯一构造入口；frozen=True 保证不可变；
+           extra="forbid" 拒绝多余字段。
+  ✅ P5-2：bool 归一化逻辑抽出为 field_validator——execute_single_node
+           不再直接调 _coerce_node_id，归一化推迟到构造时（单点保证）。
+           _coerce_node_id 保留为归一化函数，供 validator 与测试复用。
 """
 import asyncio
 import json
-from typing import Any, Literal, TypedDict
+from typing import Any, Literal
+
+from pydantic import BaseModel, ConfigDict, field_validator
 
 from task_planner.infrastructure.cog import hub as _hub
 from task_planner.infrastructure.llm import LLMCancelledError, LLMTimeoutError, execute_node_llm
@@ -52,50 +64,18 @@ _DETAIL_MAX_LEN = 200
 _NodeId = int | str
 
 
-class NodeExecResult(TypedDict):
-    """
-    execute_single_node 的返回形状。
-
-    ⚠️ status 只有三种——LLMCancelledError 时向上抛，不在这里返回。
-       这与 execute.py 调用方的契约一致（那里 catch LLMCancelledError
-       并转为 cancel_requested=True 的状态更新）。
-    """
-    status: Literal["success", "failed", "timeout"]
-    detail: str
-    retryable: bool
-    node_id: _NodeId
-    node_name: str
-
-
-def _make_result(
-    nid: _NodeId,
-    name: str,
-    *,
-    status: Literal["success", "failed", "timeout"],
-    detail: str,
-    retryable: bool,
-) -> NodeExecResult:
-    """
-    构造 NodeExecResult 的唯一入口。所有返回路径都走这里，
-    保证形状与类型在任何分支下都一致。
-    """
-    return {
-        "status": status,
-        "detail": detail,
-        "retryable": retryable,
-        "node_id": nid,
-        "node_name": name,
-    }
-
-
 def _coerce_node_id(raw: Any) -> _NodeId:
     """
     node["id"] 可能来自 LLM 输出，类型不可信。
-    非 int/str 一律转 str，保证 TypedDict 声明成立。
+    非 int/str 一律转 str，保证 NodeExecResult.node_id 的契约成立。
 
     ⚠️ bool 是 int 的子类——True/False 会被 isinstance(int) 放行，
        但业务上 node id 不应该是布尔值。与 sanitize.py 的
        _type_matches 处理哲学一致：凡"外部输入 + int 字段"必做 bool 特判。
+
+    调用方：
+      - NodeExecResult._normalize_node_id validator——构造时归一化
+      - tests/test_package/test_executor_coerce.py——单元测试直接验证
     """
     if isinstance(raw, bool):
         return str(raw)
@@ -121,6 +101,64 @@ def _coerce_text(raw: Any) -> str:
     if raw is None:
         return ""
     return str(raw)
+
+
+class NodeExecResult(BaseModel):
+    """
+    execute_single_node 的返回形状。
+
+    ⚠️ 与 IntentModel 的差异：
+       - IntentModel 是**外部边界**（LLM 输出）——校验是防线
+       - NodeExecResult 是**内部构造**（_make_result 唯一入口）——校验是
+         "消费端体验"（属性访问、IDE 补全、类型明确）
+
+    ⚠️ status 只有三种——LLMCancelledError 时向上抛，不在这里返回。
+       这与 execute.py 调用方的契约一致（那里 catch LLMCancelledError
+       并转为 cancel_requested=True 的状态更新）。
+
+    不可变性：frozen=True——构造后字段只读。如需修改，用 model_copy(update=...)。
+    """
+
+    model_config = ConfigDict(
+        frozen=True,     # 不可变——内部构造的"数据类"
+        extra="forbid",  # 多字段报错——提醒改了字段结构要同步消费方
+    )
+
+    status: Literal["success", "failed", "timeout"]
+    detail: str
+    retryable: bool
+    node_id: _NodeId
+    node_name: str
+
+    @field_validator("node_id", mode="before")
+    @classmethod
+    def _normalize_node_id(cls, v: Any) -> _NodeId:
+        """
+        构造时归一化 node_id——bool 特判 + 非 int/str 转 str。
+        逻辑委托给 _coerce_node_id，避免重复。
+        """
+        return _coerce_node_id(v)
+
+
+def _make_result(
+    nid: _NodeId,
+    name: str,
+    *,
+    status: Literal["success", "failed", "timeout"],
+    detail: str,
+    retryable: bool,
+) -> NodeExecResult:
+    """
+    构造 NodeExecResult 的唯一入口。所有返回路径都走这里，
+    保证形状与类型在任何分支下都一致。
+    """
+    return NodeExecResult(
+        status=status,
+        detail=detail,
+        retryable=retryable,
+        node_id=nid,
+        node_name=name,
+    )
 
 
 async def execute_single_node(
@@ -176,7 +214,10 @@ async def execute_single_node(
             retryable=False,  # 结构问题重试无意义
         )
 
-    nid = _coerce_node_id(node.get("id", "?"))
+    # ✅ P5-2：node["id"] 的归一化推迟到 _make_result 构造时
+    #    （由 NodeExecResult._normalize_node_id validator 承担）。
+    #    这里只做"缺失时的默认值"兜底。
+    nid = node.get("id", "?")
     # ✅ P4-3：用 _coerce_text 处理 name——
     #   - None → "" → 落到 f"步骤{nid}" 兜底
     #   - 空串 → 同样落到兜底（name 为空在 UI 无意义）
@@ -255,7 +296,7 @@ async def execute_single_node(
         )
 
     # ── 正常返回路径 ──
-    # 类型防御：LLM 层未强制返回 str，这里降级以保证 TypedDict 契约。
+    # 类型防御：LLM 层未强制返回 str，这里降级以保证 NodeExecResult 契约。
     detail = _coerce_text(raw_detail)
     status: Literal["success", "failed"] = "success" if success else "failed"
     logger.info(

@@ -178,8 +178,8 @@ async def execute_node(state: TaskState, config: RunnableConfig) -> dict[str, An
             "steps": state.get("steps", []) + [f"节点{nid} ⏹️ 用户取消"],
         }
 
-    success = result["status"] == "success"
-    detail = result["detail"]
+    success = result.status == "success"
+    detail = result.detail
 
     status_code = _NODE_STATUS_SUCCESS if success else _NODE_STATUS_FAILED
     # ✅ DB 调用经 _safe_db_update 包裹（原因同上）
@@ -207,7 +207,7 @@ async def execute_node(state: TaskState, config: RunnableConfig) -> dict[str, An
         "next_index": idx + 1,
         "total_nodes": len(nodes),
         # ✅ P3：NodeExecResult 里 retryable 是必填字段，直接用下标
-        "retryable": result["retryable"],
+        "retryable": result.retryable,
     }
 
     feedback = interrupt(interrupt_payload)

@@ -2,14 +2,12 @@
 from unittest.mock import AsyncMock
 
 import pytest
-
+from task_planner.core.graph.nodes._executor import NodeExecResult
 from task_planner.core.graph.nodes.execute import (
     _resolve_target_index,
     execute_node,
 )
 from task_planner.core.graph.state import UserAction
-
-
 # ── 构造最小 state ──
 
 def _make_state(**overrides):
@@ -30,13 +28,13 @@ def _make_state(**overrides):
 def _patch_execute_common(monkeypatch, interrupt_return=None, exec_result=None):
     """统一 mock execute_node 的所有外部依赖。"""
     if exec_result is None:
-        exec_result = {
-            "status": "success",
-            "detail": "ok",
-            "retryable": False,
-            "node_id": 1,
-            "node_name": "步骤1",
-        }
+        exec_result = NodeExecResult(
+            status="success",
+            detail="ok",
+            retryable=False,
+            node_id=1,
+            node_name="步骤1",
+            )
     if interrupt_return is None:
         interrupt_return = {"user_action": "continue"}
 

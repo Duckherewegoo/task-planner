@@ -85,8 +85,8 @@ async def test_unknown_exception_detail_truncated_whole_sentence(monkeypatch):
         intent={},
     )
 
-    assert result["status"] == "failed"
-    assert len(result["detail"]) <= _DETAIL_MAX_LEN
+    assert result.status == "failed"
+    assert len(result.detail) <= _DETAIL_MAX_LEN
 
 
 async def test_node_name_none_does_not_produce_none_string(monkeypatch):
@@ -110,8 +110,8 @@ async def test_node_name_none_does_not_produce_none_string(monkeypatch):
         user_input="u",
         intent={},
     )
-    assert result["node_name"] != "None"
-    assert "1" in result["node_name"]  # 包含 id
+    assert result.node_name != "None"
+    assert "1" in result.node_name  # 包含 id
 
 
 async def test_node_id_bool_does_not_leak_into_result(monkeypatch):
@@ -135,5 +135,5 @@ async def test_node_id_bool_does_not_leak_into_result(monkeypatch):
         user_input="u",
         intent={},
     )
-    assert result["node_id"] == "True"
-    assert result["node_id"] is not True
+    assert result.node_id == "True"
+    assert result.node_id is not True

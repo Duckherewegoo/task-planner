@@ -156,7 +156,7 @@ llm:
 mongo:
   MONGO_HOST:
     type: str
-    default: task_mongodb
+    default: localhost
     scope: developer
     purpose: MongoDB 主机名，容器内用服务名
 
@@ -168,7 +168,7 @@ mongo:
 
   MONGO_DB:
     type: str
-    default: task_planner_db
+    default: task_mongodb
     scope: developer
     purpose: MongoDB 数据库名
 

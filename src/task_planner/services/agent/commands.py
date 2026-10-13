@@ -105,9 +105,11 @@ async def cancel_task(thread_id: str) -> bool:
     session = await get_session(thread_id)
     if session:
         session.cancel_event.set()
-        if session._runner_task and not session._runner_task.done():
-            session._runner_task.cancel()
+        # ✅ 通过公开方法访问——封装 runner_task 的生命周期语义
+        cancelled = session.cancel_runner()
         logger.info("[Agent] 取消信号已发送 | thread=%s", thread_id)
+        if not cancelled:
+            logger.debug("[Agent] cancel_runner: 无活跃 runner task | thread=%s", thread_id)
         return True
     return False
 

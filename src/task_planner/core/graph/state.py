@@ -211,12 +211,47 @@ def create_initial_state(
 ) -> TaskState:
     """
     构造带全部字段默认值的初始状态，避免节点访问 NotRequired 字段时 KeyError。
-    调用方可传入额外字段覆盖默认值。
+
+    ⚠️ 下一层应"组合"而非"复制"：
+       应用层（如 services/agent/state.py 的 make_initial_state）需要叠加
+       业务判断（跳过规划、强制意图等）时，**应调用本函数并传 override**，
+       而不是自己重新写一份字段清单。
+
+       反例（禁止）：
+           def make_initial_state(...):
+               return {
+                   "messages": [],           # ← 复制字段清单
+                   "user_input": ...,
+                   # ... 23 个字段
+               }
+       正例（推荐）：
+           def make_initial_state(...):
+               skip = should_skip_planning(...)
+               return create_initial_state(
+                   user_input, thread_id,
+                   needs_planning=not skip,
+                   direct_response=...,
+                   steps=[...],
+               )
+
+       理由：字段清单只能有一处真相源。复制清单会让"新增字段"变成
+       "改 N 个地方"，且未改的地方会因 NotRequired 静默缺字段——
+       下游 KeyError 时不知道是谁漏的。
+
+    Args:
+        user_input:  用户原始输入
+        thread_id:   会话 ID
+        schema_version: checkpoint 兼容性版本号
+        **kwargs:    字段覆盖。不能包含 user_input / thread_id /
+                     schema_version（这三个是显式参数，通过 kwargs
+                     传入会抛 TypeError，避免静默覆盖）。
+
+    Returns:
+        TaskState：字段完整（含 messages）、默认值已填。
 
     Raises:
-        TypeError: kwargs 里出现 user_input / thread_id / schema_version，
-                   这三个字段必须走显式位置/关键字参数，避免静默覆盖。
-    """
+        TypeError: kwargs 里出现保留字段名。
+    """    
     reserved = {"user_input", "thread_id", "schema_version"}
     conflict = reserved & kwargs.keys()
     if conflict:

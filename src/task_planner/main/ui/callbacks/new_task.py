@@ -27,6 +27,8 @@ from task_planner.utils.cytoscape_adapter import build_detail_markdown
 from ..constants import cytoscape_cached
 from ..data_ops import auto_unlock_downstream, safe_elapsed
 
+import asyncio
+
 
 def register() -> None:
     # ═══════════════════════════════════════════════════════════
@@ -57,17 +59,6 @@ def register() -> None:
         style = HINT_STYLES.get(status.value, HINT_STYLES["pending"])
         return text, style
 
-    @callback(
-        Output("flowchart", "className"),
-        Input("flowchart", "mouseoverNodeData"),
-        Input("flowchart", "mouseoutNodeData"),
-        prevent_initial_call=True,
-    )
-    def on_node_hover(over_data, out_data):
-        triggered = ctx.triggered_id
-        if triggered == "flowchart" and over_data:
-            return Patch({"addClasses": f"#node-{over_data['id']}.node-hover"})
-        return no_update
 
     @callback(
         Output("node-detail-panel", "children"),
@@ -76,7 +67,7 @@ def register() -> None:
         State("dag-store", "data"),
         State("node-states-store", "data"),
     )
-    def on_tap_node(node_data, dag, node_states):
+    def on_tap_node(node_data, dag, node_states): 
         if not node_data or not node_data.get("id"):
             return (
                 dcc.Markdown(

@@ -1703,7 +1703,17 @@ def _enhance_web_app(app: Any, csp_policy: str | None = None) -> None:
 
 
 def _wrap_dash_callbacks(app: Any) -> None:
-    """Wrap Dash callbacks with error logging."""
+    """
+    为 Dash 回调包一层错误日志。
+
+    ⚠️ 同时支持同步和异步回调：
+      原实现只包同步 def，对 async 回调只是把 coroutine 对象返回给
+      Dash——真正的 await 发生在 wrapper 之外，异常永远不被本 wrapper
+      捕获。结果是最需要日志的 async 回调反而没有日志。
+
+      修复：分派——async 函数用 async wrapper + await；
+            sync 函数保持原逻辑。
+    """
     try:
         callback_map = getattr(app, "callback_map", None)
         if not callback_map:
@@ -1715,23 +1725,47 @@ def _wrap_dash_callbacks(app: Any) -> None:
             if original_func is None:
                 continue
 
-            @functools.wraps(original_func)
-            def _make_wrapper(orig: Any) -> Any:
-                def wrapper(*args: Any, **kwargs: Any) -> Any:
-                    try:
-                        return orig(*args, **kwargs)
-                    except Exception as exc:
-                        info = ExceptionFingerprinter.capture(exc)
-                        tid = RequestContext.trace_id()
-                        log.error(
-                            "💥 Dash callback error | %s: %s | request_id=%s | fingerprint=%s",
-                            type(exc).__name__, exc, tid, info.get("fingerprint"),
-                            exc_info=True,
-                        )
-                        raise
-                return wrapper
+            if inspect.iscoroutinefunction(original_func):
+                # ── 异步回调：async wrapper + await ──
+                @functools.wraps(original_func)
+                def _make_async_wrapper(orig: Any) -> Any:
+                    async def wrapper(*args: Any, **kwargs: Any) -> Any:
+                        try:
+                            return await orig(*args, **kwargs)
+                        except Exception as exc:
+                            info = ExceptionFingerprinter.capture(exc)
+                            tid = RequestContext.trace_id()
+                            log.error(
+                                "💥 Dash async callback error | %s: %s | "
+                                "request_id=%s | fingerprint=%s",
+                                type(exc).__name__, exc, tid,
+                                info.get("fingerprint"),
+                                exc_info=True,
+                            )
+                            raise
+                    return wrapper
+                cb_info["callback"] = _make_async_wrapper(original_func)
+            else:
+                # ── 同步回调：sync wrapper ──
+                @functools.wraps(original_func)
+                def _make_sync_wrapper(orig: Any) -> Any:
+                    def wrapper(*args: Any, **kwargs: Any) -> Any:
+                        try:
+                            return orig(*args, **kwargs)
+                        except Exception as exc:
+                            info = ExceptionFingerprinter.capture(exc)
+                            tid = RequestContext.trace_id()
+                            log.error(
+                                "💥 Dash callback error | %s: %s | "
+                                "request_id=%s | fingerprint=%s",
+                                type(exc).__name__, exc, tid,
+                                info.get("fingerprint"),
+                                exc_info=True,
+                            )
+                            raise
+                    return wrapper
+                cb_info["callback"] = _make_sync_wrapper(original_func)
 
-            cb_info["callback"] = _make_wrapper(original_func)
             wrapped_count += 1
 
         if wrapped_count > 0:
@@ -1741,7 +1775,6 @@ def _wrap_dash_callbacks(app: Any) -> None:
         log.warning(
             "⚠️ Dash callback wrapping failed (non-fatal): %s", e, exc_info=True,
         )
-
 
 # ╔══════════════════════════════════════════════════╗
 # ║  Part 8: Global Singletons & Bootstrap          ║

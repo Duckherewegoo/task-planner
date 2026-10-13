@@ -83,6 +83,35 @@ class TaskSession:
             "configurable": {"thread_id": thread_id}
         }
 
+        # ── ✅ 新增：封装 runner_task 的生命周期访问 ──
+    def attach_runner(self, task: asyncio.Task) -> None:
+        """
+        绑定 runner task（由 stream 入口在 create_task 后调用）。
+
+        ⚠️ 未来若允许多次绑定（比如重启 runner），本方法应变成"注册一个列表"。
+           当前只允许一个 runner——重复绑定会覆盖旧的引用（旧 task 不会被取消）。
+        """
+        self._runner_task = task
+
+    def cancel_runner(self) -> bool:
+        """
+        取消当前 runner task（若有且未完成）。
+
+        Returns:
+            True  — 找到活跃 task 并发出 cancel
+            False — 没有 runner 或已结束（不报错，幂等）
+
+        为什么不是直接 session._runner_task.cancel()：
+          私有属性属于 TaskSession 的实现细节。调用方只应通过公开方法
+          影响 session 的生命周期。这样：
+            - 未来改为多 runner（列表）时，调用方不用改
+            - TaskSession 可以在这里加锁/日志/事件通知，调用方无感
+        """
+        if self._runner_task is not None and not self._runner_task.done():
+            self._runner_task.cancel()
+            return True
+        return False
+
     async def emit(self, msg: str) -> None:
         """
         向进度队列推一条消息。

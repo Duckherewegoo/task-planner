@@ -58,7 +58,8 @@ async def _resume_with_command(
 
     两个必须做的事：
       1. 把 session.cancel_event 绑定到 contextvar——
-         execute.intent 等节点通过 get_cancel_event(config) 读它。
+         execute.intent 等节点通过 get_cancel_event() 读它。
+         取消事件从 contextvar 读，不再经过 config。
          Command 恢复走的是一次新的 invoke，contextvar 不会自动继承——
          必须显式 copy_context() 后 run。
       2. 传 session.config（含 thread_id）给 ainvoke——

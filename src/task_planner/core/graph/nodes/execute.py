@@ -62,10 +62,10 @@ def _resolve_target_index(
 ) -> int:
     """
     按 state.py 声明的优先级裁决本轮执行的目标索引：
-        retry_node_id > resume_from_node_index > current_node_index
+        retry_node_index > resume_from_node_index > current_node_index
 
     语义说明：
-      - retry_node_id：workflow.py 的 `target_node_index` 参数写入，
+      - retry_node_index：workflow.py 的 `target_node_index` 参数写入，
         语义为**节点索引**。同时也兼容"按 node['id'] 匹配"场景——
         优先按 index 解释，越界后尝试按 id 查找，都失败则降级 current。
       - resume_from_node_index：断点续传起始索引，只按 index 解释。
@@ -76,7 +76,7 @@ def _resolve_target_index(
     n = len(nodes)
     current_idx = state.get("current_node_index", 0)
 
-    retry_id = state.get("retry_node_id")
+    retry_id = state.get("retry_node_index")
     if retry_id is not None:
         # 首选 index 语义（与 workflow.py 的 target_node_index 命名一致）
         if isinstance(retry_id, int) and not isinstance(retry_id, bool) and 0 <= retry_id < n:
@@ -85,12 +85,12 @@ def _resolve_target_index(
         for i, nd in enumerate(nodes):
             if isinstance(nd, dict) and nd.get("id") == retry_id:
                 logger.info(
-                    "[Graph] retry_node_id=%r 按 node['id'] 匹配到 index=%d (req=%s)",
+                    "[Graph] retry_node_index=%r 按 node['id'] 匹配到 index=%d (req=%s)",
                     retry_id, i, rid,
                 )
                 return i
         logger.warning(
-            "[Graph] retry_node_id=%r 既不是有效 index 也不匹配任何 node['id']，"
+            "[Graph] retry_node_index=%r 既不是有效 index 也不匹配任何 node['id']，"
             "降级 current_node_index=%d (req=%s)",
             retry_id, current_idx, rid,
         )
@@ -173,7 +173,7 @@ async def execute_node(state: TaskState, config: RunnableConfig) -> dict[str, An
             "status_text": "⏹️ 已取消",
             "user_action": None,               # 显式清空，避免残留上一轮 action
             # ✅ P1：指针已被消费，取消路径同样需要清空
-            "retry_node_id": None,
+            "retry_node_index": None,
             "resume_from_node_index": None,
             "steps": state.get("steps", []) + [f"节点{nid} ⏹️ 用户取消"],
         }
@@ -243,7 +243,7 @@ async def execute_node(state: TaskState, config: RunnableConfig) -> dict[str, An
         "node_results": node_results,
         "steps": steps,
         "user_action": action,
-        "retry_node_id": None,
+        "retry_node_index": None,
         "resume_from_node_index": None,
     }
 
@@ -303,7 +303,7 @@ async def execute_node(state: TaskState, config: RunnableConfig) -> dict[str, An
             # 与 state.py 声明的优先级 retry > resume > current 保持一致
             "user_action": None,
             "modified_input": None,
-            "retry_node_id": None,
+            "retry_node_index": None,
             "resume_from_node_index": None,
         })
     elif action == UserAction.MODIFY:

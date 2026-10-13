@@ -71,11 +71,11 @@ def route_after_execute(state: TaskState) -> Literal["cancel", "intent", "execut
       4. user_action=RETRY_NODE  → execute（重试）
 
          ⚠️ 依赖契约：execute.py 在 user_action=RETRY_NODE 时
-         必须**不前进 current_node_index**，或显式写回 retry_node_id，
+         必须**不前进 current_node_index**，或显式写回 retry_node_index，
          否则下一轮 execute_node 会执行 idx+1 而非 idx——
          用户点"重试"会变成"继续"。
          （execute.py 已兑现：RETRY_NODE 分支保持 idx 不变，
-          同时清空 retry_node_id，形成干净的"指针消费"闭环。）
+          同时清空 retry_node_index，形成干净的"指针消费"闭环。）
 
       5. 无 user_action：按 current_node_index 与 nodes 长度比较
          - 已越界 → finish

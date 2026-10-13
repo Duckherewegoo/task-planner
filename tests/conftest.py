@@ -18,6 +18,23 @@ os.environ.setdefault("DEBUG", "true")
 os.environ.setdefault("DASHSCOPE_API_KEY", "")   # 空 key → 强制 mock
 os.environ.setdefault("CHECKPOINTER_TYPE", "memory")
 
+from task_planner.infrastructure.llm.client import aclose_llm_client
+
+
+@pytest.fixture(autouse=True)
+async def _close_llm_client_after_each_test():
+    """
+    每个测试结束后关闭 LLM 客户端。
+
+    为什么需要：pytest-asyncio 每个用例新建 event loop。
+    如果某测试真的调了 LLM，client 会绑到该用例的 loop；
+    下个用例换新 loop 时访问同一 client 会抛
+    "Event loop is closed"。
+
+    加上这个 fixture 后，跨用例的 loop 复用被切断。
+    """
+    yield
+    await aclose_llm_client()
 
 @pytest.fixture
 def sample_intent_plan() -> dict:

@@ -54,7 +54,7 @@ def test_user_action_default_is_none():
 
 def test_retry_and_resume_pointers_default_to_none():
     state = create_initial_state(user_input="x", thread_id="t")
-    assert state["retry_node_id"] is None
+    assert state["retry_node_index"] is None
     assert state["resume_from_node_index"] is None
 
 

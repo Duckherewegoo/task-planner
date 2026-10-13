@@ -69,7 +69,7 @@ Changelog:
 
 ⚠️ 与 execute.py 的契约变更：
    resume_graph_async 传出的 feedback 键名从 "action" / "target_node_index"
-   改为 "user_action" / "retry_node_id" / "resume_from_node_index"。
+   改为 "user_action" / "retry_node_index" / "resume_from_node_index"。
    execute.py 里 `feedback.get("action")` 必须同步改为
    `feedback.get("user_action")`。
 """
@@ -402,7 +402,7 @@ async def resume_graph_async(
     if target_node_index is not None and resume_from_node_index is not None:
         raise ValueError(
             "target_node_index（retry_node）与 resume_from_node_index 语义冲突，"
-            "二者只能传一个。按 state.py 声明，retry_node_id 优先级更高，"
+            "二者只能传一个。按 state.py 声明，retry_node_index 优先级更高，"
             "请调用方明确意图后只传一个。"
         )
 
@@ -429,7 +429,7 @@ async def resume_graph_async(
     if action == UserAction.MODIFY and modified_input:
         feedback["modified_input"] = modified_input
     if target_node_index is not None:
-        feedback["retry_node_id"] = target_node_index
+        feedback["retry_node_index"] = target_node_index
     if resume_from_node_index is not None:
         feedback["resume_from_node_index"] = resume_from_node_index
 

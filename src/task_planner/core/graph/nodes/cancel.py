@@ -60,7 +60,7 @@ async def cancel_node(state: TaskState, config: RunnableConfig) -> dict[str, Any
         # 取消后 state 会冻结在 checkpoint 里；若用户后续从该点 resume，
         # 残留的 user_action / 指针会导致路由异常。
         "user_action": None,
-        "retry_node_id": None,
+        "retry_node_index": None,
         "resume_from_node_index": None,
         "steps": state.get("steps", []) + ["任务已取消"],
     }

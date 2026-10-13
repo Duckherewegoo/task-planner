@@ -119,14 +119,14 @@ async def test_retry_node_does_not_advance_index(monkeypatch):
     updates = await execute_node(_make_state(current_node_index=1), {})
     assert updates["current_node_index"] == 1  # 不前进
     assert updates["user_action"] == UserAction.RETRY_NODE
-    assert updates["retry_node_id"] is None  # 已消费
+    assert updates["retry_node_index"] is None  # 已消费
 
 
 async def test_continue_advances_index(monkeypatch):
     _patch_execute_common(monkeypatch, interrupt_return={"user_action": "continue"})
     updates = await execute_node(_make_state(current_node_index=0), {})
     assert updates["current_node_index"] == 1
-    assert updates["retry_node_id"] is None
+    assert updates["retry_node_index"] is None
     assert updates["resume_from_node_index"] is None
 
 
@@ -167,12 +167,12 @@ async def test_cancel_branch_clears_pointers(monkeypatch):
         "task_planner.core.graph.nodes.execute.execute_single_node",
         AsyncMock(side_effect=LLMCancelledError("test cancel")),   # ← 加 message
     )
-    state = _make_state(retry_node_id=1, resume_from_node_index=0)
+    state = _make_state(retry_node_index=1, resume_from_node_index=0)
     updates = await execute_node(state, {})
 
     assert updates["cancel_requested"] is True
     assert updates["user_action"] is None
-    assert updates["retry_node_id"] is None
+    assert updates["retry_node_index"] is None
     assert updates["resume_from_node_index"] is None
 
 
@@ -181,7 +181,7 @@ async def test_cancel_branch_clears_pointers(monkeypatch):
 def _resolve_state(**overrides):
     base = {
         "current_node_index": 5,
-        "retry_node_id": None,
+        "retry_node_index": None,
         "resume_from_node_index": None,
     }
     base.update(overrides)
@@ -193,7 +193,7 @@ NODES = [{"id": i} for i in range(10)]
 
 def test_resolve_priority_retry_over_resume():
     assert _resolve_target_index(
-        _resolve_state(retry_node_id=2, resume_from_node_index=3), NODES, "rid"
+        _resolve_state(retry_node_index=2, resume_from_node_index=3), NODES, "rid"
     ) == 2
 
 
@@ -209,14 +209,14 @@ def test_resolve_current_when_no_pointers():
 
 def test_resolve_invalid_retry_falls_back_to_current():
     assert _resolve_target_index(
-        _resolve_state(retry_node_id=999), NODES, "rid"
+        _resolve_state(retry_node_index=999), NODES, "rid"
     ) == 5
 
 
 def test_resolve_retry_by_node_id_when_not_valid_index():
-    """retry_node_id 越界时，尝试按 node['id'] 匹配。"""
+    """retry_node_index 越界时，尝试按 node['id'] 匹配。"""
     nodes = [{"id": 100}, {"id": 200}, {"id": 300}]
-    state = _resolve_state(retry_node_id=200, current_node_index=0)
+    state = _resolve_state(retry_node_index=200, current_node_index=0)
     assert _resolve_target_index(state, nodes, "rid") == 1
 
 

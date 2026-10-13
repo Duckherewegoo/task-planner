@@ -14,7 +14,7 @@
 
        user_action       ← 动作（UserAction 枚举或等值字符串）
        modified_input    ← MODIFY 时的新输入（仅 MODIFY 携带）
-       retry_node_id     ← RETRY_NODE 时的节点标识（仅 RETRY_NODE 携带）
+       retry_node_index     ← RETRY_NODE 时的节点标识（仅 RETRY_NODE 携带）
 
    这些键名与 state.py 的 TaskState 字段名一致——因为 interrupt 的
    返回契约与 state 字段共享同一套命名。任何一处漂移都会让对应命令
@@ -66,7 +66,7 @@ async def _resume_with_command(
 
     ⚠️ resume_data 的键名契约：
        见模块 docstring。写入方（本函数调用者）必须严格遵守
-       user_action / modified_input / retry_node_id 三个键名。
+       user_action / modified_input / retry_node_index 三个键名。
 
     Args:
         session:     任务会话（含 config / cancel_event）
@@ -186,7 +186,7 @@ async def resume_task(thread_id: str) -> bool:
     return True
 
 
-async def retry_node_cmd(thread_id: str, node_id: int) -> bool:
+async def retry_node_cmd(thread_id: str, node_index: int) -> bool:
     """
     重试指定节点（异步）。
 
@@ -194,9 +194,9 @@ async def retry_node_cmd(thread_id: str, node_id: int) -> bool:
     执行路径：走 resume 通道，feedback 携带 RETRY_NODE 动作与目标标识。
     execute.execute_node 读到 RETRY_NODE 后：
       - 保持 current_node_index 不变（不前进）
-      - 由 _resolve_target_index 按 retry_node_id 裁决本轮执行的目标
+      - 由 _resolve_target_index 按 retry_node_index 裁决本轮执行的目标
 
-    ⚠️ node_id 的实际语义取决于 execute._resolve_target_index 的裁决规则：
+    ⚠️ node_index 的实际语义取决于 execute._resolve_target_index 的裁决规则：
        优先按 **index** 解释（0..len(nodes)-1），越界时尝试按
        **node["id"]** 匹配，都失败则降级 current_node_index。
        调用方（API / UI）需明确传的是哪一种——当前 UI 传的是
@@ -207,7 +207,7 @@ async def retry_node_cmd(thread_id: str, node_id: int) -> bool:
 
     Args:
         thread_id: 会话 ID
-        node_id:   目标节点标识（见上，当前 UI 用 index 语义）
+        node_index:   目标节点标识（见上，当前 UI 用 index 语义）
 
     Returns:
         True  — 命令已接受
@@ -220,9 +220,9 @@ async def retry_node_cmd(thread_id: str, node_id: int) -> bool:
     await _resume_with_command(session, {
         # ✅ 键名对齐 execute.execute_node 的 feedback.get("user_action")
         "user_action": UserAction.RETRY_NODE,
-        # ✅ 键名对齐 state.TaskState 的 retry_node_id 字段
-        #    （原写法 "node_id" 永远读不到——execute 读的是 retry_node_id）
-        "retry_node_id": node_id,
+        # ✅ 键名对齐 state.TaskState 的 retry_node_index 字段
+        #    （原写法 "node_index" 永远读不到——execute 读的是 retry_node_index）
+        "retry_node_index": node_index,
     })
     return True
 

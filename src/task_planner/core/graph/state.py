@@ -125,15 +125,15 @@ class TaskState(MessagesState):
        所有节点必须返回"完整列表"，而非"增量"。
 
     ⚠️ 执行指针优先级：
-       retry_node_id > resume_from_node_index > current_node_index
-       - retry_node_id 非空：用户手动重试某节点，直接跳转该节点。
+       retry_node_index > resume_from_node_index > current_node_index
+       - retry_node_index 非空：用户手动重试某节点，直接跳转该节点。
        - resume_from_node_index 非空：从历史 checkpoint 恢复，从该索引继续。
        - 两者皆空：按 current_node_index 自然续传。
        三个字段不应同时被不同来源写入；执行器入口负责裁决。
        ⚠️ 此优先级在此处声明，实现必须在 executor 里与之保持一致——
           文档与实现不一致比没有文档更危险。
        ⚠️ 当前状态：execute.py 只读取 current_node_index，
-          retry_node_id / resume_from_node_index 从未被消费——
+          retry_node_index / resume_from_node_index 从未被消费——
           本优先级声明尚未在任何实现层兑现。下一轮迭代必须在
           execute.py 或 route_after_execute 中补齐裁决逻辑。
 
@@ -189,14 +189,14 @@ class TaskState(MessagesState):
     # ── 用户指令（interrupt / resume 用）──
     user_action: NotRequired[UserAction | None]
     modified_input: NotRequired[str | None]
-    retry_node_id: NotRequired[int | None]
+    retry_node_index: NotRequired[int | None]
 
     # ── 断点续传辅助字段 ──
     resume_from_node_index: NotRequired[int | None]
     """
     当用户从历史记录恢复执行时，指定从哪个节点索引继续。
     None 表示按当前 current_node_index 自然续传。
-    优先级：retry_node_id > resume_from_node_index > current_node_index。
+    优先级：retry_node_index > resume_from_node_index > current_node_index。
     """
 
     # ── Schema 版本（checkpoint 兼容性）──
@@ -289,7 +289,7 @@ def create_initial_state(
         "steps": [],
         "user_action": None,
         "modified_input": None,
-        "retry_node_id": None,
+        "retry_node_index": None,
         "resume_from_node_index": None,
         "schema_version": schema_version,
         **kwargs,

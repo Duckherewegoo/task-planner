@@ -232,10 +232,7 @@ def create_initial_state(
         "user_input": user_input,
         "thread_id": thread_id,
         "intent": {},
-        # ✅ Patch A：默认走 intent，由 intent 节点判断后回写。
-        # 与 workflow.py 的 _route_start 契约一致——
-        # 若此处为 False，START 会直接跳 direct_answer，intent 永不执行。
-        "needs_planning": True,
+        "needs_planning": False,
         "plan": {},
         "nodes": [],
         "edges": [],

@@ -173,6 +173,26 @@ _log_queue: queue.Queue | None = None
 _ROOT_LOGGER_NAME = "task_planner"
 
 
+def _resolve_console_level() -> int:
+    """
+    解析控制台日志级别。
+
+    优先级：LOG_CONSOLE_LEVEL > (DEBUG ? DEBUG : WARNING)
+
+    LOG_CONSOLE_LEVEL 可以是字符串（"INFO" / "DEBUG" / "WARNING"）
+    或整数（logging.INFO = 20）。
+    """
+    raw = LOG_CONSOLE_LEVEL
+    if raw is not None and raw != "":
+        if isinstance(raw, str):
+            lvl = logging.getLevelName(raw.upper())
+            if isinstance(lvl, int):
+                return lvl
+        elif isinstance(raw, int):
+            return raw
+    # 兜底：按 DEBUG 推导
+    return logging.DEBUG if DEBUG else logging.WARNING
+
 class _SafeQueueHandler(logging.handlers.QueueHandler):
     """
     队列满时记录 stderr 警告，不再静默丢弃。
@@ -263,7 +283,7 @@ def _init_root_logger() -> None:
     formatter = logging.Formatter(fmt, datefmt=datefmt)
 
     # ── 控制台 Handler ──
-    console_level = logging.DEBUG if DEBUG else logging.WARNING
+    console_level = _resolve_console_level()
     console_handler = logging.StreamHandler()
     console_handler.setLevel(console_level)
     console_handler.setFormatter(formatter)

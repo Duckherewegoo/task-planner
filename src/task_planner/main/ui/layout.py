@@ -16,7 +16,7 @@ from task_planner.infrastructure.ui_styles import (
 # ── 布局 ──
 def build_layout() -> html.Div:
     return html.Div([
-        dcc.Interval(id="stream-interval", interval=500, disabled=True, n_intervals=0),
+        dcc.Interval(id="stream-interval", interval=1000, disabled=True, n_intervals=0),
         dcc.Store(id="thread-id-store", data=""),
         dcc.Store(id="stream-active", data=False),
         dcc.Store(id="node-states-store", data={}),

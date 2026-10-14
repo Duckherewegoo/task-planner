@@ -1,11 +1,12 @@
 # 🧠 Task Planner — 智能任务规划引擎
 
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.14+](https://img.shields.io/badge/python-3.14+-blue.svg)](https://www.python.org/downloads/)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
-[![Async](https://img.shields.io/badge/async-ready-green.svg)](#)
+[![Tests](https://img.shields.io/badge/tests-183%20passed-green.svg)](#)
+[![Pydantic](https://img.shields.io/badge/pydantic-v2-E92063.svg)](https://docs.pydantic.dev/)
 
 > 基于 **LangGraph** 与 **大语言模型** 的自主任务规划引擎，支持动态 DAG 编排、多模态意图识别与全流程可观测性评估。
-> **全链路异步化，高性能、可扩展。**
+> **任务执行链路异步，UI 层保持同步**——边界清晰，可演进。
 
 **工程特性：**
 
@@ -13,6 +14,9 @@
 - **违禁词库** — AC 自动机 + 白名单子串豁免 + block/review 分级
 - **独立配置工具** — `task-planner-config`（可选套件，端口 8051）
 - **可选依赖全走优雅降级** — `pyahocorasick` / `ruamel.yaml` / `orjson` / `psutil`
+- **后台常驻 event loop** — `async_runtime` 解决 Dash WSGI 一次性 loop 问题
+- **Pydantic 值对象** — `IntentModel` / `NodeExecResult`，边界校验 + IDE 补全
+- **测试护栏** — 183 单元测试 + 43 MongoDB 集成测试
 
 ______________________________________________________________________
 
@@ -20,16 +24,18 @@ ______________________________________________________________________
 
 - 🧠 **智能意图识别** — LLM 精准理解需求，自动判断是否需要规划
 - 📊 **动态 DAG 生成** — 复杂任务拆解为原子节点，自动构建依赖关系图
-- 🔄 **流式执行与实时反馈** — 异步流式推送进度，前端实时更新流程图
+- 🔄 **流式执行与实时反馈** — 后台常驻 loop 驱动流式推送，前端轮询更新流程图
 - ✅ **节点级人工确认** — 支持标记完成/跳过/失败，精细控制执行流程
 - 📜 **完整历史追溯** — 任务持久化，支持断点续传、重新规划
 - 🎨 **交互式可视化** — Dash + Cytoscape 流程图交互，节点状态清晰
 - 📤 **多格式导出** — SVG / PNG / PDF / DOT / HTML / JSON
-- 🔌 **异步优先** — 全链路 async I/O（LLM、DB、流式输出）
+- 🔌 **异步边界清晰** — 任务执行走常驻 loop（LLM 异步调用、LangGraph 流式）；UI 层与 DB 客户端同步（避免一次性 loop 陷阱）
 - 🧪 **评估套件** — 内置 Crucible 评估引擎，支持 HITL 人工审查
 - 🛡 **生产级增强** — 重试、熔断、限流、健康检查、结构化日志
 - ⚙️ **独立配置工具** — 可选套件，独立进程运行（端口 8051），自动从 `cog.snapshot()` 生成表单，支持热重载
+- ⚙️ **独立配置工具** — 可选套件，独立进程运行（端口 8051），自动从 `cog.snapshot()` 生成表单，支持热重载
 
+> 📖 **架构决策详见** [`docs/ARCHITECTURE_FUTURE.md`](docs/ARCHITECTURE_FUTURE.md)（UI/任务层边界）与 [`docs/DESIGN_task_context.md`](docs/DESIGN_task_context.md)（TaskSession / TaskStreamState 双轨）。
 
 ______________________________________________________________________
 
@@ -39,21 +45,23 @@ ______________________________________________________________________
 ┌──────────────────────────────────────────────────────────┐
 │  Dash UI（新建任务 / 历史记录 / 节点操作）              │
 └──────────────────────────┬───────────────────────────────┘
-                           │ 轮询 (Interval 500ms)
+                           │ 轮询 (Interval 1000ms)
 ┌──────────────────────────▼───────────────────────────────┐
 │  Stream Manager                                           │
-│  后台 asyncio.Task → TaskStreamState → 前端轮询           │
+│  submit() → async_runtime（常驻 loop，独立 daemon 线程）  │
+│  TaskStreamState → 前端轮询                               │
 └──────────────────────────┬───────────────────────────────┘
                            │
 ┌──────────────────────────▼───────────────────────────────┐
 │  Agent（LangGraph 驱动）                                 │
 │  intent → plan → refine → save → render → execute         │
-│  （全部异步，支持 asyncio.Event 取消信号）               │
+│  （节点 async；执行在常驻 loop 上，支持 cancel_event）   │
 └──────┬───────────────────────────────┬───────────────────┘
        │                               │
 ┌──────▼─────────────┐       ┌─────────▼──────────────────┐
 │  LLM Client        │       │  Database                   │
-│  AsyncOpenAI+httpx │       │  MongoDB (Motor 异步)       │
+│  AsyncOpenAI+httpx │       │  MongoDB (pymongo 同步)     │
+│  （asyncio 持久）  │       │  （同步——见下"关于异步边界"）│
 └────────────────────┘       └─────────────────────────────┘
 
 ┌───────────────────────────────────────────────┐
@@ -67,12 +75,31 @@ ______________________________________________________________________
 └───────────────────────────────────────────────┘
 ```
 
+**关于异步边界**（2026-10-14 重构）：
+
+- **Dash WSGI backend 每次回调创建一个一次性 loop**（`asgiref.async_to_sync`），`asyncio.create_task` 的长期任务会在回调返回后立即被取消
+- **修复**：引入 `infrastructure/async_runtime.py`——进程级常驻 loop（独立 daemon 线程）
+- **DB 客户端改同步 pymongo**：Dash 的 worker 是同步线程，异步 pymongo（Motor）绑定 loop、跨 loop 复用失效；同步版更简单可靠
+- **LLM 客户端保持异步**：`AsyncOpenAI` 在常驻 loop 上执行——LLM 调用是真正的长耗时 IO，异步有价值
+- **未来切方案 C**（多 worker / 跨进程）时的路径见 `docs/ARCHITECTURE_FUTURE.md`
+
 ______________________________________________________________________
 
 ## 📁 项目结构
 
+> 本树严格按 `trees.txt` 的实际目录编排，并套用 `.gitignore` 规则隐去不入库内容：
+> `__pycache__/`、`*.py[cod]`、`*.so`、`build/`、`dist/`、`*.egg-info/`、`.eggs/`、
+> `.pytest_cache/`、`.ruff_cache/`、`.mypy_cache/`、`.coverage`、`htmlcov/`、`.tox/`、`.nox/`、
+> `.venv/`、`venv/`、`env/`、`ENV/`、`logs/`、`*.log`、`exports/`、`eval_reports/`、`reviews/`、
+> `tmp/`、`*.tmp`、`*.bak`、`*.swp`、`*~/checkpoints.db*`、`.idea/`、`.vscode/`（保留 `settings.json`）、
+> `*.sublime-*`、`*.code-workspace`、`.DS_Store`、`.Spotlight-V100`、`.Trashes`、`Thumbs.db`、`desktop.ini`、
+> `data/blocked_words/_local/`、`.compat_removal_backup/`、`.env`、`.env.*`（`!.env.example`）、
+> `config/user.yaml`。
+> `abandon/`（含 `src/task_planner/abandon/` 与 `tests/abandon/`）与 `data/blocked_words/` 主体**不忽略**。
+
 ```
 new_task_planner/
+├── CHANGELOG.md                   # 🆕 各模块变更历史（per-module changelog）
 ├── .github/
 │   └── workflows/
 │       └── ci.yml                    # ← ci action
@@ -104,10 +131,9 @@ new_task_planner/
 ├── docker-compose.prod.yml        # ← docker mode
 ├── docker-compose.yml             # ← 只留 mongodb
 ├── Dockerfile                    # ← mongodb mode
-├── eval_reports/                  # 评估报告输出（不入库）
-│   ├── eval_report.html
-│   ├── eval_report.json
-│   └── eval_report.md
+├── docs/                          # 🆕 设计文档
+│   ├── ARCHITECTURE_FUTURE.md    # UI/任务层边界 + Dash loop 实测
+│   └── DESIGN_task_context.md    # TaskSession / TaskStreamState 双轨
 ├── examples/
 │   └── config_hub_usage_example.py  # cog 用法示例
 ├── LICENSE
@@ -115,16 +141,20 @@ new_task_planner/
 ├── README.md
 ├── scripts/                       # 🟡 运维与检查脚本
 │   ├── audit_private_imports.py
+│   ├── bye_bye_cancle_config.sh
+│   ├── changelog_migrate.py       # 🆕 Changelog 集中迁移（一次性）
 │   ├── check_bad_words_len.py     # 违禁词长度分布诊断
 │   ├── check_config_drift.py      # 配置漂移检测
 │   ├── dev_up.sh
 │   ├── find_cyto_configs.py       # Cytoscape 配置搜索
+│   ├── make_future_be_now.py
 │   ├── migrate_config_imports.py  # 旧 config 引用迁移
 │   ├── remove_compat_shells.py
 │   └── test_block_words.py        # 词库加载 + 匹配测试
 ├── src/
 │   └── task_planner/
-│       ├── abandon/               # 🗄️ 归档（不参与运行，9 文件）
+│       ├── abandon/               # 🗄️ 归档（不参与运行，10 文件）
+│       │   ├── __init__.py
 │       │   ├── agent_legacy.py
 │       │   ├── agent_nah.py
 │       │   ├── config_old.py      # 旧大宗 config.py
@@ -143,9 +173,9 @@ new_task_planner/
 │       │   └── writer.py          # 原子写 user.yaml / .env
 │       ├── core/
 │       │   ├── __init__.py
-│       │   ├── db/
+│       │   ├── db/                # MongoDB 数据层（同步 pymongo）
 │       │   │   ├── __init__.py
-│       │   │   ├── client.py      # 连接生命周期 + 索引
+│       │   │   ├── client.py      # 同步 pymongo 连接生命周期 + 索引
 │       │   │   ├── _helpers.py
 │       │   │   ├── nodes.py       # nodes 数组操作
 │       │   │   ├── plans.py       # Plan CRUD
@@ -159,6 +189,7 @@ new_task_planner/
 │       │       │   ├── direct.py
 │       │       │   ├── execute.py
 │       │       │   ├── _executor.py
+│       │       │   ├── _helpers.py
 │       │       │   ├── intent.py
 │       │       │   ├── plan.py
 │       │       │   ├── refine.py
@@ -167,6 +198,7 @@ new_task_planner/
 │       │       │   ├── routes.py  # 路由函数（纯计算）
 │       │       │   ├── sanitize.py # 横切：脱敏 / 视图过滤
 │       │       │   └── save.py
+│       │       ├── schemas.py     # 🆕 Pydantic 值对象（IntentModel / NodeExecResult）
 │       │       ├── state.py       # TaskState
 │       │       └── workflow.py     # 图拓扑 + Checkpointer + 单例
 │       ├── eval_suite/
@@ -199,6 +231,7 @@ new_task_planner/
 │       │   └── types.py           # 所有数据类型（dataclass / TypedDict）
 │       ├── infrastructure/
 │       │   ├── __init__.py
+│       │   ├── async_runtime.py   # 🆕 进程级常驻 loop（后台任务入口）
 │       │   ├── assets/            # Cytoscape 资源
 │       │   │   ├── __init__.py
 │       │   │   ├── cytoscape_js.py    # 3 个 JS 模板 + GRAPH_CONFIGS
@@ -212,10 +245,10 @@ new_task_planner/
 │       │   │   ├── loader.py      # YAML → ConfigEntry（支持 from_env）
 │       │   │   ├── registry.py    # @register_section 装饰器
 │       │   │   ├── section.py     # ConfigSection 抽象基类
-│       │   │   ├── sections/      # 8 个内置 section
+│       │   │   ├── sections/      # 7 个内置 section
 │       │   │   │   ├── __init__.py
 │       │   │   │   ├── base.py / dashscope.py / llm.py / mongo.py
-│       │   │   │   └── render.py / runtime.py / security.py / web.py
+│       │   │   │   └── render.py / runtime.py / security.py
 │       │   │   ├── session.py     # 按角色代理 CRUD
 │       │   │   └── store.py       # CRUD（增删改查）+ clear
 │       │   ├── constants.py       # 枚举 / 状态码 / 颜色
@@ -289,14 +322,23 @@ new_task_planner/
 │   ├── __init__.py
 │   ├── conftest.py               # 共享 fixture
 │   ├── test_eval_suite.py
-│   ├── test_package/
+│   ├── test_package/             # 单元 + 集成（18 文件）
+│   │   ├── test_commands_contract.py   # 🆕 commands feedback 键名契约
 │   │   ├── test_config_contract.py
 │   │   ├── test_evaluators.py
+│   │   ├── test_execute.py            # 🆕 execute.py 冒烟（DB 降级 / RETRY / 三指针）
+│   │   ├── test_executor_coerce.py    # 🆕 _executor.py 归一化测试
 │   │   ├── test_graph_finished.py
 │   │   ├── test_initial_state.py
 │   │   ├── test_json_extraction.py
+│   │   ├── test_mongodb.py            # 🆕 43 个 MongoDB 集成测试
 │   │   ├── test_normalize_output.py
-│   │   └── test_session_store.py
+│   │   ├── test_redis_session_store.py
+│   │   ├── test_refine.py             # 🆕 refine.py 冒烟（Semaphore / 取消）
+│   │   ├── test_routes.py             # 🆕 routes.py 路由函数
+│   │   ├── test_save.py               # 🆕 save.py 降级路径
+│   │   ├── test_session_store.py
+│   │   └── test_state_defaults.py     # 🆕 state.py 默认值契约
 │   ├── eval_suite/               # 与 src 分离的测试包
 │   │   ├── __init__.py
 │   │   ├── conftest.py           # 共享 fixture
@@ -306,6 +348,7 @@ new_task_planner/
 │   │   ├── test_llm_judge.py     # LLM 评委测试（Mock）
 │   │   └── test_cli.py           # CLI 集成测试
 │   └── abandon/                  # 🗄️ 归档（旧 Crucible 套件，不参与运行）
+│       ├── __init__.py
 │       └── old_eval_suite/
 │           ├── crucible_eval.py
 │           ├── data/
@@ -322,15 +365,22 @@ new_task_planner/
 └── .gitignore
 ```
 
+**被忽略的目录/文件（不入库，按 `.gitignore`）：** `dist/`、`src/task_planner.egg-info/`、`src/logs/` 与根 `logs/`（含全部 `task_planner.log*` 旋转日志）、`eval_reports/`，以及 `.gitignore` 中列出的缓存、临时与 IDE 文件。
+
 ______________________________________________________________________
 
 ## 🚀 快速开始
 
 ### 环境要求
 
-- **Python 3.14**
+- **Python 3.14+**（`StrEnum` / `NotRequired` / PEP 649 / PEP 695 原生）
 - **MongoDB**（本地或远程）
 - **LLM API Key**（OpenAI 兼容接口，如 DashScope）
+
+### 依赖项
+
+- 使用 `pymongo>=4.5.0`（同步——原因见"关于异步边界"）；**已移除 `motor`**
+- 可选加速：`orjson`、`pyahocorasick`、`ruamel.yaml`、`psutil`
 
 ### 1. 安装
 
@@ -357,12 +407,11 @@ docker run -d --name task_mongodb -p 27017:27017 mongo:7.0
 
 ```bash
 sudo systemctl start mongod
-
 ```
+
 **完整使用流程**
 
 ```bash
-
 # ── 开发模式（只 mongodb）──
 docker compose up -d
 task-planner                    # 主应用在宿主机跑
@@ -381,13 +430,11 @@ docker compose logs -f app
 # ── 停 ──
 docker compose down                # 停服务，保留数据卷
 docker compose down -v             # 停服务 + 删数据卷（危险）
-
 ```
 
 **关于 .env 的说明**
 
 - 生产：.env 放宿主机（不进镜像），compose 用它注入环境变量。关键：.dockerignore 里已排除 .env，不会误打进镜像。
-
 - 配置工具：config-ui 服务挂载 .env 到容器里可写（因为工具要能改密钥）。生产环境慎用——可以只在内网开。
 
 ### 3. 配置 `.env`
@@ -403,7 +450,7 @@ USE_MOCK_LLM=false              # 开发调试可设 true，跳过真实调用
 # ── MongoDB ──
 MONGO_HOST=localhost            # ⚠️ Docker Compose 网络里可用 "task_mongodb"
 MONGO_PORT=27017
-MONGO_DB=task_planner_db
+MONGO_DB=task_planner_db       # ⚠️ 集成测试库名须以 _test 结尾，否则跳过
 
 # ── 日志 ──
 DEBUG=false                     # 默认 false（生产安全）；调试时设 true
@@ -516,9 +563,9 @@ ______________________________________________________________________
 | `DASHSCOPE_API_KEY` | LLM API Key | 必填 |
 | `DASHSCOPE_BASE_URL` | API Base URL | DashScope 兼容模式 |
 | `USE_MOCK_LLM` | 跳过真实 LLM 调用 | `false` |
-| `MONGO_HOST` | MongoDB 主机 | `task_mongodb` |
+| `MONGO_HOST` | MongoDB 主机 | `localhost`（宿主机跑应用时）；Docker 网络内用 `task_mongodb` |
 | `MONGO_PORT` | MongoDB 端口 | `27017` |
-| `MONGO_DB` | 数据库名 | `task_planner_db` |
+| `MONGO_DB` | 数据库名 | `task_planner_db`（`*_test` 结尾才跑集成测试） |
 | `DEBUG` | 调试模式 | `false` |
 | `LOG_CONSOLE_LEVEL` | 控制台日志级别 | `INFO`（`DEBUG=true` 时为 `DEBUG`） |
 | `CHECKPOINTER_TYPE` | LangGraph checkpoint 后端 | `memory` |
@@ -560,8 +607,11 @@ ______________________________________________________________________
 ### 测试
 
 ```bash
-# 默认：只跑单元 + 非 eval 测试（< 20 秒）
+# 默认：只跑单元 + 非 eval + 非 integration（< 6 秒）
 pytest
+
+# 跑 MongoDB 集成测试（需要 docker compose up -d mongodb）
+MONGO_DB=task_planner_test pytest tests/test_package/test_mongodb.py -m integration -v
 
 # 跑 eval 评估套件（走真实 LLM，慢、耗 token）
 pytest -m eval
@@ -578,9 +628,11 @@ pytest -m unit
 | Marker | 说明 |
 | --- | --- |
 | `unit` | 纯逻辑测试，无 I/O，无 LLM，无 DB |
-| `integration` | 集成测试，需外部服务（MongoDB 等） |
+| `integration` | 集成测试，需外部服务（MongoDB 等）——共 48 个（43 MongoDB + 5 其他），日常 pytest 默认排除 |
 | `eval-live` | 评估套件，默认走真实 LLM |
 | `slow` | 慢速测试 |
+
+**当前测试规模**：183 passed（单元）+ 48 deselected（integration / eval_live）
 
 ### 代码质量
 
@@ -609,80 +661,52 @@ ______________________________________________________________________
 
 ## 🔧 故障排查
 
+### ❌ `NameError: name 'task' is not defined`（已修复）
+
+**原因**：`services/agent/stream.py` 曾引用 `session.attach_runner(task)`，但 `task` 变量在该作用域不存在。
+
+**修复**（2026-10-14）：删除该行——runner task 的生命周期由 `TaskStreamState` 管理。
+
+### ❌ `Event loop is closed` 或后台任务被静默取消
+
+**原因**：Dash WSGI backend 每次 async 回调创建一个一次性 loop。`asyncio.create_task` 的长期任务会在回调返回后立即被取消。
+
+**修复**（2026-10-14）：所有需要跨回调存活的任务必须通过 `infrastructure/async_runtime.submit()` 提交到常驻 loop。
+
+**验证是否生效**：
+
+```bash
+grep -rn "asyncio.create_task" src/task_planner/services/ --include="*.py" | grep -v "test"
+# 期望：无输出（全部改为 async_runtime.submit）
+```
+
+### ❌ `[DB] ✅ MongoDB 连接成功` 日志看不到
+
+**原因**：`logger_setup.py` 曾忽略 `LOG_CONSOLE_LEVEL` 配置（用 `DEBUG ? DEBUG : WARNING` 硬编码）。
+
+**修复**（2026-10-14）：新增 `_resolve_console_level()`——优先级 `LOG_CONSOLE_LEVEL > (DEBUG ? DEBUG : WARNING)`。
+
+**确认配置**：`.env` 里 `LOG_CONSOLE_LEVEL=INFO`。
+
 ### ❌ `ModuleNotFoundError: No module named 'task_planner'`
 
 **原因**：未安装包或用了错误的 Python 解释器。
 
 ```bash
-# 用 editable 安装
-pip install -e .
+# 确认安装
+pip show task-planner
 
-# 确认解释器
-which python
-python -c "import task_planner; print(task_planner.__file__)"
-# 期望：指向 src/task_planner/__init__.py
+# 或用模块方式运行
+python -m task_planner.main.dash_app
 ```
 
-### ❌ `pymongo.errors.ServerSelectionTimeoutError: task_mongodb:27017`
-
-**原因**：`MONGO_HOST` 指向了 Docker Compose 服务名，但 Python 从宿主机跑，无法解析。
-
-**修复**：`.env` 里改成 `MONGO_HOST=localhost`。
-
-### ❌ `AttributeError: module 'dash.html' has no attribute 'Style'`
-
-**原因**：Dash 4.x 移除了 `html.Style`。本项目已迁移到 `assets/custom.css`。
-
-**修复**：确认 `src/task_planner/main/assets/custom.css` 存在，且 `dash.Dash(assets_folder="assets")`。
-
-### ❌ `ImportError: cannot import name 'XXX' from 'task_planner.infrastructure.cog'`
-
-**原因**：`config/schema.yaml` 里未声明该配置项，或 `cog/sections/*.py` 未注册。
-
-**修复**：
+### 端口占用 / 启动失败
 
 ```bash
-# 1. 确认 schema 里有没有这个字段
-grep -n "XXX" config/schema.yaml
+# 查看谁占用了 8050
+lsof -ti:8050
 
-# 2. 如果没有，加进去（含 purpose + scope + type）
-#    或在 cog/sections/ 下对应 section 里用 ConfigEntry 声明
-
-# 3. 检查运行时能看到哪些配置
-python -c "from task_planner.infrastructure.cog import hub; print(len(hub), hub.snapshot()[0].purpose)"
-
-# 4. 全链路 import 测试（暴露真缺的符号）
-python -c "import task_planner.main.dash_app"
-```
-
-### ❌ `ValueError: X: secret 字段必须 from_env`
-
-**原因**：在 `schema.yaml` 里声明了 `secret: true` 但没加 `from_env: true`。
-这是有意设计——防止明文密钥落盘。
-
-**修复**：
-
-```yaml
-SOME_API_KEY:
-  type: str
-  default: ""
-  scope: developer
-  purpose: 描述
-  secret: true
-  from_env: true        # ← 补上这一行
-```
-
-然后通过环境变量提供值（`.env` / Docker env / K8s Secret 都行）。
-
-```
-
-### ❌ Dash 端口被占用
-
-```bash
-# 找进程
-lsof -i :8050
-
-# 杀掉
+# 杀掉占用进程
 kill $(lsof -ti:8050)
 
 # 或改端口
@@ -711,18 +735,6 @@ echo "DASH_PORT=8051" >> .env
 
 ```bash
 LOG_DIR=/abs/path/to/project/logs
-```
-
-或在 `config/user.yaml` 里覆盖（不推荐，因为 `LOG_DIR` 是 developer scope）：
-
-```yaml
-# config/schema.yaml
-base:
-  LOG_DIR:
-    type: str
-    default: logs           # 相对项目根
-    scope: developer
-    purpose: 日志目录，建议用绝对路径避免歧义
 ```
 
 清掉历史残留：
@@ -809,18 +821,14 @@ ______________________________________________________________________
 本项目基于以下优秀技术构建：
 
 - [LangGraph](https://langchain-ai.github.io/langgraph/) — 有向图状态机编排
-
 - [Dash](https://dash.plotly.com/) / [Cytoscape](https://js.cytoscape.org/) — 交互式可视化
-
-- [Motor](https://motor.readthedocs.io/) — 异步 MongoDB 驱动
-
+- [pymongo](https://pymongo.readthedocs.io/) — 同步 MongoDB 驱动
 - [AsyncOpenAI](https://github.com/openai/openai-python) / [httpx](https://www.python-httpx.org/) — 高性能异步 LLM 调用
-
 - [pyvis](https://pyvis.readthedocs.io/) / [pydot](https://pypi.org/project/pydot/) / [cairosvg](https://cairosvg.org/) — 图渲染与导出
-
 - [ruamel.yaml](https://pypi.org/project/ruamel.yaml/)（可选）— 配置工具保留 YAML 注释
+- [Pydantic](https://docs.pydantic.dev/) — 值对象与配置校验
 
-  核心贡献者：**JiangDake**
+核心贡献者：**JiangDake**
 
 ______________________________________________________________________
 
@@ -830,9 +838,45 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
-______________________________________________________________________
-
 ## ℹ️ 已知问题
+
+### 关于"全链路异步"
+
+项目最初宣称"全链路异步化"。2026-10-14 实测发现：**Dash 4.4.1 + `dash[async]` 的 Flask backend 用 `asgiref.async_to_sync` 驱动 async 回调，同 thread 内 event loop 会变化**（实测 loop id 序列 A → B → C）。因此：
+
+- **异步 client（Motor）无法跨回调复用**——每回调重建 → 连接池爆炸
+- **同步 client（pymongo）不绑 loop**——一次创建永久复用
+
+**当前策略**（见 `docs/ARCHITECTURE_FUTURE.md`）：
+
+| 层 | 选型 | 理由 |
+|---|---|---|
+| UI 回调 | 声明 async，内部同步 | 兼容 Dash WSGI |
+| 后台任务 | `async_runtime` 常驻 loop | 需要跨回调存活 |
+| DB 客户端 | 同步 pymongo | 不绑 loop；worker 是同步线程 |
+| LLM 客户端 | AsyncOpenAI | 真异步调用，跑在常驻 loop 上 |
+
+**未来切 ASGI 后端**（`dash[async]` 或直接 FastAPI）后，可将 DB 客户端切回异步——切换路径见 `docs/ARCHITECTURE_FUTURE.md`。
+
+---
+
+### 关于 `CHANGELOG.md`
+
+项目采用 **per-module changelog**——每个模块的历史变更集中在 `CHANGELOG.md`。源文件顶部只保留：
+
+- 模块职责说明
+- 最新一条变更
+- 指针：`⚠️ 完整变更历史见 CHANGELOG.md。`
+
+**目的**：源文件可读性提升；历史追溯仍可查（`CHANGELOG.md` + `git log`）。
+
+---
+
+### 关于 `good_addons.py` 的 Changelog
+
+它是"独立 drop-in 库"——不参与 Changelog 迁移，Changelog 保留在文件内。**理由**：它设计为可复制到任何项目，文件内保留完整历史是合理的。
+
+---
 
 ### 关于 `abandon/` 目录
 
@@ -846,6 +890,24 @@ ______________________________________________________________________
 **不要 ignore**：`.gitignore` 里不要加 `abandon/`。
 
 **不要 import**：`src/` 下所有代码不引用 `abandon.*`。
+
+**不要迁移 Changelog**：`scripts/changelog_migrate.py` 已排除 `abandon/*`。
+
+---
+
+## ℹ️ 更新日志（项目级）
+
+| 日期 | 主题 | 影响 |
+|---|---|---|
+| 2026-10-14 | `async_runtime` 常驻 loop 修复 Dash 一次性 loop | `stream/launcher` / `stream/cleaner` / `agent/*` |
+| 2026-10-14 | DB 客户端从 Motor 迁移到同步 pymongo | `core/db/*` |
+| 2026-10-14 | Changelog 集中至 `CHANGELOG.md` | 11 个源文件 |
+| 2026-10-14 | `set_req_id` 有值复用——修复同任务多 req_id | `logger_setup.py` |
+| 2026-10-14 | Pydantic 值对象引入（`IntentModel` / `NodeExecResult`） | `schemas.py` / `_executor.py` |
+| 2026-10-14 | MongoDB 集成测试（43 个） | `tests/test_package/test_mongodb.py` |
+| 2026-10-14 | `TaskSession` 死字段清理 + 双轨边界文档化 | `agent/session.py` / `docs/DESIGN_task_context.md` |
+
+完整历史：`CHANGELOG.md` + `git log`
 
 ______________________________________________________________________
 

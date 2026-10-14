@@ -90,30 +90,17 @@ async def cancel_task(thread_id: str) -> bool:
     """
     取消任务（异步）。
 
-    与 resume 通道的三条命令不同——本函数**不恢复图执行**：
-      1. 设 session.cancel_event → 打断正在 await 的 LLM 调用
-      2. 若 runner_task 在跑，同时 cancel() → 打断等待 checkpoint 的协程
-      3. 图本身会因 LLM 抛 LLMCancelledError 而走到 cancel_node → END
-         （这里不直接调 cancel_node，走自然路径）
-
-    Args:
-        thread_id: 会话 ID
-
-    Returns:
-        True  — 找到会话，取消信号已发出
-        False — 没有该 thread_id 的活跃会话
+    ⚠️ 当前只做协作式取消（设 cancel_event）——不强制打断正在 await 的 IO。
+       TaskSession 不持有 runner task（那是 TaskStreamState 的事），
+       强制取消需要通过 state_cleaner 拿 stream 层状态——见
+       ARCHITECTURE_FUTURE.md 的 TODO。
     """
     session = await get_session(thread_id)
     if session:
         session.cancel_event.set()
-        # ✅ 通过公开方法访问——封装 runner_task 的生命周期语义
-        cancelled = session.cancel_runner()
         logger.info("[Agent] 取消信号已发送 | thread=%s", thread_id)
-        if not cancelled:
-            logger.debug("[Agent] cancel_runner: 无活跃 runner task | thread=%s", thread_id)
         return True
     return False
-
 
 async def modify_task(thread_id: str, new_input: str) -> bool:
     """

@@ -10,6 +10,8 @@ from task_planner.infrastructure.logger_setup import get_logger, set_req_id
 
 from task_planner.utils.context import get_cancel_event
 
+from ._helpers import *
+
 logger = get_logger(__name__)
 
 
@@ -59,12 +61,17 @@ async def plan_node(state: TaskState, config: RunnableConfig) -> dict[str, Any]:
             f"规划失败：plan['edges'] 应为 list，实际为 {type(edges_raw).__name__} (req={rid})"
         )
 
+    # ✅ 元素级校验：list[dict] 只保外层——元素可能是 str / None。
+    #    refine_node 里 n.get("id") 会在非 dict 元素上崩。
+    validate_node_elements(nodes_raw, rid)
+    validate_edge_elements(edges_raw, rid)
+
     # ✅ Patch A-3：类型确认后，再做防御式复制——
     # 避免下游节点直接修改 plan 内部的 list 引用。
     nodes_raw = list(nodes_raw)
     edges_raw = list(edges_raw)
 
-    if not nodes_raw:
+    if not nodes_raw:    
         logger.error(
             "[Graph] plan_node 产出空计划! raw_plan=%s (req=%s)",
             str(plan)[:500], rid,

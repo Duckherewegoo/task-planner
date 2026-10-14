@@ -51,67 +51,37 @@ _SESSION_TTL = _hub.dev.SESSION_TTL
 # ═══════════════════════════════════════════════════════════════════
 class TaskSession:
     """
-    单个任务会话 - 完全异步化
-    ⚠️ runner task 的生命周期**不归本类管**——归 stream 层的
-       TaskStreamState（通过 set_task / abort_worker）。
-       TaskSession 只负责"用户可见的会话状态"（cancel_event / progress_q）。
-       历史上曾在此暴露 attach_runner / cancel_runner——已删除，
-       避免与 TaskStreamState 双轨。
+    单个任务会话——**agent 侧状态**。
+
+    与 TaskStreamState 的边界：
+      - TaskSession：agent / graph 执行所需——cancel_event / start_time / config
+      - TaskStreamState：UI 展示所需——snapshots / node_states / finished
+
+    两个对象由两个 registry 分别管理（session_store / state_cleaner）——
+    这是职责分离，不是技术债。详见 docs/DESIGN_task_context.md。
     """
 
-    # ✅ __weakref__ 显式加进 slots——否则 weakref.ref(session) 抛 TypeError。
-    #    未来 SessionStore 想用 WeakValueDictionary 自动 GC 无引用会话时，
-    #    这一步是前提。
     __slots__ = (
         "__weakref__",
         "cancel_event",
-        "config",
-        "progress_q",
         "start_time",
         "thread_id",
-        "user_input",
     )
 
-    def __init__(self, thread_id: str, user_input: str):
+    def __init__(self, thread_id: str):
         self.thread_id = thread_id
-        self.user_input = user_input
-
         self.cancel_event = asyncio.Event()
         self.start_time = time.time()
 
-        # 有界队列，最多缓存 100 条进度；满了丢最老
-        self.progress_q: asyncio.Queue = asyncio.Queue(maxsize=100)
-
-        # LangGraph 兼容
-        self.config: dict[str, Any] = {
-            "configurable": {"thread_id": thread_id}
-        }
-
-
-    async def emit(self, msg: str) -> None:
+    @property
+    def config(self) -> dict[str, Any]:
         """
-        向进度队列推一条消息。
+        LangGraph 配置——从 thread_id 现场构造。
 
-        ⚠️ 当前实现无 await——签名是 async 是为了未来扩展
-           （如切换到 Redis pub/sub 或写 DB）而不改调用方。
-           如果你确认永远不会变，可以改成 def emit(...)，
-           但会让现有 `await session.emit(...)` 需要同步删除 await。
-
-        队列满时：丢最老、塞最新——保证 UI 拿到的是"当前状态"
-        而不是"已经过时的最早几条"。
+        历史：曾是 __init__ 里存的 dict 字段——改 @property 消除
+        "config 与 thread_id 可能漂移"的隐患。
         """
-        try:
-            self.progress_q.put_nowait(msg)
-        except asyncio.QueueFull:
-            try:
-                self.progress_q.get_nowait()
-                self.progress_q.put_nowait(msg)
-            except asyncio.QueueEmpty:
-                # 理论不可达：put_nowait 刚因 QueueFull 失败说明队列非空。
-                # 保底防御——不因竞争条件抛出。
-                pass
-        logger.info("[Agent] %s", msg)
-
+        return {"configurable": {"thread_id": self.thread_id}}
 
 # ═══════════════════════════════════════════════════════════════════
 #  会话池（全局单例）
@@ -167,52 +137,33 @@ async def cleanup_stale_sessions() -> int:
 
 async def acquire_session(
     thread_id: str,
-    user_input: str,
     resume: bool,
 ) -> TaskSession:
     """
     获取或创建 session。
 
-    resume=True 时：
-      - 若有既有 session → 复用它，并重置 cancel_event（若已 set）
-      - 若无 → 走新建路径（可能是进程重启后 session 已丢，
-        或 thread_id 拼错）——宽容处理，让用户从新任务开始，
-        同时打 warning 便于排查
+    resume=True 时：复用已有 session，重置 cancel_event（若已 set）。
+    resume=False 时：无条件新建（覆盖旧 session）。
 
-    resume=False 时：
-      - 无条件新建（覆盖旧 session，如果存在）
-
-    ⚠️ cancel_event 重置用 clear() 而非替换对象：
-       commands.cancel_task / runner task / contextvar 可能持有旧 event
-       引用——替换对象会让它们"监听的是被丢弃的 event"。
-       clear() 保持引用不变，所有持有者看到同一状态。
-
-    ⚠️ 锁粒度：整个"查询 + 创建"在 _sessions_lock 内完成——
-       单进程场景保证原子性。多 worker + RedisSessionStore 场景下
-       本锁不跨进程，需要 store 层提供原子 create-or-get。
-       见模块 docstring 的"关于 SessionStore 的可替换性"。
+    ⚠️ 参数 user_input 已删——它过去只用于 TaskSession.__init__ 的
+       一个未读取字段。当前所有调用方传的 user_input 都用不到。
     """
     async with _get_sessions_lock():
         if resume:
             existing = await _session_store.get(thread_id)
             if existing is not None:
                 if existing.cancel_event.is_set():
-                    # ✅ 用 clear() 保持引用稳定——
-                    #    不替换对象，让所有持有者看到同一 event 的状态变化。
                     existing.cancel_event.clear()
                 logger.info("[Agent] resume 复用已有 session | thread=%s", thread_id)
                 return existing
-            # resume=True 但无既有 session——可能是进程重启后用户点"继续"，
-            # 也可能是 thread_id 拼错。记录 warning 便于排查。
             logger.warning(
                 "[Agent] resume=True 但无既有 session，走新建路径 | thread=%s",
                 thread_id,
             )
 
-        session = TaskSession(thread_id, user_input)
+        session = TaskSession(thread_id)
         await _session_store.set(thread_id, session)
         return session
-
 
 __all__ = [
     "TaskSession",

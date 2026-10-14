@@ -2,23 +2,7 @@
 sanitize.py — 横切关注点：脱敏、用户视图过滤
 所有节点共用，不依赖其他 nodes 子模块。
 
-Changelog:
-  ── v1 ──
-  ✅ SafeNodeView + sanitize_node_for_user / sanitize_nodes_for_user
-  ✅ sanitize_input（敏感信息脱敏）
-  ✅ get_cancel_event（本地实现）
-
-  ── v2 ──
-  ✅ P1-1：get_cancel_event 改为从 utils.context 转发。
-
-  ── v3 ──
-  ✅ P2-1：SafeNodeView 从 cast 声称改为字段级校验。
-  ✅ P2-2：node 非 dict / 非 list 防御。
-  ✅ P2-3：USER_VISIBLE_NODE_FIELDS 转 frozenset。
-  ✅ P2-4：sanitize_input 惰性计算 hash。
-  ✅ P2-5：sanitize_input 防御非 str 输入。
-
-  ── v4 ──
+── v4 ──
   ✅ P3-1：_FIELD_TYPE_MAP 从 SafeNodeView.__annotations__ 派生，
            消灭与真源的同步漂移；bool 防御逻辑改为对 type 集合判断，
            对元组类型同样生效。
@@ -27,6 +11,8 @@ Changelog:
   ✅ P3-3：非 dict 输入直接 return {}，去掉无意义的 cast。
   ✅ P3-4：审计日志补 input_len / pattern_hits 两个关键字段。
   ✅ P3-5：docstring 补"SENSITIVE_PATTERNS 顺序敏感、不短路"的契约。
+
+⚠️ 完整变更历史见 CHANGELOG.md。
 """
 
 import hashlib

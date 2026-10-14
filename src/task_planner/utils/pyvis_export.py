@@ -10,18 +10,7 @@ pyvis_export.py — DAG 静态可视化导出引擎 (Graphviz Backend) v4
 
 调用方式：所有导出函数均为同步，请用 asyncio.to_thread 隔离阻塞 I/O。
 
-Changelog:
-  ── v3.0 ──
-  ✅ P0-1：export_from_dag_store 的 dot 分支不再传递 output_path
-  ✅ P0-2：边样式按 edge["type"] 区分
-  ✅ P1-1：export_dag_to_png 的 dpi 参数真正生效
-  ✅ P1-2：export_dag_to_svg 默认 dpi 从 800 改为 96
-  ✅ P1-3：节点 label 截断改用 wcswidth 显示宽度
-  ✅ P1-4：title 注入 DOT 前用 _escape_dot_text 转义
-  ✅ P2-1：删除未使用的 config 导入
-  ✅ P2-3：跳过无 ID 节点时打印节点内容
-
-  ── v4（KISS 加固）──
+── v4（KISS 加固）──
   ✅ P1-5：顶部 logger import 改为直接导入，去掉 try/except 反模式。
            内部模块不可用时应当立即暴露问题，而非静默降级。
   ✅ P1-6：_shorten_label 改累积宽度，O(n²) → O(n)。
@@ -29,6 +18,8 @@ Changelog:
            改为只在核心渲染步骤捕获，异常栈更清晰。
   ✅ P2-4：删除文件末尾废弃的 _render_pyvis_html 注释块。
   ✅ P2-5：加 __all__，明确公开接口。
+
+⚠️ 完整变更历史见 CHANGELOG.md。
 """
 
 import io

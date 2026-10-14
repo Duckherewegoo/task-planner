@@ -1,18 +1,7 @@
 """
 flowchart_pro.py — 通用任务流程图渲染器（生产优化版 v8）
 
-Changelog:
-  ── v7.1 ──
-  ✅ P0-1：_get_details 修复字段优先级（node.details > meta.details > description）
-  ✅ P0-2：build_clean_svg 兼容 edge 的 from/to 与 source/target 双契约
-  ✅ P1-1：simple_cycles 只跑一次，cycle_edges 从 _validate_dag 返回
-  ✅ P1-2：render_interactive 加 try/except，失败降级到 _error_html
-  ✅ P1-3：删除 __init__ 里的死 try/except
-  ✅ P1-4：export 的 dot 分支 except ImportError 冗余去除
-  ✅ P2-x：移除 render_for_gradio；预编译 DAG_LAYOUT JSON；
-           属性值 html.escape；import re 提到顶部
-
-  ── v8（KISS 加固，不影响功能）──
+── v8（KISS 加固，不影响功能）──
   ✅ P1-5：加本地 _safe_int，替换所有 int(node.get(...))，
            容忍 None / 非法字符串。
   ✅ P1-6：build_clean_svg 里 node["id"] 改 node.get("id", "?")，
@@ -28,6 +17,8 @@ Changelog:
   ✅ P2-9：get_edge_style 的 "soft" 改用 EDGE_TYPE_SOFT 常量。
   ✅ P2-10：__init__ 注释与代码对齐（去掉"死 try/except"措辞）。
   ✅ P2-11：_build_tooltip / _build_card_data 的 node['id'] 改 .get。
+
+⚠️ 完整变更历史见 CHANGELOG.md。
 """
 
 import base64

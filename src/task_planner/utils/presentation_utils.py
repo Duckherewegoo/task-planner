@@ -1,13 +1,8 @@
 """
 presentation_utils.py — 通用展示辅助函数（Dropdown 构建、任务 ID 提取）
 ═══════════════════════════════════════════════════════════════════════
-Changelog:
-  ── v1 ──
-  ✅ P1-1：build_history_dropdown_options 用 wcswidth 按显示宽度截断
-  ✅ P1-2：extract_first_task_id 去掉冗余的空列表判断
-  ✅ P1-3：extract_first_task_id 加类型守卫
 
-  ── v2（KISS 加固）──
+── v2（KISS 加固）──
   ✅ P2-1：_display_truncate 改累积宽度，从 O(n²) 降到 O(n)。
            原实现每次迭代重算 wcswidth(truncated + ch)，长文本下明显变慢。
   ✅ P2-2：_display_truncate 的省略号宽度从 _ELLIPSIS 常量推导，
@@ -16,6 +11,8 @@ Changelog:
            因为后者的 _short_label 会先清停用词，两者语义不同。
   ✅ P2-4：extract_first_task_id 的 else 分支显式拒绝 dict/tuple，
            避免 str({'a': 1}) 产出垃圾字符串。
+
+⚠️ 完整变更历史见 CHANGELOG.md。
 """
 from typing import Any
 

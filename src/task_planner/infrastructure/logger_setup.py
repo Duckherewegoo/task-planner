@@ -7,33 +7,11 @@ logger_setup.py — 异步友好的日志系统（生产终极版 v3）
   ✅ 可靠稳定：队列积压背压控制，防止内存泄漏
   ✅ 灵活扩展：可接入远程日志、结构化日志
 
-Changelog:
-  ── v1 ──
-  ✅ P0-1：只对根 logger（"task_planner"）挂 handler，子 logger 用 propagate
-  ✅ P0-2：ReqIdFilter 只在 record 无 req_id 时补默认值，不覆盖主线程注入值
-  ✅ P0-3：set_req_id 的 ContextVar 语义说明；提供 propagate_req_id()
-  ✅ P1-1：移除未使用的 _logger_initialized
-  ✅ P1-2：保留 root logger WARNING 级别兜底，第三方库日志可见
-  ✅ P1-3：shutdown_logging 用 print（listener 已停）
-  ✅ P1-4：确保 task_planner.* 相关 logger 都是 ReqIdLogger
-  ✅ P1-5：QueueHandler 队列满时记录 stderr 警告，不再静默丢弃
+── v4 ──
+  ✅ set_req_id 改为"有值复用"——修复同任务多 req_id 问题。
 
-  ── v2 ──
-  ✅ P1-6：LOG_DIR / LOG_FILE 空值兜底，回退到项目根/logs 与默认文件名
-  ✅ P1-7：_SafeQueueHandler.enqueue 对 record.getMessage() 加 try，
-           防止格式化失败拖垮 stderr 写入
-  ✅ P1-8：shutdown_logging 清理 root_logger 上的 handler，
-           避免重新初始化时重复挂 handler 导致日志翻倍
-  ✅ P1-9：_project_root 模块级缓存，避免每次初始化重复计算 Path
-
-  ── v3 ──
-  ✅ P2-1：set_req_id / get_req_id 增加 None 保护
-  ✅ P2-2：propagate_req_id 文档补充与 asyncio.Task 的配合示例
-  ✅ P2-3：TimedRotatingFileHandler 增加 delay=True，
-           首次写入才创建文件，避免空日志文件占位
-  ✅ P2-4：暴露 is_initialized() 供测试/健康检查使用
+⚠️ 完整变更历史见 CHANGELOG.md。
 """
-
 
 import contextvars
 import logging
@@ -71,16 +49,34 @@ _req_id_var: ContextVar[str] = ContextVar("req_id", default="-")
 
 def set_req_id(rid: str | None = None) -> str:
     """
-    设置当前协程/线程的 req_id。
+    设置或获取当前上下文的 req_id。
 
-    ⚠️ ContextVar 是 Task-local 的：在 asyncio.create_task / asyncio.gather
-       创建的子协程里，默认读不到父协程设置的 req_id。
-       如需跨 Task 传播，请用 propagate_req_id()。
+    语义：
+      - 显式传参 rid → 无条件覆盖（真正的 "set"）
+      - 不传参 + contextvar 已有值 → 复用（不刷新）
+      - 不传参 + contextvar 无值 → 生成新值
+
+    为什么"不传参且有值"要复用：
+      LangGraph 每个节点入口都调 set_req_id()——若每次都生成新值，
+      同一次任务在日志里出现多个 req_id，无法串联排查。
+      改为复用后，只有任务入口（首次调用）生成新值。
+
+    ⚠️ 命名妥协：本函数名暗示"set"（覆盖），但"不传参"分支是
+       "get-or-create"。这违反直觉——但不改调用方语义的代价更大。
+       未来若拆分：节点用 get_req_id()、任务入口用 set_req_id(rid)。
+
+    ⚠️ ContextVar 是 Task-local 的：asyncio.create_task 创建的子协程
+       默认读不到父协程的值。需要跨 Task 传播时用 propagate_req_id()。
     """
-    rid = rid or _make_req_id()
-    _req_id_var.set(rid)
-    return rid
-
+    if rid is not None:
+        _req_id_var.set(rid)
+        return rid
+    existing = _req_id_var.get()
+    if existing and existing != "-":
+        return existing
+    new_rid = _make_req_id()
+    _req_id_var.set(new_rid)
+    return new_rid
 
 def get_req_id() -> str:
     """获取当前上下文的 req_id（永不返回 None，无值时返回 "-"）"""

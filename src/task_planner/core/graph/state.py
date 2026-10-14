@@ -3,46 +3,7 @@ state.py — LangGraph 状态定义
 ═══════════════════════════════════════════════════════════════════════
 目标运行时：Python 3.14+（StrEnum / NotRequired / PEP 649 / PEP 695 全部原生）
 
-Changelog:
-  ── v1 ──
-  ✅ UserAction / NodeStatus 枚举
-  ✅ TaskState 继承 MessagesState
-  ✅ schema_version 字段（checkpoint 兼容）
-
-  ── v2 ──
-  ✅ P1-1：移除 steps / node_results 的 operator.add reducer。
-  ✅ P1-2：删除未使用的 UserActionLiteral / NodeResult 类型别名。
-  ✅ P1-3：清理 view_mode 的历史决策注释。
-
-  ── v3 ──
-  ✅ P2-1：steps / node_results 用 Annotated[..., _replace_list] 显式声明覆盖语义。
-  ✅ P2-2：所有非必填字段标 NotRequired。
-  ✅ P2-3：集中声明三指针优先级。
-
-  ── v4 ──
-  ✅ P3-1：修正 v2 changelog 笔误——validate_user_action 并未删除。
-  ✅ P3-2：_replace_list 对 None 做防御。
-  ✅ P3-3：create_initial_state 显式拒绝 kwargs 覆盖必填字段。
-  ✅ P3-4：NodeStatus 加 docstring。
-
-  ── v5 ──
-  ✅ P4-1：StrEnum / NotRequired 版本策略统一（当时假设支持 3.10）。
-  ✅ P4-2：删除未使用的 TypedDict 导入。
-
-  ── v6 ──
-  ✅ P5-1：恢复 NodeResult TypedDict。
-  ✅ P5-2：NodeResult.node_id 定为 int | str，与 _executor.py 契约对齐。
-  ✅ P5-3：_replace_list 泛型化。
-  ✅ P5-4：validate_user_action 参数放宽为 str | UserAction。
-  ✅ P5-5：create_initial_state 内 node_results 显式标注。
-
-  ── v7 ──
-  ✅ P6-1：明确目标 Python 版本为 3.14。撤销 v5 的 try/except 回退。
-  ✅ P6-2：移除 `from __future__ import annotations`。
-  ✅ P6-3：_replace_list 改用 PEP 695 内联泛型语法。
-  ✅ P6-4：模块顶部显式声明"目标运行时"。
-
-  ── v8 ──
+── v8 ──
   ✅ Patch A：needs_planning 默认值改为 True。
               与 workflow.py 的 _route_start 契约对齐——新任务默认走
               intent 由意图节点判断，避免 create_initial_state 后
@@ -51,6 +12,8 @@ Changelog:
   ✅ P7-2：三指针优先级 docstring 补"消费方"说明——当前
            execute.py / route_after_execute 均未消费该字段，
            提醒下一轮迭代必须补齐实现方。
+
+⚠️ 完整变更历史见 CHANGELOG.md。
 """
 from enum import StrEnum
 from typing import Annotated, Any, NotRequired, TypedDict

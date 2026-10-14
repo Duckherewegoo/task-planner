@@ -4,11 +4,7 @@ session_store.py — 会话存储抽象与内存实现
 为 Task Planner 的会话生命周期提供统一入口。
 未来切换到 Redis 只需新增 RedisSessionStore，调用方零改动。
 
-Changelog:
-  ── v1 ──
-  ✅ 提供 SessionStore Protocol + InMemorySessionStore 实现
-
-  ── v2 ──
+── v2 ──
   ✅ P1-1：消除隐式依赖。原 set() 内部读 session.start_time，
            导致 store 耦合 session 的内部结构。
            改为 store 自记 created_at，真正与 session 解耦。
@@ -17,8 +13,10 @@ Changelog:
   ✅ P1-3：cleanup_stale 的 TTL 判断基于 store 自己的时间，
            不再受 session 内部时钟影响。
 
-  __ V3 __
+  ── v3 ──
   将源文件拆包，只保留独立的protocol接口，便于修改和观察
+
+⚠️ 完整变更历史见 CHANGELOG.md。
 """
 
 from typing import Any, Protocol, runtime_checkable

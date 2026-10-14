@@ -3,38 +3,7 @@ workflow.py — LangGraph 工作流定义（异步优化版）
 ═══════════════════════════════════════════════════════════════════════
 目标运行时：Python 3.14+
 
-Changelog:
-  ── v1 ──
-  ✅ checkpointer 资源 atexit 统一清理
-  ✅ graph 单例懒加载（线程安全）
-  ✅ _LazyGraphProxy 支持同步/异步 API
-
-  ── v2 ──
-  ✅ P1-1：修复 _run_sync 报错信息中的 async 名推导 bug。
-  ✅ P1-2：_graph_instance / _graph_lock 提到模块顶部。
-  ✅ P1-3：_LazyGraphProxy 加白名单（后改黑名单）。
-  ✅ P1-4：atexit 用 sentinel 防重复注册。
-  ✅ P1-5：_cleanup_checkpointers 简化 close 分支。
-  ✅ P2-1：resume_graph_async / get_thread_state_async 补齐 "next_nodes"。
-
-  ── v3 ──
-  ✅ Patch A（state.py）：needs_planning 默认值改为 True。
-  ✅ Patch B：_ATEXIT_REGISTERED 挂 sys，抗 importlib.reload。
-  ✅ Patch C：_cleanup_checkpointers 失败日志从 debug 提到 warning。
-  ✅ Patch D：_force_rebuild_graph 重建前先清旧资源，消除累积泄漏。
-  ✅ Patch E：_LazyGraphProxy 改黑名单 + __repr__ 去硬编码。
-  ✅ Patch F：resume_graph_async —— validate_user_action 校验入口；
-               feedback 键名与 TaskState 字段对齐；新增
-               resume_from_node_index 参数；同步图操作走 asyncio.to_thread。
-  ✅ Patch G：get_thread_state_async —— 异常上抛；next 转 list；
-               去掉无信息量的 has_checkpoint。
-  ✅ Patch H：_run_sync 传 factory，避免协程未 await 的 RuntimeWarning。
-  ✅ Patch I：build_graph docstring 加废弃提示。
-  ✅ Patch F-补：图构建走 to_thread，避免首次调用阻塞事件循环。
-  ✅ Patch F-补：resume_from_node_index 与 target_node_index 同时非空时
-               显式报错。
-
-  ── v4 ──
+── v4 ──
   ✅ Patch J：resume_graph_async docstring 明确契约——
               本函数**只更新状态，不续跑图**。调用方拿到 next_nodes 后
               必须自行 `g.astream(None, config)` 让图继续执行。
@@ -72,6 +41,8 @@ Changelog:
    改为 "user_action" / "retry_node_index" / "resume_from_node_index"。
    execute.py 里 `feedback.get("action")` 必须同步改为
    `feedback.get("user_action")`。
+
+⚠️ 完整变更历史见 CHANGELOG.md。
 """
 import asyncio
 import atexit

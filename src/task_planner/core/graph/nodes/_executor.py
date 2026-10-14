@@ -2,39 +2,7 @@
 _executor.py — 单节点执行器（nodes 包内部使用）。
 对外只暴露 execute_single_node()。
 
-Changelog:
-  ── v1 ──
-  ✅ execute_single_node：构建 Prompt + 委托 LLM + 异常分级响应
-
-  ── v2 ──
-  ✅ P1-1：prompt 构建阶段的异常（render_template / json.dumps）
-           从 try 外移入 try 内，纳入异常分级响应。
-  ✅ P1-2：修正 docstring——LLMCancelledError 时向上抛。
-  ✅ P1-3：新增 NodeExecResult TypedDict。
-  ✅ P2-1：node 非 dict / meta 非 dict 加防御。
-  ✅ P2-2：req_id 空串语义收紧。
-  ✅ P2-3：detail 截断 200 字符、retryable=False 保守策略。
-
-  ── v3 ──
-  ✅ P3-1：_failed_result 重构为 _make_result，timeout 复用。
-  ✅ P3-2：detail 从 LLM 层返回后做类型防御。
-  ✅ P3-3：node_id 运行时校验：非 int/str 时降级为 str(...)。
-  ✅ P3-4：changelog 补说明——"开始执行节点" 日志的时机。
-
-  ── v4 ──
-  ✅ P4-1：_coerce_node_id 加 bool 防御——bool 是 int 子类，
-           True/False 会被 isinstance(int) 放行，业务上 node id 不
-           应该是布尔值。与 sanitize.py 的 _type_matches 哲学对齐。
-  ✅ P4-2：未知异常分支的 detail 改为整句截断——原写法只截断 str(e)，
-           前缀 "💥 未知异常: " + 类型名 + ": " 不计入 _DETAIL_MAX_LEN，
-           实际可达 230 字符，与 docstring 承诺的 200 不符。
-  ✅ P4-3：_coerce_detail 改名 _coerce_text 并通用化——原本只服务
-           detail，现在统一处理 name / details / category 三处 LLM 文本字段。
-           顺带修掉 str(None) → "None" 污染 prompt / UI 的问题。
-  ✅ P4-4：category 取值从 str(intent.get("category", "other")) 改为
-           _coerce_text(...) or "other"——同一类 None 处理问题。
-
-  ── v5 ──
+── v5 ──
   ✅ P5-1：NodeExecResult 从 TypedDict → Pydantic BaseModel。
            收益：消费方（execute.py）用属性访问（result.status）而非
            下标访问（result["status"]）——IDE 补全 + 拼错字段立刻报错。
@@ -43,6 +11,8 @@ Changelog:
   ✅ P5-2：bool 归一化逻辑抽出为 field_validator——execute_single_node
            不再直接调 _coerce_node_id，归一化推迟到构造时（单点保证）。
            _coerce_node_id 保留为归一化函数，供 validator 与测试复用。
+
+⚠️ 完整变更历史见 CHANGELOG.md。
 """
 import asyncio
 import json

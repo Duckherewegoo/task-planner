@@ -3,20 +3,7 @@ cytoscape_adapter.py — DAG → Cytoscape.js 数据适配器
 ═══════════════════════════════════════════════════════════════════════
 支持循环边、动态边距、Markdown 友好数据、边类型(hard/soft/conditional/retry)
 
-Changelog:
-  ── v1 ──
-  ✅ P0-1：新增 _char_width 函数，修复 _short_label 里的 NameError
-  ✅ P0-2：_detect_cycles_cached 调用前先转 tuple，修复 lru_cache unhashable
-  ✅ P0-3：补上 edge_type 变量赋值（data.edge_type）
-  ✅ P1-1：_detect_cycles 返回类型注解修正为 Set[Tuple[str, str]]
-  ✅ P1-2：删除 _node_state_class 未使用的 in_degree 参数
-  ✅ P1-3：删除 _edge_class 未使用的 node_states 参数
-  ✅ P1-4：_is_loop_edge 脏数据 warning 用 hasattr 去重
-  ✅ P1-5：build_history_detail_markdown 的 icon_map 改用 STATUS_ICONS
-  ✅ P1-6：统一用 _safe_int 处理 status
-  ✅ P1-7：_status_icon 用 NODE_STYLES.get(0, {}) 兜底
-
-  ── v2（KISS 加固，不影响功能）──
+── v2（KISS 加固，不影响功能）──
   ✅ P2-1：_get_edge_type 改名 get_edge_type（公开）。
            _get_edge_type 保留为 alias，向后兼容。
            原因：stream/control.py 等下游在跨模块引用它。
@@ -27,6 +14,8 @@ Changelog:
   ✅ P2-4：_node_state_class 分支改为 dict 查表。
   ✅ P2-5：抽 _icon_for_node，统一节点 icon 判断（原 node 循环内嵌 if-elif）。
   ✅ P2-6：类型注解精确化 Dict → Dict[str, Any]。
+
+⚠️ 完整变更历史见 CHANGELOG.md。
 """
 
 import re

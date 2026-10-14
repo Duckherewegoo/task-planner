@@ -82,7 +82,14 @@ class TaskSession:
         self.config: dict[str, Any] = {
             "configurable": {"thread_id": thread_id}
         }
-
+        
+         # ⚠️ 以下两个方法**当前无调用方**：
+    #    runner task 的生命周期现在归 TaskStreamState（stream 层）管理，
+    #    通过 TaskStreamState.set_task() / abort_worker() 操作。
+    #    这里保留接口是为了"未来若需要从 agent 层直接取消 runner"的场景，
+    #    也为避免破坏可能的兼容 import。
+    #    如果确认永远不用，可以在未来版本删除这两个方法 + __slots__ 里的
+    #    _runner_task。
         # ── ✅ 新增：封装 runner_task 的生命周期访问 ──
     def attach_runner(self, task: asyncio.Task) -> None:
         """

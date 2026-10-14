@@ -36,7 +36,6 @@ async def run_task_stream(
     logger.info("[Agent] 启动任务 | thread=%s req=%s", thread_id, rid)
 
     session = await acquire_session(thread_id, user_input, resume)
-    session.attach_runner(task) 
 
     # 用 copy_context 绑定，避免跨 Task 恢复时 token 语义错位
     ctx = contextvars.copy_context()

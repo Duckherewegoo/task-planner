@@ -86,7 +86,8 @@ def main() -> None:
     #       守卫跳过——那时由 client.py 模块级的 atexit.register(close_db)
     #       兜底。两处都调用 close_db，它已实现幂等。
     SHUTDOWN.register(close_db, priority=-100)
-
+    from task_planner.infrastructure.async_runtime import shutdown as async_runtime_shutdown
+    SHUTDOWN.register(async_runtime_shutdown, priority=-200)
     mode = "debug" if debug else "production"
     is_reloader = os.environ.get("WERKZEUG_RUN_MAIN") == "true"
     process_tag = " [reloader]" if is_reloader else ""

@@ -29,6 +29,8 @@ dist/
 *.egg-info/
 *.egg
 .eggs/
+.unifypy*
+*.spec
 
 # ── 测试 / 类型 / Lint 缓存 ──
 .pytest_cache/

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "task-planner"
-version = "3.2.1"
+version = "3.2.2"
 description = "基于 LangGraph 与大语言模型的自主任务规划引擎，支持动态 DAG 编排、多模态意图识别与全流程可观测性评估（异步版）。"
 requires-python = ">=3.14"
 license = "GPL-3.0-or-later"
@@ -97,6 +97,12 @@ dev = [
     "python-Levenshtein>=0.25.0",   # 评估套件需要
     "pyahocorasick>=2.1.0",         # 违禁词匹配性能测试需要
     "fakeredis>=2.20.0",            # Redis session store 测试用（无需真 Redis）
+]
+# --打包依赖 --
+packer = [
+    "pyinstaller>=5.0", # 显式指定依赖
+    "unifypy>=2.0.0",  # 跨平台打包工具
+    "unifypy[schema]>=2.0.0", # 验证合法性套件
 ]
 
 [project.urls]

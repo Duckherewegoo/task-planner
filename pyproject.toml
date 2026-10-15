@@ -98,12 +98,6 @@ dev = [
     "pyahocorasick>=2.1.0",         # 违禁词匹配性能测试需要
     "fakeredis>=2.20.0",            # Redis session store 测试用（无需真 Redis）
 ]
-# --打包依赖 --
-packer = [
-    "pyinstaller>=5.0", # 显式指定依赖
-    "unifypy>=2.0.0",  # 跨平台打包工具
-    "unifypy[schema]>=2.0.0", # 验证合法性套件
-]
 
 [project.urls]
 Homepage = "https://github.com/Duckherewegoo/task-planner"

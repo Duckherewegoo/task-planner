@@ -1,19 +1,19 @@
 {
   "entry": "src/task_planner/main/ui/app.py",
-  "name": "new_task_planner",
-  "display_name": "task-planner",
+  "name": "new-task-planner",
+  "display_name": "new-task-planner",
   "version": "3.2.2",
-  "publisher": "JiangDake",
-  "description": "基于 LangGraph 与大语言模型的自主任务规划引擎，支持动态 DAG 编排、多模态意图识别与全流程可观测性评估（异步版）的web任务规划助手。",
+  "publisher": "JiangDake<dakeginger@qq.com>",
+  "description": "基于 LangGraph 与大语言模型的自主任务规划引擎，支持动态 DAG 编排、多模态意图识别与全流程可观测性评估（异步版）web端任务规划助手",
   "icon": "/home/dake/Documents/Hachimi.jpg",
   "pyinstaller": {
     "onefile": false,
     "windowed": false,
     "add_data": [
-      "scripts:scripts",
-      "src:src",
       "data:data",
-      "config:config"
+      "src:src",
+      "config:config",
+      "scripts:scripts"
     ],
     "clean": true,
     "noconfirm": true
@@ -24,16 +24,24 @@
         "create_desktop_icon": true,
         "create_start_menu_icon": true,
         "allow_run_after_install": true,
-        "license_file": "LICENSE",
         "languages": [
-          "english",
-          "chinesesimplified"
+          "chinesesimplified",
+          "english"
         ]
-      },
-      "msi": {
-        "license": "GPLv3",
-        "summary": "跨平台的基于大模型web任务规划助手",
-        "description": "支持Windows、Linux的web任务规划助手"
+      }
+    },
+    "linux": {
+      "formats": [
+        "deb"
+      ],
+      "deb": {
+        "package": "new-task-planner",
+        "section": "utils",
+        "priority": "optional",
+        "desktop_entry": true,
+        "categories": [
+          "Utility"
+        ]
       }
     }
   }

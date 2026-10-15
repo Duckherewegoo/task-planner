@@ -26,6 +26,7 @@ __pycache__/
 # ── 打包产物 ──
 build/
 dist/
+installer/
 *.egg-info/
 *.egg
 .eggs/

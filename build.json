@@ -35,6 +35,6 @@
         "summary": "跨平台的基于大模型web任务规划助手",
         "description": "支持Windows、Linux的web任务规划助手"
       }
-    },
+    }
   }
 }

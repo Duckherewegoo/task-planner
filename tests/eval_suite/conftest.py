@@ -1,7 +1,10 @@
 """共享 fixture。"""
 import pytest
+
 from task_planner.eval_suite.types import (
-    AgentTrace, Difficulty, GoldenCase,
+    AgentTrace,
+    Difficulty,
+    GoldenCase,
 )
 
 

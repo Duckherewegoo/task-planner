@@ -1,6 +1,5 @@
 from task_planner.infrastructure.logger_setup import get_logger
 
-
 logger = get_logger(__name__)
 
 def validate_node_elements(nodes: list, rid: str) -> None:

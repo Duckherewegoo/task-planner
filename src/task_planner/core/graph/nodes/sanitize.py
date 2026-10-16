@@ -22,7 +22,6 @@ from task_planner.infrastructure.constants import USER_VISIBLE_NODE_FIELDS
 from task_planner.infrastructure.logger_setup import get_logger
 from task_planner.infrastructure.regexes import SENSITIVE_PATTERNS
 
-
 logger = get_logger(__name__)
 
 # ✅ P2-3：模块加载时一次性转 frozenset。

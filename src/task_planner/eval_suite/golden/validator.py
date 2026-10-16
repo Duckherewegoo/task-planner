@@ -62,7 +62,7 @@ def validate_golden_plan(plan: dict[str, Any]) -> tuple[bool, str]:
         adj[e["from"]].append(e["to"])
 
     WHITE, GRAY, BLACK = 0, 1, 2
-    color = {i: WHITE for i in ids}
+    color = dict.fromkeys(ids, WHITE)
 
     for start in ids:
         if color[start] != WHITE:

@@ -49,7 +49,8 @@ import atexit
 import os
 import sys
 import threading
-from typing import Any, Callable, Coroutine
+from collections.abc import Callable, Coroutine
+from typing import Any
 
 from langgraph.graph import END, START, StateGraph
 

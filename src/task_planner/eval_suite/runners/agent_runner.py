@@ -9,7 +9,7 @@ agent_runner.py — 运行 Agent 并收集轨迹。
 
 import asyncio
 import time
-from typing import Any, Callable
+from collections.abc import Callable
 
 from task_planner.infrastructure.cog import hub as _hub
 from task_planner.infrastructure.logger_setup import get_logger
@@ -83,7 +83,7 @@ async def run_agent(
 
     try:
         await asyncio.wait_for(_consume(), timeout=timeout)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         trace.error = f"超时 ({timeout}s)"
         logger.warning("[Runner] %s 超时", case_id)
     except Exception as e:

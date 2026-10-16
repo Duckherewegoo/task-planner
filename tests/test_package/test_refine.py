@@ -9,7 +9,6 @@ from task_planner.core.graph.nodes.refine import (
     refine_node,
 )
 
-
 # ── Semaphore 跨 loop 回归（本轮修复的关键 bug）──
 
 def test_semaphore_does_not_bind_across_event_loops(monkeypatch):

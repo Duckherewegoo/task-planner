@@ -260,7 +260,7 @@ async def execute_single_node(
             #   原写法 str(e)[:_DETAIL_MAX_LEN] 只截消息，
             #   前缀不计入，实际最多约 230 字符，与 docstring 承诺不符。
             detail=(
-                f"💥 未知异常: {type(e).__name__}: {str(e)}"
+                f"💥 未知异常: {type(e).__name__}: {e!s}"
             )[:_DETAIL_MAX_LEN],
             retryable=False,
         )

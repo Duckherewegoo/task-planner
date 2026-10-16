@@ -8,7 +8,6 @@ from task_planner.core.graph.nodes.routes import (
 )
 from task_planner.core.graph.state import UserAction
 
-
 # ── route_after_intent ──
 
 def test_route_after_intent_cancel_priority():

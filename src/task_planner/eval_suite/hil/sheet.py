@@ -1,7 +1,8 @@
 """sheet.py — HIL 待审清单生成。"""
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
+
 from ..types import CaseResult
 
 
@@ -24,7 +25,7 @@ def generate_review_sheet(results: list[CaseResult], output: Path) -> Path:
                 "human_comment": "",
                 "revised_suggestion": "",
             },
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
         })
     output.write_text(json.dumps(items, ensure_ascii=False, indent=2), encoding="utf-8")
     return output

@@ -11,7 +11,6 @@ from task_planner.core.graph.nodes._executor import (
     execute_single_node,
 )
 
-
 # ── _coerce_node_id ──
 
 @pytest.mark.parametrize("raw, expected", [

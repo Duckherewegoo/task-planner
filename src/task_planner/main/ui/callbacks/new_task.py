@@ -3,7 +3,7 @@
 import time
 import uuid
 
-from dash import Input, Output, Patch, State, callback, ctx, dcc, html, no_update
+from dash import Input, Output, State, callback, ctx, dcc, html, no_update
 
 from task_planner.core.graph.state import NodeStatus
 from task_planner.infrastructure.cog import hub as _hub
@@ -26,8 +26,6 @@ from task_planner.utils.cytoscape_adapter import build_detail_markdown
 
 from ..constants import cytoscape_cached
 from ..data_ops import auto_unlock_downstream, safe_elapsed
-
-import asyncio
 
 
 def register() -> None:
@@ -67,7 +65,7 @@ def register() -> None:
         State("dag-store", "data"),
         State("node-states-store", "data"),
     )
-    def on_tap_node(node_data, dag, node_states): 
+    def on_tap_node(node_data, dag, node_states):
         if not node_data or not node_data.get("id"):
             return (
                 dcc.Markdown(

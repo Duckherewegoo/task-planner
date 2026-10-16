@@ -214,7 +214,7 @@ def create_initial_state(
 
     Raises:
         TypeError: kwargs 里出现保留字段名。
-    """    
+    """
     reserved = {"user_input", "thread_id", "schema_version"}
     conflict = reserved & kwargs.keys()
     if conflict:

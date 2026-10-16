@@ -9,7 +9,7 @@ nodes — LangGraph 异步节点函数（拆分版）
     )
 
 拆分子模块：
-  sanitize      横切：脱敏 / 视图过滤 
+  sanitize      横切：脱敏 / 视图过滤
   intent        意图识别
   plan          DAG 规划
   refine        节点细化（并发）

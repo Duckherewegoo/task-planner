@@ -1,6 +1,7 @@
 """execute.py — 单节点执行节点（含 interrupt + MODIFY 重置）"""
 
-from typing import Any, Awaitable, Callable
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 from langchain_core.runnables import RunnableConfig
 from langgraph.types import interrupt
@@ -9,11 +10,10 @@ from task_planner.core.db import mark_task_failed, mark_task_running, update_nod
 from task_planner.core.graph.state import TaskState, UserAction, validate_user_action
 from task_planner.infrastructure.llm import LLMCancelledError
 from task_planner.infrastructure.logger_setup import get_logger, set_req_id
+from task_planner.utils.context import get_cancel_event
 
 from ._executor import execute_single_node
 from .sanitize import sanitize_input, sanitize_node_for_user
-
-from task_planner.utils.context import get_cancel_event
 
 logger = get_logger(__name__)
 

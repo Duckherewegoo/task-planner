@@ -1,15 +1,18 @@
 """cli.py — eval_suite 命令行入口。"""
-import argparse, asyncio, json, sys
+import argparse
+import asyncio
+import json
+import sys
 from pathlib import Path
 
-from .types import CaseResult, Difficulty, GoldenCase
 from .golden.generator import generate_dataset
+from .hil.sheet import generate_review_sheet
+from .jury.calibrated_judge import CalibratedJudge, JudgeConfig
+from .report.html_report import render_html_report
+from .report.json_report import write_json_report
 from .runners.agent_runner import run_agent
 from .scorers.deterministic import score_deterministic
-from .jury.calibrated_judge import CalibratedJudge, JudgeConfig
-from .report.json_report import write_json_report
-from .report.html_report import render_html_report
-from .hil.sheet import generate_review_sheet
+from .types import CaseResult, Difficulty, GoldenCase
 
 
 def _load_dataset(d: Path) -> list[GoldenCase]:

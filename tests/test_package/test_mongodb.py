@@ -250,10 +250,10 @@ async def test_get_task_not_found_returns_none(clean_db):
 
 async def test_get_task_fills_defaults(clean_db):
     """get_task 补全 schema 默认值——防下游 KeyError"""
-    from task_planner.core.db import get_task
-
-    from task_planner.core.db.client import get_db
     from datetime import UTC, datetime
+
+    from task_planner.core.db import get_task
+    from task_planner.core.db.client import get_db
 
     # 直接插入一个只有最小字段的 task（不走 create_task_with_plan）
     db = get_db()

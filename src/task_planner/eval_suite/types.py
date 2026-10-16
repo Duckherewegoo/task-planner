@@ -5,7 +5,7 @@ types.py — eval_suite 的所有数据类型。
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, TypedDict
+from typing import Any
 
 
 # ═══════════════════════════════════════════════════════════════════

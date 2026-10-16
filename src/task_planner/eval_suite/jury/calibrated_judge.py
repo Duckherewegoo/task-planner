@@ -17,13 +17,16 @@ import asyncio
 import statistics
 from dataclasses import dataclass
 
-from task_planner.infrastructure.cog import hub as _hub
 from task_planner.infrastructure.logger_setup import get_logger
 
-from ..types import (
-    AgentTrace, GoldenCase, JudgeScore, JuryResult, VotingStrategy,
-)
 from ..scorers.llm_judge import llm_judge
+from ..types import (
+    AgentTrace,
+    GoldenCase,
+    JudgeScore,
+    JuryResult,
+    VotingStrategy,
+)
 
 logger = get_logger("task_planner.eval_suite.jury")
 
@@ -162,7 +165,7 @@ class CalibratedJudge:
             total_w = sum(weights)
             if total_w == 0:
                 return round(statistics.mean(values), 2)
-            return round(sum(v * w for v, w in zip(values, weights)) / total_w, 2)
+            return round(sum(v * w for v, w in zip(values, weights, strict=True)) / total_w, 2)
         return round(statistics.mean(values), 2)
 
     _AGREEMENT_SCALE = 5.0

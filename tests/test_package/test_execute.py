@@ -2,12 +2,14 @@
 from unittest.mock import AsyncMock
 
 import pytest
+
 from task_planner.core.graph.nodes._executor import NodeExecResult
 from task_planner.core.graph.nodes.execute import (
     _resolve_target_index,
     execute_node,
 )
 from task_planner.core.graph.state import UserAction
+
 # ── 构造最小 state ──
 
 def _make_state(**overrides):

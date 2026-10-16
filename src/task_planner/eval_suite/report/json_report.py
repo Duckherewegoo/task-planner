@@ -1,8 +1,8 @@
 """json_report.py — JSON 评估报告输出。"""
 import json
-from dataclasses import asdict
 from pathlib import Path
-from ..types import AgentTrace, CaseResult, GoldenCase
+
+from ..types import CaseResult
 
 
 def write_json_report(results: list[CaseResult], output: Path) -> Path:

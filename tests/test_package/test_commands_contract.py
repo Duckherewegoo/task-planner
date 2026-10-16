@@ -13,7 +13,6 @@ from langgraph.types import Command
 from task_planner.core.graph.state import UserAction
 from task_planner.services.agent import commands
 
-
 # ── 构造一个最小 session 替身 ──
 
 def _make_session(thread_id="t-1"):

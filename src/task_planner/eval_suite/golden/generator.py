@@ -7,12 +7,11 @@ generator.py — 用 LLM 合成黄金标准数据集。
 """
 import asyncio
 import hashlib
-
 import json
 from pathlib import Path
 
-from task_planner.infrastructure.llm import async_call_llm, extract_json
 from task_planner.infrastructure.cog import hub as _hub
+from task_planner.infrastructure.llm import async_call_llm, extract_json
 from task_planner.infrastructure.logger_setup import get_logger
 
 from ..types import Difficulty, GoldenCase

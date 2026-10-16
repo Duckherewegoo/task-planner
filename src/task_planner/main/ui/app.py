@@ -60,8 +60,8 @@ def _validate_port(port_value) -> int:
 
 
 def main() -> None:
-    from task_planner.utils.good_addons import SHUTDOWN, boost
     from task_planner.core.db import close_db
+    from task_planner.utils.good_addons import SHUTDOWN, boost
 
     host = _hub.dev.DASH_HOST
     debug = _hub.dev.DEBUG

@@ -17,7 +17,6 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
-
 # ── 枚举（与 infrastructure/prompts/intent.txt 对齐）──
 IntentCategory = Literal[
     "cooking", "engineering", "logistics", "learning",

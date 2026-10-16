@@ -12,9 +12,9 @@
 .env.*
 !.env.example
 
-# ── 本地用户配置（只忽略覆盖文件，schema 必须入库） ──
+# ── 本地用户配置──
 config/user.yaml
-# 注意：config/schema.yaml / *.example 必须提交，不要在此忽略
+config/schema.yaml
 
 # ── Python 编译产物 ──
 __pycache__/

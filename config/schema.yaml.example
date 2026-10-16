@@ -16,7 +16,7 @@ base:
     type: str
     default: logs
     scope: developer
-    purpose: 日志目录，相对项目根
+    purpose: 日志目录，空=项目根/logs；也可绝对路径
 
   LOG_FILE:
     type: str
@@ -47,9 +47,9 @@ dashscope:
     type: str
     default: ""
     scope: developer
-    purpose: DashScope 密钥；留空走 Mock
+    purpose: DashScope 密钥
     secret: true
-
+    from_env: true          # ← 新增：值从环境变量读，不从 YAML 读
   DASHSCOPE_BASE_URL:
     type: str
     default: ""
@@ -77,7 +77,7 @@ llm:
 
   LLM_PLANNER_MODEL:
     type: str
-    default: qwen3.7-flash-2026-07-15
+    default: qwen3.7-plus
     scope: developer
     purpose: DAG 规划模型名
 
@@ -156,7 +156,7 @@ llm:
 mongo:
   MONGO_HOST:
     type: str
-    default: task_mongodb
+    default: localhost
     scope: developer
     purpose: MongoDB 主机名，容器内用服务名
 
@@ -168,23 +168,11 @@ mongo:
 
   MONGO_DB:
     type: str
-    default: task_planner_db
+    default: task_mongodb
     scope: developer
     purpose: MongoDB 数据库名
 
-web:
-  GRADIO_HOST:
-    type: str
-    default: 0.0.0.0
-    scope: developer
-    purpose: Gradio 监听地址
-
-  GRADIO_PORT:
-    type: int
-    default: 7860
-    scope: user
-    purpose: Gradio 端口，冲突时改 7861+
-
+web: 
   ENABLE_MCP:
     type: bool
     default: false

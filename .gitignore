@@ -12,10 +12,6 @@
 .env.*
 !.env.example
 
-# ── 本地用户配置──
-config/user.yaml
-config/schema.yaml
-
 # ── Python 编译产物 ──
 __pycache__/
 *.py[cod]

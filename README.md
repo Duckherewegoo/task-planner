@@ -385,8 +385,8 @@ ______________________________________________________________________
 ### 1. 安装
 
 ```bash
-git clone https://github.com/Duckherewegoo/My-AI-Journey.git
-cd ....../new_task-planner
+git clone https://github.com/Duckherewegoo/task-planner.git task-planner
+cd ./task-planner
 
 # 核心依赖
 pip install -e .

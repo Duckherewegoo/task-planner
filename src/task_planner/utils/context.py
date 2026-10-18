@@ -4,12 +4,12 @@ context.py — 异步上下文传递（取消信号）
 在协程间安全传递 asyncio.Event 取消信号。
 
 ── v2 ──
-  ✅ P1-1：新增 OperationCancelled 异常类。
+  P1-1：新增 OperationCancelled 异常类。
            raise_if_cancelled() 改为抛 OperationCancelled，
            不再用 asyncio.CancelledError（该异常在 asyncio 生态中
            专用于"外部 task.cancel()"，与"用户主动取消"语义冲突，
            会被 stream/agent 层误捕为外部取消）。
-  ✅ P1-2：__all__ 补 OperationCancelled。
+  P1-2：__all__ 补 OperationCancelled。
 
 ⚠️ 完整变更历史见 CHANGELOG.md。
 """

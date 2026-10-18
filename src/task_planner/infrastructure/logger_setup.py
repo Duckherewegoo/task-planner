@@ -2,13 +2,13 @@
 logger_setup.py — 异步友好的日志系统（生产终极版 v3）
 ═══════════════════════════════════════════════════════════════════
 设计原则：
-  ✅ 非阻塞写入：QueueHandler + QueueListener 将 I/O 移至后台线程
-  ✅ 协程安全：ContextVar 自动注入 req_id，支持 asyncio 上下文
-  ✅ 可靠稳定：队列积压背压控制，防止内存泄漏
-  ✅ 灵活扩展：可接入远程日志、结构化日志
+  非阻塞写入：QueueHandler + QueueListener 将 I/O 移至后台线程
+  协程安全：ContextVar 自动注入 req_id，支持 asyncio 上下文
+  可靠稳定：队列积压背压控制，防止内存泄漏
+  灵活扩展：可接入远程日志、结构化日志
 
 ── v4 ──
-  ✅ set_req_id 改为"有值复用"——修复同任务多 req_id 问题。
+  set_req_id 改为"有值复用"——修复同任务多 req_id 问题。
 
 ⚠️ 完整变更历史见 CHANGELOG.md。
 """
@@ -36,7 +36,7 @@ LOG_FILE = _hub.dev.LOG_FILE
 LOG_MAX_DAYS = _hub.dev.LOG_MAX_DAYS
 
 
-# ✅ P1-9：模块级缓存项目根路径，避免重复计算
+# P1-9：模块级缓存项目根路径，避免重复计算
 # logger_setup.py → infrastructure/ → task_planner/ → src/ → 项目根
 _PROJECT_ROOT: Path = Path(__file__).resolve().parents[3]
 
@@ -80,7 +80,7 @@ def set_req_id(rid: str | None = None) -> str:
 
 def get_req_id() -> str:
     """获取当前上下文的 req_id（永不返回 None，无值时返回 "-"）"""
-    # ✅ P2-1：ContextVar.get() 已保证返回 default，但显式兜底更稳
+    # P2-1：ContextVar.get() 已保证返回 default，但显式兜底更稳
     return _req_id_var.get() or "-"
 
 
@@ -117,7 +117,7 @@ def propagate_req_id() -> contextvars.Context:
 # ================================================================
 class ReqIdFilter(logging.Filter):
     """
-    ✅ P0-2 修复：
+    P0-2 修复：
       原实现在后台线程执行 filter 时无条件覆盖 record.req_id，
       导致主线程 makeRecord 阶段注入的 req_id 被覆盖为 ContextVar 的 default "-"。
 
@@ -192,7 +192,7 @@ def _resolve_console_level() -> int:
 class _SafeQueueHandler(logging.handlers.QueueHandler):
     """
     队列满时记录 stderr 警告，不再静默丢弃。
-    ✅ P1-7：getMessage() 加 try，防格式化异常连锁炸 stderr 写入。
+    P1-7：getMessage() 加 try，防格式化异常连锁炸 stderr 写入。
     """
 
     def enqueue(self, record: logging.LogRecord) -> None:
@@ -218,7 +218,7 @@ def setup_logger(name: str = _ROOT_LOGGER_NAME) -> ReqIdLogger:
     """
     获取或创建 logger（幂等）。
 
-    ✅ P0-1：
+    P0-1：
       只在根 logger（"task_planner"）上挂 handler 和 QueueListener。
       其他 name（如 "task_planner.db"）作为子 logger，propagate=True 向上冒泡。
     """
@@ -241,7 +241,7 @@ def setup_logger(name: str = _ROOT_LOGGER_NAME) -> ReqIdLogger:
 
 def _resolve_log_dir() -> str:
     """
-    ✅ P1-6：LOG_DIR 空值兜底。
+    P1-6：LOG_DIR 空值兜底。
     优先级：非空 LOG_DIR > <项目根>/logs
     """
     log_dir = str(LOG_DIR).strip() if LOG_DIR else ""
@@ -252,7 +252,7 @@ def _resolve_log_dir() -> str:
 
 def _resolve_log_file() -> str:
     """
-    ✅ P1-6：LOG_FILE 空值兜底。
+    P1-6：LOG_FILE 空值兜底。
     """
     log_file = str(LOG_FILE).strip() if LOG_FILE else ""
     if not log_file:
@@ -289,7 +289,7 @@ def _init_root_logger() -> None:
     log_dir = _resolve_log_dir()
     log_file = _resolve_log_file()
 
-    # ✅ P1-6：兜底后必须确保目录存在
+    # P1-6：兜底后必须确保目录存在
     try:
         os.makedirs(log_dir, exist_ok=True)
     except OSError as e:
@@ -310,7 +310,7 @@ def _init_root_logger() -> None:
                 interval=1,
                 backupCount=LOG_MAX_DAYS,
                 encoding="utf-8",
-                delay=True,   # ✅ P2-3：首次写入才创建文件
+                delay=True,   # P2-3：首次写入才创建文件
             )
             file_handler.setLevel(logging.DEBUG)
             file_handler.setFormatter(formatter)
@@ -341,7 +341,7 @@ def _init_root_logger() -> None:
     _queue_listener.start()
     root_logger._queue_listener = _queue_listener  # type: ignore
 
-    # ✅ P1-2：让第三方库的 WARNING+ 也能看到
+    # P1-2：让第三方库的 WARNING+ 也能看到
     logging.getLogger().setLevel(logging.WARNING)
     if not logging.getLogger().handlers:
         root_console = logging.StreamHandler()
@@ -373,7 +373,7 @@ def get_logger(name: str = _ROOT_LOGGER_NAME) -> ReqIdLogger:
 
 def is_initialized() -> bool:
     """
-    ✅ P2-4：日志系统是否已初始化。
+    P2-4：日志系统是否已初始化。
     供测试 / 健康检查使用。
     """
     return _initialized
@@ -383,8 +383,8 @@ def shutdown_logging() -> None:
     """
     优雅关闭日志系统：等待队列清空后停止 listener。
 
-    ✅ P1-3：用 print 记录（listener 已停，logger 写入会失败）。
-    ✅ P1-8：清理 root_logger 上的 handler，避免重新初始化时重复挂。
+    P1-3：用 print 记录（listener 已停，logger 写入会失败）。
+    P1-8：清理 root_logger 上的 handler，避免重新初始化时重复挂。
     """
     global _queue_listener, _initialized
 
@@ -398,7 +398,7 @@ def shutdown_logging() -> None:
             _queue_listener = None
 
     # ── 2. 清理 root_logger 上的 handlers ──
-    # ✅ P1-8：防止重新初始化时挂上第二个 QueueHandler 导致日志翻倍
+    # P1-8：防止重新初始化时挂上第二个 QueueHandler 导致日志翻倍
     root_logger = logging.getLogger(_ROOT_LOGGER_NAME)
     for h in list(root_logger.handlers):
         root_logger.removeHandler(h)

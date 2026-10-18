@@ -62,7 +62,7 @@ VALID_EDGE_TYPES: frozenset[str] = frozenset({
 STATUS_TEXT = {
     0: "⏳ 待处理",
     1: "🔄 进行中",
-    2: "✅ 成功",
+    2: "成功",
     3: "❌ 失败",
     4: "⏰ 超时",
     5: "⏭️ 已跳过",
@@ -196,7 +196,7 @@ STATE_COLORS = {
 }
 
 STATE_LABELS = {
-    "done":    "✅ 已完成",
+    "done":    "已完成",
     "skipped": "⏭️ 已跳过",
     "failed":  "❌ 做不到",
     "running": "🔄 进行中",
@@ -205,8 +205,8 @@ STATE_LABELS = {
 }
 
 HINT_TEMPLATES = {
-    "running": "✅ 已选中节点 {nid}，现在可以「开始执行」或「跳过/做不到」",
-    "done":    "✅ 节点 {nid} 已完成",
+    "running": "已选中节点 {nid}，现在可以「开始执行」或「跳过/做不到」",
+    "done":    "节点 {nid} 已完成",
     "skipped": "⏭️ 节点 {nid} 已跳过",
     "failed":  "❌ 节点 {nid} 标记为做不到",
     "pending": "⏳ 节点 {nid} 等待前置条件完成，暂时无法操作",

@@ -2,13 +2,13 @@
 评估器集合：计算各种指标
 
 Changelog:
-  ✅ P0-1：plan_node_count_accuracy 不再返回负分，结果恒在 [0, 1]
-  ✅ P0-2：response_relevance 支持中文（bigram 切分），修复"中文恒为 0 分"
-  ✅ P0-3：accuracy 改为词元级 Jaccard，不再用字符级 Levenshtein
-  ✅ P1-1：移除硬 import Levenshtein（不再需要）
-  ✅ P1-2：latency_acceptance 阈值从 config 读
-  ✅ P1-3：exact_match 大小写不敏感 + 标点归一化
-  ✅ P2-x：import 统一到顶部 / 分词函数抽到模块级 / 空串处理统一
+  P0-1：plan_node_count_accuracy 不再返回负分，结果恒在 [0, 1]
+  P0-2：response_relevance 支持中文（bigram 切分），修复"中文恒为 0 分"
+  P0-3：accuracy 改为词元级 Jaccard，不再用字符级 Levenshtein
+  P1-1：移除硬 import Levenshtein（不再需要）
+  P1-2：latency_acceptance 阈值从 config 读
+  P1-3：exact_match 大小写不敏感 + 标点归一化
+  P2-x：import 统一到顶部 / 分词函数抽到模块级 / 空串处理统一
 """
 
 import re
@@ -120,7 +120,7 @@ class Evaluators:
         """
         节点数量准确性，结果恒在 [0, 1]。
 
-        ✅ P0-1 修复：
+        P0-1 修复：
           原实现 `max(expected_count, 1)` 会导致：
             expected=0, actual=4 → 1 - 4/1 = -3.0  ← 负分！
           负分会把整体聚合指标严重拉低，让评估报告完全不可信。
@@ -186,7 +186,7 @@ class Evaluators:
         """
         响应与输入的相关性（输入词元在响应中的覆盖率）。
 
-        ✅ P0-2 修复：改用 _tokenize 支持中文 bigram。
+        P0-2 修复：改用 _tokenize 支持中文 bigram。
           原实现用 \\w+ 会把整段中文当一个 token，
           导致中文场景下相关性恒为 0，评估完全失效。
 
@@ -211,7 +211,7 @@ class Evaluators:
         """
         延迟是否可接受（秒）。
 
-        ✅ P1-2 修复：阈值从 config 读，不再硬编码 10 秒。
+        P1-2 修复：阈值从 config 读，不再硬编码 10 秒。
 
         Args:
             elapsed: 实际耗时（秒）

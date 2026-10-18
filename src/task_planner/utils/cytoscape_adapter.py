@@ -4,16 +4,16 @@ cytoscape_adapter.py — DAG → Cytoscape.js 数据适配器
 支持循环边、动态边距、Markdown 友好数据、边类型(hard/soft/conditional/retry)
 
 ── v2（KISS 加固，不影响功能）──
-  ✅ P2-1：_get_edge_type 改名 get_edge_type（公开）。
+  P2-1：_get_edge_type 改名 get_edge_type（公开）。
            _get_edge_type 保留为 alias，向后兼容。
            原因：stream/control.py 等下游在跨模块引用它。
-  ✅ P2-1fix: 不应该保留alias，要做就做彻底
-  ✅ P2-2：_warned_empty_endpoints 加上限（_WARN_CACHE_MAX = 1000），
+  P2-1fix: 不应该保留alias，要做就做彻底
+  P2-2：_warned_empty_endpoints 加上限（_WARN_CACHE_MAX = 1000），
            超过后清空，避免脏数据导致内存泄漏。
-  ✅ P2-3：dag_to_cytoscape 边循环中 _is_loop_edge 只调一次。
-  ✅ P2-4：_node_state_class 分支改为 dict 查表。
-  ✅ P2-5：抽 _icon_for_node，统一节点 icon 判断（原 node 循环内嵌 if-elif）。
-  ✅ P2-6：类型注解精确化 Dict → Dict[str, Any]。
+  P2-3：dag_to_cytoscape 边循环中 _is_loop_edge 只调一次。
+  P2-4：_node_state_class 分支改为 dict 查表。
+  P2-5：抽 _icon_for_node，统一节点 icon 判断（原 node 循环内嵌 if-elif）。
+  P2-6：类型注解精确化 Dict → Dict[str, Any]。
 
 ⚠️ 完整变更历史见 CHANGELOG.md。
 """
@@ -168,7 +168,7 @@ def _short_label(
     return truncated + ellipsis
 
 
-# ✅ P2-2：脏边 warning 缓存加上限，防止内存泄漏
+# P2-2：脏边 warning 缓存加上限，防止内存泄漏
 _WARN_CACHE_MAX = 1000
 _warned_empty_endpoints: set = set()
 
@@ -231,7 +231,7 @@ def _status_icon(status_code: int) -> str:
     return style.get("icon", "❓")
 
 
-# ✅ P2-5：统一节点 icon 判断（原 dag_to_cytoscape 里的 if-elif 抽出）
+# P2-5：统一节点 icon 判断（原 dag_to_cytoscape 里的 if-elif 抽出）
 _USER_STATE_ICON = {
     "done":    "✅",
     "running": "🔄",
@@ -248,7 +248,7 @@ def _icon_for_node(user_state: str | None, status: int) -> str:
     return _status_icon(status)
 
 
-# ✅ P2-4：dict 查表替代 if-elif 链
+# P2-4：dict 查表替代 if-elif 链
 _USER_STATE_CLASS = {
     "done":    "state-done",
     "running": "state-running",
@@ -388,7 +388,7 @@ def dag_to_cytoscape(
         raw_label = str(edge.get("label", ""))
         short = _short_label(raw_label, max_width=16)
 
-        # ✅ P2-3：只调一次 _is_loop_edge
+        # P2-3：只调一次 _is_loop_edge
         is_loop = _is_loop_edge(edge)
         is_cycle = eid in cycle_edge_ids or is_loop
         cls = _edge_class(edge, is_cycle)
@@ -413,7 +413,7 @@ def dag_to_cytoscape(
         })
 
     logger.debug(
-        "[CytoAdapter] ✅ 转换完成 | 节点=%d 边=%d 循环边=%d 状态数=%d",
+        "[CytoAdapter] 转换完成 | 节点=%d 边=%d 循环边=%d 状态数=%d",
         len(nodes), len(edges), len(cycle_edge_ids), len(node_states),
     )
     return elements

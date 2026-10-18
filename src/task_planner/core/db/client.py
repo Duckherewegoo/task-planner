@@ -42,7 +42,7 @@ logger = get_logger("task_planner.core.db.client")
 _client: MongoClient | None = None
 _db: Database | None = None
 
-# ✅ 并发保护：
+# 并发保护：
 #    pymongo 的 MongoClient 本身线程安全，但"检查 _client + 创建"这个
 #    复合操作不是原子的。多 worker / 多线程场景下两个线程可能同时
 #    通过 if _client is None 检查 → 各自建一个 client → 一个覆盖另
@@ -80,7 +80,7 @@ def init_db() -> None:
             new_client = MongoClient(
                 host=_hub.dev.MONGO_HOST,
                 port=_hub.dev.MONGO_PORT,
-                # ✅ 本地工具：不预热连接（minPoolSize=0）；
+                # 本地工具：不预热连接（minPoolSize=0）；
                 #    生产若多 worker，每个进程独立池——20 足够。
                 maxPoolSize=20,
                 minPoolSize=0,
@@ -94,11 +94,11 @@ def init_db() -> None:
             _client = new_client
             _db = new_db
             logger.info(
-                "[DB] ✅ MongoDB 连接成功 (%s:%d/%s)",
+                "[DB] MongoDB 连接成功 (%s:%d/%s)",
                 _hub.dev.MONGO_HOST, _hub.dev.MONGO_PORT, _hub.dev.MONGO_DB,
             )
         except Exception as e:
-            # ✅ 异常路径：显式关闭半成品 client，避免连接泄漏
+            # 异常路径：显式关闭半成品 client，避免连接泄漏
             if new_client is not None:
                 try:
                     new_client.close()

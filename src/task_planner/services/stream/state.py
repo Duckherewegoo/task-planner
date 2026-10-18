@@ -34,7 +34,7 @@ class TaskStreamState:
 
         # 协程锁：保护 latest / node_states / finished
         self._lock = asyncio.Lock()
-        # ✅ 每次创建时读最新配置，而非模块级快照
+        # 每次创建时读最新配置，而非模块级快照
         self._ttl = ttl if ttl is not None else _hub.dev.SESSION_TTL
 
         # 后台任务引用（用于取消）

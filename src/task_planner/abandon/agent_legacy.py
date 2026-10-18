@@ -29,7 +29,7 @@ from task_planner.services.view_model import FRONTEND_FIELDS
 from task_planner.utils.context import cancel_event_var
 
 SESSION_TTL = _hub.dev.SESSION_TTL
-# ✅ P0-2 修复：同时导入 Protocol 和实现
+# P0-2 修复：同时导入 Protocol 和实现
 from task_planner.infrastructure.session_store import (InMemorySessionStore,
                                                        SessionStore)
 
@@ -41,7 +41,7 @@ _SKIP_PLANNING_PATTERNS = SKIP_PLANNING_PATTERNS
 # ================================================================
 #  会话存储（唯一权威来源）
 # ================================================================
-# ✅ P0-4 修复：删除 _active_sessions，只保留 _session_store。
+# P0-4 修复：删除 _active_sessions，只保留 _session_store。
 #    之前的 _acquire_session 写 _active_sessions、而 get_session 读 _session_store，
 #    两套机制数据永不交叉 → 取消失败 + 会话泄漏。
 _session_store: SessionStore = InMemorySessionStore()
@@ -62,12 +62,12 @@ class TaskSession:
         self.cancel_event = asyncio.Event()
         self.start_time = time.time()
 
-        # ✅ 有界队列，最多缓存 100 条进度；满了就丢弃最老的
+        # 有界队列，最多缓存 100 条进度；满了就丢弃最老的
         self.progress_q: asyncio.Queue = asyncio.Queue(maxsize=100)
 
         self._runner_task: Optional[asyncio.Task] = None
 
-        # ✅ config 保持不变，LangGraph 兼容
+        # config 保持不变，LangGraph 兼容
         self.config: dict[str, Any] = {
             "configurable": {
                 "thread_id": thread_id,
@@ -88,7 +88,7 @@ class TaskSession:
 
 # ================================================================
 #  会话获取 / 清理（模块级函数）
-# ✅ P0-3 修复：从 TaskSession 类内部移出，改为模块级
+# P0-3 修复：从 TaskSession 类内部移出，改为模块级
 # ================================================================
 
 async def get_session(thread_id: str) -> Optional[TaskSession]:
@@ -121,7 +121,7 @@ def _make_initial_state(user_input: str, thread_id: str) -> dict[str, Any]:
     if skip_planning:
         logger.info("[Agent] 关键词/正则拦截：用户明确要求跳过规划")
 
-    # ✅ P1-2 修复：TypedDict 用 dict 字面量构造；补 schema_version 字段
+    # P1-2 修复：TypedDict 用 dict 字面量构造；补 schema_version 字段
     return {
         "messages": [],
         "user_input": user_input,
@@ -160,7 +160,7 @@ async def _acquire_session(
     resume: bool,
 ) -> TaskSession:
     """获取或创建 session；resume 时复用旧 session 的 cancel_event。"""
-    # ✅ P0-4 修复：读写统一走 _session_store
+    # P0-4 修复：读写统一走 _session_store
     async with _sessions_lock:
         if resume:
             existing = await _session_store.get(thread_id)
@@ -200,7 +200,7 @@ async def run_task_stream(
     session = await _acquire_session(thread_id, user_input, resume)
     session._runner_task = asyncio.current_task()
 
-    # ✅ P0-1 修复：contextvars 已 import
+    # P0-1 修复：contextvars 已 import
     # 用 copy_context 绑定，避免跨 Task 恢复时 token 语义错位
     ctx = contextvars.copy_context()
     ctx.run(cancel_event_var.set, session.cancel_event)
@@ -262,7 +262,7 @@ async def run_task_stream(
         }
     finally:
         session.cancel_event.set()
-        # ✅ P0-4 修复：pop 也走 _session_store
+        # P0-4 修复：pop 也走 _session_store
         await _session_store.pop(thread_id)
         logger.info("[Agent] session 清理完成 | thread=%s req=%s", thread_id, rid)
 
@@ -291,7 +291,7 @@ async def _resume_with_command(
     异步 resume 执行入口，使用 graph.ainvoke 进行恢复。
     确保 ContextVar 已设置，使节点能感知取消。
     """
-    # ✅ P0-5 修复：删除 finally 里对未定义 token 的引用。
+    # P0-5 修复：删除 finally 里对未定义 token 的引用。
     # 用 copy_context 绑定即可，无需 reset。
     ctx = contextvars.copy_context()
     ctx.run(cancel_event_var.set, session.cancel_event)

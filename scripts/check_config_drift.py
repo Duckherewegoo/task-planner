@@ -312,7 +312,7 @@ def main() -> int:
         for n in missing:
             print(f"    - {n}")
     else:
-        print("    ✅ 全部对应，无缺失")
+        print("    全部对应，无缺失")
 
     print()
     print(f"⚠️  值漂移（同名不同值）: {len(drift)}")
@@ -322,7 +322,7 @@ def main() -> int:
             print(f"        旧: {_short_repr(ov)}")
             print(f"        新: {_short_repr(nv)}   ← {np_}")
     else:
-        print("    ✅ 所有同名变量值一致")
+        print("    所有同名变量值一致")
 
     print()
     print(f"➕ 新增（新有旧无，仅供参考）: {len(added)}")
@@ -339,14 +339,14 @@ def main() -> int:
         for n, p1, p2 in dups:
             print(f"    ! {n}: {p1.name} 和 {p2.name}")
     else:
-        print("    ✅ 无重复")
+        print("    无重复")
 
     # ── 结论 ──
     issues = len(missing) + len(drift)
     print()
     print(sep)
     if issues == 0:
-        print("✅ 无缺失、无漂移，迁移完整")
+        print("无缺失、无漂移，迁移完整")
     else:
         print(f"❌ 发现 {len(missing)} 个缺失 + {len(drift)} 个值漂移，请处理")
     print(sep)

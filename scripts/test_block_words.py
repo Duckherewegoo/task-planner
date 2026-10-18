@@ -34,7 +34,7 @@ def test_loading() -> None:
     print(f"  review 级词: {len(m.review_words):>7}")
     print(f"  白名单:      {len(m.whitelist):>7}")
     print(f"  合计参与匹配: {len(m.all_words):>7}")
-    print(f"  AC 自动机:   {'✅ 已启用' if m._aho else '⚠️  未安装 pyahocorasick'}")
+    print(f"  AC 自动机:   {'已启用' if m._aho else '⚠️  未安装 pyahocorasick'}")
 
 
 # ── 2. 单字过滤验证 ──
@@ -46,7 +46,7 @@ def test_single_char_filter() -> None:
     if singles:
         print(f"  ❌ 前 10 个: {singles[:10]}")
     else:
-        print(f"  ✅ 全部过滤干净")
+        print(f"  全部过滤干净")
 
 
 # ── 3. 基础匹配 ──
@@ -60,7 +60,7 @@ def test_basic_match() -> None:
     ]
     for text in cases:
         r = check_text(text)
-        status = "❌ BLOCK" if r["blocked"] else ("⚠️  REVIEW" if r["review"] else "✅ PASS")
+        status = "❌ BLOCK" if r["blocked"] else ("⚠️  REVIEW" if r["review"] else "PASS")
         print(f"  [{status}] {text!r}")
         if r["blocked"]:
             print(f"      blocked = {r['blocked'][:5]}")
@@ -80,7 +80,7 @@ def test_whitelist() -> None:
         text = f"我们要 {w} 一下"
         r = check_text(text)
         if r["whitelisted"]:
-            print(f"  ✅ '{w}' 生效，豁免了: {r['whitelisted']}")
+            print(f"  '{w}' 生效，豁免了: {r['whitelisted']}")
         else:
             print(f"  ⚠️  '{w}' 在文本中未触发豁免（该文本里没有敏感子串）")
 
@@ -102,7 +102,7 @@ def test_whitelist_edge() -> None:
     )
     r = mm.match(f"这里有{sample}出现")
     if r["blocked"]:
-        print(f"  ✅ 正确拦截（未被白名单后门豁免）: {sample!r}")
+        print(f"  正确拦截（未被白名单后门豁免）: {sample!r}")
     else:
         print(f"  ❌ 被后门豁免了！: {sample!r}")
 
@@ -127,9 +127,9 @@ def test_performance() -> None:
     print(f"  单次匹配: {dt * 1000:.2f} ms")
 
     if dt < 0.005:
-        print("  ✅ 极快（AC 自动机）")
+        print("  极快（AC 自动机）")
     elif dt < 0.05:
-        print("  ✅ 良好")
+        print("  良好")
     elif dt < 0.2:
         print("  ⚠️  一般，建议装 pyahocorasick")
     else:
@@ -150,7 +150,7 @@ def test_reload() -> None:
     m2 = reload_matcher()
     print(f"  reload 前: {m1!r}")
     print(f"  reload 后: {m2!r}")
-    print("  ✅ 重载完成")
+    print("  重载完成")
 
 
 def main() -> None:
@@ -170,7 +170,7 @@ def main() -> None:
 
     print()
     print("═" * 68)
-    print("✅ 全部测试完成")
+    print("全部测试完成")
     print("═" * 68)
 
 

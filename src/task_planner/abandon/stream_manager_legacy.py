@@ -2,23 +2,23 @@
 stream_manager.py — 后台流式任务管理 + 节点状态控制 (异步版)
 ════════════════════════════════════════════════════════════════════
 职责：
-  ✅ 使用 asyncio.create_task 在后台运行异步生成器 run_task_stream()
-  ✅ 每次 yield 的 snapshot 存入 TaskStreamState
-  ✅ Dash Interval 轮询时读取最新快照
-  ✅ 统一由 StreamStateCleaner 异步任务管理生命周期与内存回收
-  ✅ 节点状态字典管理（done/running/failed/skipped）与级联操作
+  使用 asyncio.create_task 在后台运行异步生成器 run_task_stream()
+  每次 yield 的 snapshot 存入 TaskStreamState
+  Dash Interval 轮询时读取最新快照
+  统一由 StreamStateCleaner 异步任务管理生命周期与内存回收
+  节点状态字典管理（done/running/failed/skipped）与级联操作
 
 设计原则：
   单例管理 + 协程安全 + TTL 兜底 + 零阻塞 UI
 
 Changelog:
-  ✅ P0-1：cancel_task → abort_worker，避免与 agent.cancel_task 命名冲突；
+  P0-1：cancel_task → abort_worker，避免与 agent.cancel_task 命名冲突；
            cancel_stream 顺序改为"先通知 Agent，再杀 worker"
-  ✅ P0-2：skip_node / fail_node 保护已完成/运行中的下游节点，不再无脑覆盖
-  ✅ P0-3：get_ready_nodes 预建入边索引，复杂度 O(N*E) → O(N+E)
-  ✅ P1-1：get_status_text 从字段推导，不依赖 agent 未发送的 type 值
-  ✅ P1-2：resume_stream 遇运行中任务时抛错，不再静默返回
-  ✅ P2-x：__all__ 补全 / age_since_finished 方法 / 日志 %s 风格 /
+  P0-2：skip_node / fail_node 保护已完成/运行中的下游节点，不再无脑覆盖
+  P0-3：get_ready_nodes 预建入边索引，复杂度 O(N*E) → O(N+E)
+  P1-1：get_status_text 从字段推导，不依赖 agent 未发送的 type 值
+  P1-2：resume_stream 遇运行中任务时抛错，不再静默返回
+  P2-x：__all__ 补全 / age_since_finished 方法 / 日志 %s 风格 /
            TTL 统一从 config 读
 """
 import asyncio
@@ -67,11 +67,11 @@ class TaskStreamState:
         # 节点用户操作状态：{node_id: "done"|"running"|"failed"|"skipped"}
         self.node_states: dict[str, str] = {}
 
-        # ✅ 协程锁：保护 latest, node_states, finished 等状态的并发读写
+        # 协程锁：保护 latest, node_states, finished 等状态的并发读写
         self._lock = asyncio.Lock()
         self._ttl = ttl
 
-        # ✅ 后台任务引用（用于取消）
+        # 后台任务引用（用于取消）
         self._task: asyncio.Task | None = None
 
     def is_expired(self, now: float | None = None) -> bool:
@@ -81,7 +81,7 @@ class TaskStreamState:
 
     def age_since_finished(self, now: float | None = None) -> float | None:
         """
-        ✅ P2-2 修复：对外暴露"完成至今天数"，避免外部直接访问 _finished_at。
+        P2-2 修复：对外暴露"完成至今天数"，避免外部直接访问 _finished_at。
         未完成时返回 None。
         """
         if self._finished_at is None:
@@ -171,7 +171,7 @@ class TaskStreamState:
 
     def abort_worker(self) -> None:
         """
-        ✅ P0-1 修复：方法由 cancel_task 重命名为 abort_worker。
+        P0-1 修复：方法由 cancel_task 重命名为 abort_worker。
 
         语义区分：
           - abort_worker:     杀 asyncio.Task，停止后台快照推送
@@ -196,7 +196,7 @@ class StreamStateCleaner:
     - TTL 兜底：防止异常未标记 finished 的任务永久驻留
     """
 
-    DEFAULT_TTL = _SESSION_TTL   # ✅ P2-3：统一从 config 读
+    DEFAULT_TTL = _SESSION_TTL   # P2-3：统一从 config 读
     CLEAN_INTERVAL = 60          # 清理周期 60s
     FINISHED_RETENTION = 300     # 已完成任务额外保留 5min
 
@@ -268,7 +268,7 @@ class StreamStateCleaner:
                 should_remove = False
 
                 if state.finished:
-                    # ✅ P2-2 修复：用公开方法，避免直接访问私有属性
+                    # P2-2 修复：用公开方法，避免直接访问私有属性
                     age = state.age_since_finished(now)
                     if age is not None and age > self.FINISHED_RETENTION:
                         should_remove = True
@@ -381,14 +381,14 @@ async def resume_stream(
     """从 LangGraph checkpoint 恢复历史任务并启动后台流式执行。"""
     existing = await get_stream_state(thread_id)
     if existing and not existing.finished:
-        # ✅ P1-2 修复：不再静默返回 thread_id（会误导调用方以为 resume 成功）
+        # P1-2 修复：不再静默返回 thread_id（会误导调用方以为 resume 成功）
         logger.warning("[StreamMgr] resume_stream: 任务仍在运行中 %s", thread_id)
         raise RuntimeError(
             f"任务 {thread_id} 仍在运行中，无法 resume。"
             f"请先调用 cancel_stream() 或等待其完成。"
         )
 
-    # ✅ 使用异步版本
+    # 使用异步版本
     cp_state = await get_thread_state_async(thread_id)
     if not cp_state:
         raise ValueError(f"未找到 thread_id={thread_id} 的 checkpoint，无法恢复")
@@ -401,7 +401,7 @@ async def resume_stream(
     await state_cleaner.register(thread_id, state)
 
     try:
-        # ✅ 使用异步版本
+        # 使用异步版本
         await resume_graph_async(
             thread_id=thread_id,
             user_action=user_action,
@@ -454,7 +454,7 @@ async def cancel_stream(thread_id: str) -> bool:
     """
     取消正在运行的流式任务。
 
-    ✅ P0-1 修复：调整顺序为
+    P0-1 修复：调整顺序为
         1. 通知 Agent（设置 cancel_event + 打断 LLM 调用）
         2. 标记状态（mark_cancelled）
         3. 杀后台 worker（abort_worker）
@@ -465,13 +465,13 @@ async def cancel_stream(thread_id: str) -> bool:
         logger.warning("[StreamMgr] 取消失败：任务不存在 %s", thread_id)
         return False
 
-    # ✅ 步骤 1：先通知 Agent 层
+    # 步骤 1：先通知 Agent 层
     try:
         await cancel_task(thread_id)
     except Exception as e:
         logger.warning("[StreamMgr] agent.cancel_task 异常: %s", e)
 
-    # ✅ 步骤 2 + 3：标记状态，再杀 worker
+    # 步骤 2 + 3：标记状态，再杀 worker
     await state.mark_cancelled()
     state.abort_worker()
 
@@ -497,7 +497,7 @@ async def skip_node(thread_id: str, node_id: str, dag: dict) -> dict[str, Any]:
     """
     用户跳过节点，级联跳过下游。
 
-    ✅ P0-2 修复：级联时保护已完成/运行中的下游节点，不再无脑覆盖为 skipped。
+    P0-2 修复：级联时保护已完成/运行中的下游节点，不再无脑覆盖为 skipped。
        原逻辑会把已完成的节点从 "done" 覆盖成 "skipped"，导致：
          - 前端展示与后端 node_results 矛盾
          - 用户点击"继续"时，Agent 误以为该节点未执行 → 重复执行浪费 token
@@ -544,7 +544,7 @@ async def fail_node(thread_id: str, node_id: str, dag: dict) -> dict[str, Any]:
     """
     用户标记节点失败，级联跳过下游。
 
-    ✅ P0-2 修复：同 skip_node，保护已完成/运行中的下游节点。
+    P0-2 修复：同 skip_node，保护已完成/运行中的下游节点。
     """
     state = await get_stream_state(thread_id)
     if not state:
@@ -588,7 +588,7 @@ async def get_ready_nodes(thread_id: str, dag: dict) -> list[str]:
     """
     获取所有可操作节点（前置已完成且自身未处理）。
 
-    ✅ P0-3 修复：预建入边索引，复杂度从 O(N*E) 降到 O(N+E)。
+    P0-3 修复：预建入边索引，复杂度从 O(N*E) 降到 O(N+E)。
        原逻辑对每个节点都遍历全部边，100 节点 + 150 边 → 15000 次比较，
        在 Dash 每秒轮询的场景下会明显拖慢回调。
     """
@@ -600,7 +600,7 @@ async def get_ready_nodes(thread_id: str, dag: dict) -> list[str]:
     edges = dag.get("edges") or []
     nodes = dag.get("nodes") or []
 
-    # ✅ 预建 {target: [sources]} 索引
+    # 预建 {target: [sources]} 索引
     in_edges: dict[str, list[str]] = {}
     for e in edges:
         in_edges.setdefault(str(e["to"]), []).append(str(e["from"]))
@@ -634,7 +634,7 @@ def get_status_text(snapshot: dict) -> str:
     """
     从 snapshot 提取状态文本（供前端状态栏展示）。
 
-    ✅ P1-1 修复：从字段推导，不依赖 agent 未发送的 type 值。
+    P1-1 修复：从字段推导，不依赖 agent 未发送的 type 值。
        agent._extract_snapshot 目前只发 type=progress（外加 cancelled/error），
        原实现里 start / interrupt / complete / timeout / resume 五个分支
        是死代码，导致状态栏永远显示"处理中…"。
@@ -651,14 +651,14 @@ def get_status_text(snapshot: dict) -> str:
 
     direct_resp = snapshot.get("direct_response", "")
     if direct_resp and direct_resp != "__DIRECT_RESPONSE_PENDING__":
-        return f"✅ {snapshot.get('status_text') or '已完成'}"
+        return f"{snapshot.get('status_text') or '已完成'}"
 
     # ── 有节点时：按进度展示 ──
     nodes = snapshot.get("nodes") or []
     idx = snapshot.get("current_node_index", 0)
     if nodes:
         if idx >= len(nodes):
-            return "✅ 任务完成"
+            return "任务完成"
         return f"🔄 执行中 ({idx}/{len(nodes)})"
 
     # ── 回退到 type 判断（兼容未来 agent 发送更多事件类型） ──
@@ -675,7 +675,7 @@ def get_status_text(snapshot: dict) -> str:
     if snap_type == "interrupt":
         return f"⏸️ {msg or '等待用户操作'}"
     if snap_type == "complete":
-        return f"✅ {snapshot.get('status_text') or '完成'}"
+        return f"{snapshot.get('status_text') or '完成'}"
     if snap_type == "cancelled":
         return "⏹️ 已停止"
     if snap_type == "timeout":
@@ -693,7 +693,7 @@ def get_status_text(snapshot: dict) -> str:
 # ══════════════════════════════════════════════════
 
 __all__ = [
-    # ✅ P2-1 修复：补全外部可能需要 mock 的类
+    # P2-1 修复：补全外部可能需要 mock 的类
     "TaskStreamState",
     "StreamStateCleaner",
     "state_cleaner",

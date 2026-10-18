@@ -57,7 +57,7 @@ async def create_task_with_plan(
         plan_doc = await create_plan(plan_id, plan_data, valid, now)
         db["tasks"].insert_one(task_doc)
         logger.info(
-            "[DB] ✅ 创建 Task=%s / Plan=%s (nodes=%d, edges=%d, req=%s)",
+            "[DB] 创建 Task=%s / Plan=%s (nodes=%d, edges=%d, req=%s)",
             task_id, plan_id, len(plan_doc["nodes"]), len(plan_doc["edges"]), rid,
         )
         return task_doc, plan_doc
@@ -98,7 +98,7 @@ async def create_direct_answer_task(
         "updated_at": now,
     }
     db["tasks"].insert_one(task_doc)
-    logger.info("[DB] ✅ 创建直接回答 Task=%s (req=%s)", task_id, rid)
+    logger.info("[DB] 创建直接回答 Task=%s (req=%s)", task_id, rid)
     return task_doc
 
 

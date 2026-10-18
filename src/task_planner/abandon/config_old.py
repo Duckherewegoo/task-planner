@@ -2,11 +2,11 @@
 config.py — 全局配置中心（生产最终版改版）
 ══════════════════════════════════════════════════
 所有模块的唯一依赖源。集中管理：
-  ✅ 日志 / DashScope / 模型 / 思考模式
-  ✅ 超时重试 / MongoDB / Gradio
-  ✅ 渲染导出（SVG / PNG / PDF / DOT / HTML / JSON）
-  ✅ 任务状态枚举（全模块共用）
-  ✅ Prompt 模板（JSON 大括号全部 {{}} 转义）
+  日志 / DashScope / 模型 / 思考模式
+  超时重试 / MongoDB / Gradio
+  渲染导出（SVG / PNG / PDF / DOT / HTML / JSON）
+  任务状态枚举（全模块共用）
+  Prompt 模板（JSON 大括号全部 {{}} 转义）
 
 Changelog:
   - 修复致命 NameError Bug
@@ -14,14 +14,14 @@ Changelog:
   - 安全与正则预编译优化
   - 清理冗余导入与统一风格
   - 100% 向后兼容
-  - ✅ P0-1 修复：DEBUG 默认值改为 False（生产优先）
-  - ✅ P0-2 修复：NODE_STATUS_CODE_MAP 4→timeout、补 5→skipped
-  - ✅ P0-3 修复：_env() 里跨行 f-string 改为 logger 占位符（兼容 Python < 3.12）
-  - ✅ P1-2 修复：移除 WERKZEUG_RUN_MAIN 硬编码，改为更灵活的.env获取及config编码
-  - ✅ P1-3 修复：敏感词正则加词边界，减少误伤
-  - ✅ P1-1 修复：INTENT_PROMPT 的 category 白名单补 consultation
-  - ✅ 修复：GRADIO_PORT 与 DASH_PORT 默认值冲突
-  - ✅ 统一：logger 全部改为 %s 延迟格式化风格
+  - P0-1 修复：DEBUG 默认值改为 False（生产优先）
+  - P0-2 修复：NODE_STATUS_CODE_MAP 4→timeout、补 5→skipped
+  - P0-3 修复：_env() 里跨行 f-string 改为 logger 占位符（兼容 Python < 3.12）
+  - P1-2 修复：移除 WERKZEUG_RUN_MAIN 硬编码，改为更灵活的.env获取及config编码
+  - P1-3 修复：敏感词正则加词边界，减少误伤
+  - P1-1 修复：INTENT_PROMPT 的 category 白名单补 consultation
+  - 修复：GRADIO_PORT 与 DASH_PORT 默认值冲突
+  - 统一：logger 全部改为 %s 延迟格式化风格
 """
 
 import logging
@@ -70,7 +70,7 @@ def _env(key: str, default: Any = None, cast: Callable = str) -> Any:
             return val.strip().lower() in ("true", "1", "yes", "on", "y")
         return cast(val)
     except (ValueError, TypeError):
-        # ✅ P0-3 修复：改为 %s 占位符风格，兼容 Python < 3.12
+        # P0-3 修复：改为 %s 占位符风格，兼容 Python < 3.12
         logger.warning(
             "环境变量 %s='%s' 无法转换为 %s，已回退至默认值: %s",
             key, val, cast.__name__, default,
@@ -81,7 +81,7 @@ def _env(key: str, default: Any = None, cast: Callable = str) -> Any:
 # =============================================================================
 # 2. 日志
 # =============================================================================
-# ✅ P0-1 修复：DEBUG 默认 False（生产安全优先）
+# P0-1 修复：DEBUG 默认 False（生产安全优先）
 DEBUG = _env("DEBUG", False, bool)
 LOG_DIR = _env("LOG_DIR", os.path.join(_PROJECT_ROOT, "logs"))
 LOG_FILE = _env("LOG_FILE", "task_planner.log")
@@ -129,7 +129,7 @@ LATENCY_ACCEPTANCE_THRESHOLD = _env("LATENCY_ACCEPTANCE_THRESHOLD", 10.0, float)
 #    建议 LLM_NODE_TIMEOUT ≥ LLM_TIMEOUT，给思考模式留足余量
 LLM_NODE_TIMEOUT = _env("LLM_NODE_TIMEOUT", 60, int)
 
-# ✅ 自动校正：当节点启用思考模式时，确保 timeout 不低于全局 LLM_TIMEOUT
+# 自动校正：当节点启用思考模式时，确保 timeout 不低于全局 LLM_TIMEOUT
 if LLM_NODE_ENABLE_THINKING and LLM_NODE_TIMEOUT < LLM_TIMEOUT:
     warnings.warn(
         "[Config] LLM_NODE_TIMEOUT({}s) < LLM_TIMEOUT({}s) 且节点思考模式已开启，"
@@ -158,7 +158,7 @@ ENABLE_MCP = _env("ENABLE_MCP", False, bool)
 # 9. DASH
 # =============================================================================
 DASH_HOST = _env("DASH_HOST", "0.0.0.0")
-# ✅ 修复：原默认 7860 与 GRADIO_PORT 冲突，改为 8050（Dash 官方默认端口）
+# 修复：原默认 7860 与 GRADIO_PORT 冲突，改为 8050（Dash 官方默认端口）
 DASH_PORT = _env("DASH_PORT", 8050, int)
 
 # ⚠️ P1-2 修复：删除 WERKZEUG_RUN_MAIN = True
@@ -189,7 +189,7 @@ FONT_FACE = (
     "'SimHei', 'DejaVu Sans', Arial, sans-serif"
 )
 
-# ✅ 导出格式 —— 全部真实可用
+# 导出格式 —— 全部真实可用
 #     svg  : pyvis HTML → cairosvg 提取 SVG
 #     png  : SVG → cairosvg 转 PNG (300DPI)
 #     pdf  : SVG → cairosvg 转 PDF (300DPI, A4)
@@ -237,7 +237,7 @@ CYTO_STYLESHEET: List[Dict[str, Any]] = [
     {"selector": ".state-skipped", "style": {
         "background-color": "#f3f4f6", "border-color": "#9ca3af", "opacity": 0.5,
     }},
-    # ✅ 补齐 state-timeout（NODE_STATUS_CODE_MAP[4] = "timeout" 对应的样式）
+    # 补齐 state-timeout（NODE_STATUS_CODE_MAP[4] = "timeout" 对应的样式）
     #    配色取自 STATUS_COLOR[4] / STATUS_BORDER[4]，与后端状态语义一致
     {"selector": ".state-timeout", "style": {
         "background-color": "#f3e5f5", "border-color": "#9c27b0",
@@ -401,7 +401,7 @@ EDGE_TYPE_STYLE = {
 STATUS_TEXT = {
     0: "⏳ 待处理",
     1: "🔄 进行中",
-    2: "✅ 成功",
+    2: "成功",
     3: "❌ 失败",
     4: "⏰ 超时",
     5: "⏭️ 已跳过",
@@ -486,7 +486,7 @@ EDGE_STYLES = {
 }
 DEFAULT_EDGE_STYLE = EDGE_STYLES[EDGE_TYPE_HARD]
 
-# ✅ 模块级常量集合，避免每次调用重建 + O(1) 查找
+# 模块级常量集合，避免每次调用重建 + O(1) 查找
 VALID_EDGE_TYPES: FrozenSet[str] = frozenset({
     EDGE_TYPE_HARD,
     EDGE_TYPE_SOFT,
@@ -585,7 +585,7 @@ STATE_COLORS = {
 }
 
 STATE_LABELS = {
-    "done": "✅ 已完成", "skipped": "⏭️ 已跳过",
+    "done": "已完成", "skipped": "⏭️ 已跳过",
     "failed": "❌ 做不到", "running": "🔄 进行中",
     "pending": "⏳ 等待中", "blocked": "🔒 被阻塞",
 }
@@ -611,14 +611,14 @@ NODE_STYLES: Dict[int, Dict[str, str]] = {
 # 允许手动干预（done/skip/fail）的节点状态集合
 NODE_OPERABLE_STATES = {"pending", "running", "failed"}
 
-# ✅ P0-2 修复：后端状态码 → 前端节点状态映射（与 TASK_STATUS 对齐）
+# P0-2 修复：后端状态码 → 前端节点状态映射（与 TASK_STATUS 对齐）
 NODE_STATUS_CODE_MAP = {
     0: "pending",
     1: "running",
     2: "done",
     3: "failed",
-    4: "timeout",     # ✅ 修正：原为 "skipped"，与 TASK_STATUS 定义冲突
-    5: "skipped",     # ✅ 补齐：原缺失，导致 status_code=5 时前端拿到 undefined
+    4: "timeout",     # 修正：原为 "skipped"，与 TASK_STATUS 定义冲突
+    5: "skipped",     # 补齐：原缺失，导致 status_code=5 时前端拿到 undefined
 }
 
 # 节点操作配置：定义每种操作的下游行为和提示文案
@@ -754,7 +754,7 @@ MAX_INPUT_LENGTH = 2000
 MAX_CACHE_INPUT_BYTES = 10 * 1024 * 1024  # 10 MB
 THINK_RE = re.compile(r'<' + r'think>.*?<' + r'/think>', re.DOTALL)
 
-# ✅ P1-3 修复：所有 "词 + 分隔符" 型 pattern 加 (?<![a-zA-Z_]) 前缀，
+# P1-3 修复：所有 "词 + 分隔符" 型 pattern 加 (?<![a-zA-Z_]) 前缀，
 #    避免 my_password=xxx 被误伤。
 SENSITIVE_PATTERNS_CONFIG = [
     {"pattern": r'sk-[a-zA-Z0-9]{20,}', "replacement": '[REDACTED_API_KEY]'},
@@ -789,7 +789,7 @@ SESSION_TTL = 3600  # 1小时
 # 16. 常量定义 (Constants)
 # =============================================================================
 # 意图枚举白名单（frozenset 不可变，O(1) 查找，防止运行时被意外修改）
-# ✅ [Fix] 将 "consultation" 加入白名单
+# [Fix] 将 "consultation" 加入白名单
 # 否则 Post-check 设置的 category 会被 _validate_intent 二次降级为 "other"
 VALID_INTENT_CATEGORIES: FrozenSet[str] = frozenset({
     "cooking", "engineering", "logistics",
@@ -808,13 +808,13 @@ MOCK_RESPONSE_PREFIX: str = "[MOCK_LLM_RESPONSE]"
 UNREPLACED_PATTERN = re.compile(r'\$\{(\w+)\}|(?<!\$)\$(\w+)')
 
 # ══════════════════════════════════════════════════
-#  ✅ 视图分层：面向用户的字段白名单
+#  视图分层：面向用户的字段白名单
 # ══════════════════════════════════════════════════
 USER_VISIBLE_NODE_FIELDS = {"id", "name", "details", "status", "result"}
 
 HINT_TEMPLATES = {
-    "running": "✅ 已选中节点 {nid}，现在可以「开始执行」或「跳过/做不到」",
-    "done": "✅ 节点 {nid} 已完成",
+    "running": "已选中节点 {nid}，现在可以「开始执行」或「跳过/做不到」",
+    "done": "节点 {nid} 已完成",
     "skipped": "⏭️ 节点 {nid} 已跳过",
     "failed": "❌ 节点 {nid} 标记为做不到",
     "pending": "⏳ 节点 {nid} 等待前置条件完成，暂时无法操作",
@@ -825,7 +825,7 @@ HINT_TEMPLATES = {
 # =============================================================================
 # 保持原版 Template 语法 ($var)
 
-# ✅ P1-1 修复：category 白名单补上 "consultation"
+# P1-1 修复：category 白名单补上 "consultation"
 #    否则 LLM 永远不会输出 consultation，Post-check 的硬编码分流会掩盖真实的意图识别。
 INTENT_PROMPT = Template("""你是一个高精度的任务意图路由器。
 分析用户输入，判断是否需要启动 DAG 任务规划引擎。
@@ -934,10 +934,10 @@ JSON 必须严格符合以下 schema：
 
 <planning_principles>
 1. 原子性：一个节点 = 一个可独立验证的动作
-   ✅ "选购五花肉" | ❌ "买肉并切块"
+   "选购五花肉" | ❌ "买肉并切块"
 
 2. 并行优先：无依赖节点必须并行，禁止强行线性串联
-   ✅ 选肉 ∥ 备调料 → 同时汇入"腌制"节点
+   选肉 ∥ 备调料 → 同时汇入"腌制"节点
 
 3. 粒度控制：
    - simple: 3~5 节点 | medium: 5~10 | complex: 10~20
@@ -983,11 +983,11 @@ JSON 必须严格符合以下 schema：
    - 生活：渠道、联系方式、判断阈值
 
 2. preconditions/postconditions 必须具体：
-   ✅ "五花肉已洗净切4cm方块，共500g"
+   "五花肉已洗净切4cm方块，共500g"
    ❌ "肉已准备好" / "任务完成"
 
 3. retry_policy 必须可操作：
-   ✅ "网络超时重试3次，间隔5s；API返回403则终止并报错"
+   "网络超时重试3次，间隔5s；API返回403则终止并报错"
    ❌ "失败就重试"
 </refinement_standards>
 

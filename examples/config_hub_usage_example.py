@@ -2,8 +2,8 @@
 from task_planner.infrastructure.cog import hub
 
 hub.dev.LLM_TIMEOUT              # → 120
-hub.dev.LLM_TIMEOUT = 60         # ✅ 开发者
-hub.user.THEME = "dark"          # ✅ 用户
+hub.dev.LLM_TIMEOUT = 60         # 开发者
+hub.user.THEME = "dark"          # 用户
 hub.user.LLM_TIMEOUT = 60        # ❌ PermissionError
 
 for e in hub.snapshot():

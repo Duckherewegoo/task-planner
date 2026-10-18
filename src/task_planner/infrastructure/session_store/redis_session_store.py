@@ -3,9 +3,9 @@ redis_session_store.py — 会话存储的 Redis 实现
 ═══════════════════════════════════════════════════════════════════════
 与 InMemorySessionStore 的差异：
 
-  ✅ 多 worker 友好 —— 会话状态在 Redis 共享，进程间可见
-  ✅ 原生 TTL —— Redis 自动过期，无需手动清理
-  ✅ 懒加载客户端 —— 首次使用时才建立连接
+  多 worker 友好 —— 会话状态在 Redis 共享，进程间可见
+  原生 TTL —— Redis 自动过期，无需手动清理
+  懒加载客户端 —— 首次使用时才建立连接
 
   ⚠️ 语义差异（与 InMemory 版）：
      1. 重复 set（不传 created_at）会「重置 TTL」为 default_ttl

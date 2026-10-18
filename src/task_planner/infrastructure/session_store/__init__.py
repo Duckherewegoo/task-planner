@@ -15,7 +15,7 @@ session_store — 会话存储抽象与实现
    内存版和 Protocol 始终可用，不受 redis 依赖影响。
 
    安全用法：
-       from ...session_store import SessionStore, InMemorySessionStore  # ✅ 永远可用
+       from ...session_store import SessionStore, InMemorySessionStore  # 永远可用
        from ...session_store import RedisSessionStore                   # ⚠️ 需要 redis
 """
 

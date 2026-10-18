@@ -18,7 +18,7 @@ cyto.load_extra_layouts()
 # ═══════════════════════════════════════════════════════════════════
 #  DB 初始化——移除模块级 asyncio.run
 # ═══════════════════════════════════════════════════════════════════
-# ✅ 删除 _bootstrap_db 的完整因果链：
+# 删除 _bootstrap_db 的完整因果链：
 #
 #   原实现：模块 import 时 asyncio.run(init_db())
 #     → asyncio.run 创建 loop A
@@ -33,8 +33,8 @@ cyto.load_extra_layouts()
 #        DB 改为**首次请求时懒初始化**——get_db() 内部自动 init_db()。
 #        第一个请求慢一次（~100ms 建连+ping+建索引），之后走缓存。
 #
-#   代价：启动日志里不再有"[Dash] ✅ 数据库初始化完成"——
-#        改为首次请求时由 client.py 打 "[DB] ✅ MongoDB 连接成功"。
+#   代价：启动日志里不再有"[Dash] 数据库初始化完成"——
+#        改为首次请求时由 client.py 打 "[DB] MongoDB 连接成功"。
 
 
 # ── app 实例（唯一） ──
@@ -78,7 +78,7 @@ def main() -> None:
         memory_watchdog=not debug,
     )
 
-    # ✅ 注册 DB 关闭到 GracefulShutdown——
+    # 注册 DB 关闭到 GracefulShutdown——
     #    priority=-100：在所有 handler 之后执行（DB 最后关，
     #    确保其他 handler 若需查 DB 时不至于用已关闭的连接）。
     #    GracefulShutdown.install() 由 boost() 内部调用。

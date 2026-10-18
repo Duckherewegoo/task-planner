@@ -105,7 +105,7 @@ def main(review_path: str = "eval_reports/hil_review.json"):
                 json.dumps(items, ensure_ascii=False, indent=2),
                 encoding="utf-8",
             )
-            return f"✅ 已保存 {len(items)} 条审查结果"
+            return f"已保存 {len(items)} 条审查结果"
         except Exception as e:
             return f"❌ 保存失败: {type(e).__name__}: {e}"
 

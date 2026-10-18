@@ -36,7 +36,7 @@ def _load_dataset(d: Path) -> list[GoldenCase]:
 async def _cmd_generate(args):
     specs = json.loads(Path(args.specs).read_text(encoding="utf-8"))
     cases = await generate_dataset(specs, Path(args.output))
-    print(f"✅ 生成 {len(cases)} 条")
+    print(f"生成 {len(cases)} 条")
     return 0
 
 
@@ -73,7 +73,7 @@ async def _cmd_run(args):
     write_json_report(results, out / "eval_report.json")
     render_html_report(results, out / "eval_report.html")
     generate_review_sheet(results, out / "hil_review.json")
-    print(f"\n✅ 报告 → {out}/")
+    print(f"\n报告 → {out}/")
     return 0
 
 

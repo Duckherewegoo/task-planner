@@ -72,7 +72,7 @@ logger = get_logger("task_planner.dash_app")
 cyto.load_extra_layouts()
 
 
-# ✅ P0-1 修复：init_db 是 async，必须用 asyncio.run 或延迟到 main() 里执行。
+# P0-1 修复：init_db 是 async，必须用 asyncio.run 或延迟到 main() 里执行。
 #    这里用 asyncio.run 保证模块导入后 DB 一定初始化；
 #    失败时不静默吞掉，而是明确告警（DB 是强依赖，不初始化后续必崩）。
 def _bootstrap_db() -> None:
@@ -80,7 +80,7 @@ def _bootstrap_db() -> None:
     from task_planner.core.database import init_db
     try:
         asyncio.run(init_db())
-        logger.info("[Dash] ✅ 数据库初始化完成")
+        logger.info("[Dash] 数据库初始化完成")
     except Exception as e:
         logger.warning("[Dash] ⚠️ 数据库初始化失败，将在首次请求时重试: %s", e)
 
@@ -88,7 +88,7 @@ def _bootstrap_db() -> None:
 _bootstrap_db()
 
 # ══════════════════════════════════════════════════
-#  历史回调的结果容器（✅ P0-5 修复：原代码引用了未定义的类）
+#  历史回调的结果容器（P0-5 修复：原代码引用了未定义的类）
 # ══════════════════════════════════════════════════
 
 @dataclass
@@ -191,7 +191,7 @@ async def _resolve_dag_data(
     统一的数据源解析引擎（双源适配器）。
     优先级契约：历史持久化数据 > 当前内存 Store。
 
-    ✅ P0-2 修复：改为 async def，内部 await load_task_with_plan。
+    P0-2 修复：改为 async def，内部 await load_task_with_plan。
 
     Returns:
         tuple: (nodes, edges, node_states, task_id_str)
@@ -209,7 +209,7 @@ async def _resolve_dag_data(
 
     if task_id:
         try:
-            # ✅ 正确 await
+            # 正确 await
             data = await load_task_with_plan(task_id)
         except Exception as e:
             logger.error(
@@ -288,7 +288,7 @@ async def _load_and_fill_query(task_ids, action_label: str) -> tuple:
     """
     统一的历史任务回填引擎。
 
-    ✅ P0-3 修复：改为 async def，内部 await load_task_with_plan。
+    P0-3 修复：改为 async def，内部 await load_task_with_plan。
     """
     from task_planner.core.database import load_task_with_plan
 
@@ -298,7 +298,7 @@ async def _load_and_fill_query(task_ids, action_label: str) -> tuple:
         return "⚠️ 请先选择历史任务", no_update, no_update
 
     try:
-        # ✅ 正确 await
+        # 正确 await
         data = await load_task_with_plan(task_id)
     except Exception as e:
         logger.error(
@@ -712,7 +712,7 @@ def build_layout() -> html.Div:
                             html.Div("🎯 节点操作（先点击历史流程图中的节点）",
                                     style=SECTION_HEADER_STYLE),
                             html.Div([
-                                html.Button("✅ 标记完成", id="history-node-done-btn",
+                                html.Button("标记完成", id="history-node-done-btn",
                                            n_clicks=0, disabled=True, style={
                                     "backgroundColor": "#10b981", "color": "white",
                                     "border": "none", "padding": "10px 18px",
@@ -946,7 +946,7 @@ def on_tap_node(node_data, dag, node_states):
         return html.Button(label, id=btn_id, n_clicks=0, style=style)
 
     buttons = [
-        make_btn("✅ 完成", "complete-btn", "done"),
+        make_btn("完成", "complete-btn", "done"),
         make_btn("⏭️ 跳过", "skip-btn-panel", "skipped"),
         make_btn("❌ 失败", "fail-btn-panel", "failed"),
         html.Button("🔄 重置", id="reset-btn-panel", n_clicks=0,
@@ -1080,7 +1080,7 @@ async def poll_stream_progress(n_intervals, thread_id, stream_active, task_start
             )
         return (
             elements,
-            "✅ 流程图渲染完成！请先在图中点击一个高亮（黄色）节点，再选择操作",
+            "流程图渲染完成！请先在图中点击一个高亮（黄色）节点，再选择操作",
             True, False, True, False, dag,
             BAR_DONE,
         )
@@ -1187,7 +1187,7 @@ async def on_complete_node(n_clicks, selected_nid, dag, node_states):
     done_count = sum(1 for v in new_states.values() if v == "done")
     total = len(nodes)
     pct = int(done_count / total * 100) if total > 0 else 0
-    status_msg = f"✅ 完成 {done_count}/{total} ({pct}%)"
+    status_msg = f"完成 {done_count}/{total} ({pct}%)"
     if pct >= 100:
         status_msg = "🎉 所有节点已完成！"
 
@@ -1483,17 +1483,17 @@ async def on_history_select(task_ids):
     pending_count = sum(1 for v in node_states.values() if v in ("pending", "blocked"))
     hint_parts = []
     if all_done:
-        hint_parts.append("✅ 所有节点已完成")
+        hint_parts.append("所有节点已完成")
     if has_failed:
         hint_parts.append("❌ 存在失败节点，可重试")
     if has_pending:
         hint_parts.append(f"⏳ 还有 {pending_count} 个节点待执行")
-    action_hint = " | ".join(hint_parts) if hint_parts else "✅ 任务状态正常"
+    action_hint = " | ".join(hint_parts) if hint_parts else "任务状态正常"
 
     return HistorySelectResult(
         elements=elements,
         detail=dcc.Markdown(md_text, style={"fontSize": "14px", "lineHeight": "1.8"}),
-        global_status=f"✅ 已加载历史流程图（{len(nodes)} 个节点）",
+        global_status=f"已加载历史流程图（{len(nodes)} 个节点）",
         dag_store=dag_store_data,
         replan_disabled=False,
         edit_disabled=False,
@@ -1570,9 +1570,9 @@ async def on_delete(n_clicks, task_ids):
         options = build_history_dropdown_options(tasks)
     except Exception as e:
         logger.error("[History] 删除后刷新列表失败: %s", e, exc_info=True)
-        return no_update, None, f"✅ 已删除 {count} 个任务，但列表刷新失败，请手动刷新页面"
+        return no_update, None, f"已删除 {count} 个任务，但列表刷新失败，请手动刷新页面"
 
-    return options, None, f"✅ 已删除 {count} 个任务"
+    return options, None, f"已删除 {count} 个任务"
 
 
 @callback(
@@ -1759,7 +1759,7 @@ async def on_export_data(n_clicks, history_task_ids, dag_store, fmt):
     try:
         # 导出函数是同步的，用 to_thread 包裹
         result = await asyncio.to_thread(export_fn, nodes, edges, task_id_str)
-        logger.info("[Export] ✅ %s 导出成功 (task=%s)", fmt.upper(), task_id_str)
+        logger.info("[Export] %s 导出成功 (task=%s)", fmt.upper(), task_id_str)
         return result
     except Exception as e:
         logger.error("[Export] %s 导出失败: %s", fmt.upper(), e, exc_info=True)
@@ -1799,7 +1799,7 @@ async def on_export_image(n_clicks, history_task_ids, dag_store, node_states, im
                 node_states=node_states,
                 title=title, dpi=200,
             )
-            logger.info("[Export] ✅ SVG 导出成功 (%.1f KB, task=%s)",
+            logger.info("[Export] SVG 导出成功 (%.1f KB, task=%s)",
                        len(svg_bytes) / 1024, task_id_str)
             return dcc.send_bytes(
                 svg_bytes,
@@ -1815,7 +1815,7 @@ async def on_export_image(n_clicks, history_task_ids, dag_store, node_states, im
                 node_states=node_states,
                 title=title, width=1600, height=1200, dpi=200,
             )
-            logger.info("[Export] ✅ PNG 导出成功 (%.1f KB, task=%s)",
+            logger.info("[Export] PNG 导出成功 (%.1f KB, task=%s)",
                        len(png_bytes) / 1024, task_id_str)
             return dcc.send_bytes(
                 png_bytes,

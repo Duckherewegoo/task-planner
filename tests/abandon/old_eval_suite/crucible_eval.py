@@ -3,18 +3,18 @@
 运行测试用例，聚合指标，生成详细报告
 
 Changelog:
-  ✅ P0-1：asyncio.gather 加 return_exceptions=True，
+  P0-1：asyncio.gather 加 return_exceptions=True，
            单个 case 异常不再拖垮整个评估批次；
            异常统一转成"失败结果"进入聚合。
-  ✅ P1-1：datetime.utcnow() → datetime.now(timezone.utc)
-  ✅ P1-2：plan_generated 语义拆分为 plan_generated / direct_answer_provided，
+  P1-1：datetime.utcnow() → datetime.now(timezone.utc)
+  P1-2：plan_generated 语义拆分为 plan_generated / direct_answer_provided，
            _needs_hitl 判断不再混用。
-  ✅ P1-3：agg_metrics 用并集收集 keys，避免漏指标。
-  ✅ P2-1：evaluate_one 加 try/except + asyncio.wait_for，
+  P1-3：agg_metrics 用并集收集 keys，避免漏指标。
+  P2-1：evaluate_one 加 try/except + asyncio.wait_for，
            每个 case 有独立的双层超时保护。
-  ✅ P2-2：elapsed 字段不再混入 0/1 指标区；单独放 metrics["elapsed_seconds"]。
-  ✅ P2-3：logger 改 %s 风格。
-  ✅ P2-4：metrics["success"] 语义与 harness.success 对齐。
+  P2-2：elapsed 字段不再混入 0/1 指标区；单独放 metrics["elapsed_seconds"]。
+  P2-3：logger 改 %s 风格。
+  P2-4：metrics["success"] 语义与 harness.success 对齐。
 """
 
 import asyncio
@@ -83,7 +83,7 @@ class CrucibleEvaluator:
 
         async def evaluate_one(case: TestCase) -> dict[str, Any]:
             async with semaphore:
-                # ✅ P2-1 修复：单 case 独立 try/except，双保险
+                # P2-1 修复：单 case 独立 try/except，双保险
                 #    外层 asyncio.wait_for 是 harness 内部超时失效时的兜底
                 try:
                     harness = AgentHarness(
@@ -137,7 +137,7 @@ class CrucibleEvaluator:
 
         tasks = [evaluate_one(case) for case in self.dataset]
 
-        # ✅ P0-1 修复：return_exceptions=True
+        # P0-1 修复：return_exceptions=True
         #    之前一个 case 抛异常会取消所有其他正在跑的 case。
         #    现在异常会被收集，然后统一转成"失败结果"。
         raw_results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -189,7 +189,7 @@ class CrucibleEvaluator:
         """
         针对单个测试用例计算多个指标。
 
-        ✅ P1-2 修复：plan_generated 与 direct_answer_provided 语义分离。
+        P1-2 修复：plan_generated 与 direct_answer_provided 语义分离。
           原实现中"规划任务"和"直接回答任务"共用 plan_generated 字段，
           导致聚合时把两种完全不同的东西平均在一起。
         """
@@ -209,7 +209,7 @@ class CrucibleEvaluator:
             metrics["accuracy"] = 0.0
             metrics["exact_match"] = 0.0
 
-        # 2. 完整性（✅ P1-2：拆分两个语义）
+        # 2. 完整性（P1-2：拆分两个语义）
         if case.expected_needs_planning:
             metrics["plan_generated"] = 1.0 if result.get("nodes") else 0.0
             metrics["direct_answer_provided"] = 0.0
@@ -241,7 +241,7 @@ class CrucibleEvaluator:
         else:
             metrics["relevance"] = 0.0
 
-        # 6. 延迟（✅ P2-2：elapsed 单独放，不与 0/1 指标混在一起）
+        # 6. 延迟（P2-2：elapsed 单独放，不与 0/1 指标混在一起）
         elapsed = result.get("elapsed")
         if elapsed is None:
             elapsed = float("inf")
@@ -265,7 +265,7 @@ class CrucibleEvaluator:
         """
         判断哪些 case 需要人工审查。
 
-        ✅ P1-2 修复：使用拆分后的字段，不再依赖语义混用的 plan_generated。
+        P1-2 修复：使用拆分后的字段，不再依赖语义混用的 plan_generated。
         """
         if metrics["success"] < 0.5:
             return True
@@ -303,7 +303,7 @@ class CrucibleEvaluator:
             categories[r.get("case_category", "unknown")].append(r)
             complexities[r.get("case_complexity", "unknown")].append(r)
 
-        # ✅ P1-3 修复：用并集收集 keys，避免某个 case 缺字段导致漏指标
+        # P1-3 修复：用并集收集 keys，避免某个 case 缺字段导致漏指标
         def agg_metrics(metric_list: list[dict[str, Any]]) -> dict[str, float]:
             if not metric_list:
                 return {}
@@ -330,7 +330,7 @@ class CrucibleEvaluator:
             ]
             return sum(vals) / len(vals) if vals else 0.0
 
-        # ✅ P1-1 修复：带时区的 UTC
+        # P1-1 修复：带时区的 UTC
         summary: dict[str, Any] = {
             "total": total,
             "success_rate": sum(
@@ -344,7 +344,7 @@ class CrucibleEvaluator:
                 1 for r in results
                 if r.get("metrics", {}).get("acyclic", 0) > 0.5
             ) / total,
-            # ✅ P1-2 修复：按期望规划/直接回答分别统计
+            # P1-2 修复：按期望规划/直接回答分别统计
             "plan_generation_rate": self._rate_planning_success(results),
             "by_category": {},
             "by_complexity": {},
@@ -373,7 +373,7 @@ class CrucibleEvaluator:
         """
         期望规划的任务里，实际生成节点的比例。
 
-        ✅ P1-2 补充：让"规划生成率"语义明确。
+        P1-2 补充：让"规划生成率"语义明确。
         """
         planning_cases = [
             r for r in results if r.get("expected_needs_planning")

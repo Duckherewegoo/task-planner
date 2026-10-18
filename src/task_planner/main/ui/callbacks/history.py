@@ -127,17 +127,17 @@ def register() -> None:
         pending_count = sum(1 for v in node_states.values() if v in ("pending", "blocked"))
         hint_parts = []
         if all_done:
-            hint_parts.append("✅ 所有节点已完成")
+            hint_parts.append("所有节点已完成")
         if has_failed:
             hint_parts.append("❌ 存在失败节点，可重试")
         if has_pending:
             hint_parts.append(f"⏳ 还有 {pending_count} 个节点待执行")
-        action_hint = " | ".join(hint_parts) if hint_parts else "✅ 任务状态正常"
+        action_hint = " | ".join(hint_parts) if hint_parts else "任务状态正常"
 
         return HistorySelectResult(
             elements=elements,
             detail=dcc.Markdown(md_text, style={"fontSize": "14px", "lineHeight": "1.8"}),
-            global_status=f"✅ 已加载历史流程图（{len(nodes)} 个节点）",
+            global_status=f"已加载历史流程图（{len(nodes)} 个节点）",
             dag_store=dag_store_data,
             replan_disabled=False,
             edit_disabled=False,
@@ -216,9 +216,9 @@ def register() -> None:
             options = build_history_dropdown_options(tasks)
         except Exception as e:
             logger.error("[History] 删除后刷新列表失败: %s", e, exc_info=True)
-            return no_update, None, f"✅ 已删除 {count} 个任务，但列表刷新失败，请手动刷新页面"
+            return no_update, None, f"已删除 {count} 个任务，但列表刷新失败，请手动刷新页面"
 
-        return options, None, f"✅ 已删除 {count} 个任务"
+        return options, None, f"已删除 {count} 个任务"
 
     @callback(
         Output("global-status", "children", allow_duplicate=True),

@@ -91,7 +91,7 @@ def route_after_execute(state: TaskState) -> Literal["cancel", "intent", "execut
 
     action = state.get("user_action")
 
-    # ✅ 归一化：兼容 checkpointer 把 UserAction 反序列化成 str 的场景。
+    # 归一化：兼容 checkpointer 把 UserAction 反序列化成 str 的场景。
     #    契约路径下 action 已是 UserAction（execute.py 通过
     #    validate_user_action 保证），isinstance 检查后跳过归一化，零开销。
     #    非契约路径（checkpointer 破坏类型）下会转回 UserAction。

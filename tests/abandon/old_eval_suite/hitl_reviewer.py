@@ -3,17 +3,17 @@
 标记需要审查的案例，提供交互式审查界面（CLI）
 
 Changelog:
-  ✅ P0-1：datetime.utcnow() → datetime.now(timezone.utc)（两处）
-  ✅ P0-2：mkdir 加 parents=True
-  ✅ P0-3：load_review_results 加异常处理 + schema 校验，文件不存在/损坏不再崩
-  ✅ P0-4：interactive_review 支持中途退出（Ctrl+C / EOF）并保存已审查结果；
+  P0-1：datetime.utcnow() → datetime.now(timezone.utc)（两处）
+  P0-2：mkdir 加 parents=True
+  P0-3：load_review_results 加异常处理 + schema 校验，文件不存在/损坏不再崩
+  P0-4：interactive_review 支持中途退出（Ctrl+C / EOF）并保存已审查结果；
            score 输入加 1-5 范围校验
-  ✅ P1-1：flag_for_review 的 success 判断改为 == 0（更符合 0/1 语义）
-  ✅ P1-2：interactive_review 每审一条立即落盘（防止崩溃丢失）
-  ✅ P1-3：review_summary 增加分数分布、中位数
-  ✅ P2-1：日志统一 %s 风格
-  ✅ P2-2：增加 dry_run 模式，预览要审查哪些 case
-  ✅ P2-3：增加 _safe_review_path 防路径穿越
+  P1-1：flag_for_review 的 success 判断改为 == 0（更符合 0/1 语义）
+  P1-2：interactive_review 每审一条立即落盘（防止崩溃丢失）
+  P1-3：review_summary 增加分数分布、中位数
+  P2-1：日志统一 %s 风格
+  P2-2：增加 dry_run 模式，预览要审查哪些 case
+  P2-3：增加 _safe_review_path 防路径穿越
 """
 
 import json
@@ -38,7 +38,7 @@ class HITLReviewer:
 
     def __init__(self, review_dir: str = "reviews"):
         self.review_dir = Path(review_dir)
-        # ✅ P0-2 修复：parents=True 支持多层目录
+        # P0-2 修复：parents=True 支持多层目录
         self.review_dir.mkdir(parents=True, exist_ok=True)
 
     # ────────────────────────────────────────────
@@ -54,8 +54,8 @@ class HITLReviewer:
         """
         筛选需要审查的结果。
 
-        ✅ P1-1 修复：success 是 0/1，用 == 0 比 < 0.5 语义更明确。
-        ✅ P2-2 新增：dry_run=True 时只打印不返回，方便预览。
+        P1-1 修复：success 是 0/1，用 == 0 比 < 0.5 语义更明确。
+        P2-2 新增：dry_run=True 时只打印不返回，方便预览。
 
         触发条件（任一满足）：
           - accuracy < threshold（默认 0.5）
@@ -106,7 +106,7 @@ class HITLReviewer:
 
     def _safe_review_path(self, filename: str) -> Path:
         """
-        ✅ P2-3 新增：防止用户通过 ../../ 路径穿越写入非 review_dir 位置。
+        P2-3 新增：防止用户通过 ../../ 路径穿越写入非 review_dir 位置。
         """
         # 只取 basename，丢弃任何目录成分
         safe_name = Path(filename).name
@@ -122,8 +122,8 @@ class HITLReviewer:
         """
         保存审查请求到文件。
 
-        ✅ P0-1 修复：datetime.now(timezone.utc)
-        ✅ P2-3 修复：路径安全校验
+        P0-1 修复：datetime.now(timezone.utc)
+        P2-3 修复：路径安全校验
         """
         timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
         filename = f"review_requests_{timestamp}.json"
@@ -141,7 +141,7 @@ class HITLReviewer:
         source_path: str | None = None,
     ) -> str:
         """
-        ✅ P2-2 新增：把审查结果写回文件（原来 interactive_review 结果只在内存里）。
+        P2-2 新增：把审查结果写回文件（原来 interactive_review 结果只在内存里）。
         """
         timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
         filename = f"review_results_{timestamp}.json"
@@ -164,7 +164,7 @@ class HITLReviewer:
         """
         加载已完成的审查结果。
 
-        ✅ P0-3 修复：
+        P0-3 修复：
           - 文件不存在 → 返回空列表（不再 FileNotFoundError）
           - JSON 损坏 → 返回空列表并记录
           - 支持两种 schema：裸 list 或 {"items": [...]}
@@ -211,7 +211,7 @@ class HITLReviewer:
     @staticmethod
     def _parse_score(raw: str) -> int | None:
         """
-        ✅ P0-4 修复：解析用户输入评分。
+        P0-4 修复：解析用户输入评分。
           - 空串 / 非数字 → None
           - 超出 [1, 5] → None
           - 合法 → int
@@ -235,7 +235,7 @@ class HITLReviewer:
         """
         CLI 交互式审查。
 
-        ✅ P0-4 修复：
+        P0-4 修复：
           - 支持中途 Ctrl+C / EOF，已审查的部分会先落盘再退出
           - score 输入加范围校验，非法值重问而不是直接 None
           - 每审 autosave_every 条立即落盘，防止进程崩溃丢失
@@ -315,7 +315,7 @@ class HITLReviewer:
         # ── 最终落盘（无论正常结束还是中断）──
         if reviewed:
             final_path = self.save_review_results(reviewed)
-            print(f"\n✅ 已审查 {len(reviewed)} 条，结果保存至: {final_path}")
+            print(f"\n已审查 {len(reviewed)} 条，结果保存至: {final_path}")
             if interrupted and len(reviewed) < len(flagged):
                 print(
                     f"⚠️  中断退出：剩余 {len(flagged) - len(reviewed)} 条未审查"
@@ -331,7 +331,7 @@ class HITLReviewer:
         """
         生成审查摘要。
 
-        ✅ P1-3 修复：增加中位数、分数分布、无评分占比。
+        P1-3 修复：增加中位数、分数分布、无评分占比。
         """
         scores = [
             r.get("human_score")

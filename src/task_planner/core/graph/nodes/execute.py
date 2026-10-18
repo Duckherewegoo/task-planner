@@ -127,7 +127,7 @@ async def execute_node(state: TaskState, config: RunnableConfig) -> dict[str, An
 
     nodes = state["nodes"]
 
-    # ✅ P0-3：三指针裁决——retry > resume > current
+    # P0-3：三指针裁决——retry > resume > current
     idx = _resolve_target_index(state, nodes, rid)
 
     if idx >= len(nodes):
@@ -137,7 +137,7 @@ async def execute_node(state: TaskState, config: RunnableConfig) -> dict[str, An
         )
         return {
             "user_action": None,
-            "status_text": "✅ 全部节点已完成",
+            "status_text": "全部节点已完成",
             "steps": state.get("steps", []) + ["全部节点已完成"],
         }
 
@@ -145,7 +145,7 @@ async def execute_node(state: TaskState, config: RunnableConfig) -> dict[str, An
     nid = _coerce_node_id(node.get("id", idx), fallback=idx)
     name = node.get("name", f"步骤{nid}")
 
-    # ✅ DB 调用经 _safe_db_update 包裹：
+    # DB 调用经 _safe_db_update 包裹：
     #    save.py 若降级（task_id="local-..."），此处 DB 调用会失败——
     #    但失败不应阻断执行。图的核心价值是"跑通节点"，
     #    DB 状态同步是辅助功能。
@@ -172,7 +172,7 @@ async def execute_node(state: TaskState, config: RunnableConfig) -> dict[str, An
             "cancel_requested": True,
             "status_text": "⏹️ 已取消",
             "user_action": None,               # 显式清空，避免残留上一轮 action
-            # ✅ P1：指针已被消费，取消路径同样需要清空
+            # P1：指针已被消费，取消路径同样需要清空
             "retry_node_index": None,
             "resume_from_node_index": None,
             "steps": state.get("steps", []) + [f"节点{nid} ⏹️ 用户取消"],
@@ -182,7 +182,7 @@ async def execute_node(state: TaskState, config: RunnableConfig) -> dict[str, An
     detail = result.detail
 
     status_code = _NODE_STATUS_SUCCESS if success else _NODE_STATUS_FAILED
-    # ✅ DB 调用经 _safe_db_update 包裹（原因同上）
+    # DB 调用经 _safe_db_update 包裹（原因同上）
     await _safe_db_update(
         lambda: update_node_status(state["task_id"], nid, status_code, details=detail),
         op_name=f"update_node_status(node={nid})",
@@ -206,14 +206,14 @@ async def execute_node(state: TaskState, config: RunnableConfig) -> dict[str, An
         "node_info": user_visible_node,
         "next_index": idx + 1,
         "total_nodes": len(nodes),
-        # ✅ P3：NodeExecResult 里 retryable 是必填字段，直接用下标
+        # P3：NodeExecResult 里 retryable 是必填字段，直接用下标
         "retryable": result.retryable,
     }
 
     feedback = interrupt(interrupt_payload)
 
     # ── 解析 interrupt 返回值 ──
-    # ✅ P0-1/P0-2：键名必须与 state.py 字段名一致（workflow.py 的
+    # P0-1/P0-2：键名必须与 state.py 字段名一致（workflow.py 的
     # resume_graph_async 也按同一约定写入 feedback）。
     action: UserAction
     modified_input: str | None
@@ -247,7 +247,7 @@ async def execute_node(state: TaskState, config: RunnableConfig) -> dict[str, An
         "resume_from_node_index": None,
     }
 
-    # ✅ RETRY_NODE 专用：不前进 index，让下一轮 execute_node
+    # RETRY_NODE 专用：不前进 index，让下一轮 execute_node
     # 重新执行同一节点。其他动作照常 +1。
     if action == UserAction.RETRY_NODE:
         updates["current_node_index"] = idx
@@ -260,7 +260,7 @@ async def execute_node(state: TaskState, config: RunnableConfig) -> dict[str, An
 
     # ── MODIFY 分支：需 modified_input 非空才生效 ──
     if action == UserAction.MODIFY and modified_input:
-        # ✅ 先把旧任务在 DB 里收尾，避免遗留 running 状态。
+        # 先把旧任务在 DB 里收尾，避免遗留 running 状态。
         # 经 _safe_db_update 包裹——DB 不可用时不影响重规划流程。
         if state.get("task_id"):
             await _safe_db_update(
@@ -281,7 +281,7 @@ async def execute_node(state: TaskState, config: RunnableConfig) -> dict[str, An
             "refined_nodes": [],
             "plan": {},
             "intent": {},
-            # ✅ P0-4：与 create_initial_state 一致——默认走 intent，
+            # P0-4：与 create_initial_state 一致——默认走 intent，
             # 让 intent 节点重新判断。若设为 False，_route_start 会直接
             # 跳 direct_answer，用户改的需求不被识别就被回答。
             "needs_planning": True,

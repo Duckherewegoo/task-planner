@@ -11,33 +11,33 @@ good_addons v6.2 — 企业级 Python 运行时增强层。
 Changelog:
 
   ── v6.0（vs v5.0）──
-  ✅ 新增 @timed 轻量级计时装饰器
-  ✅ 新增 @fallback 优雅降级装饰器
-  ✅ 新增 HealthChecker 健康检查组件
-  ✅ 分布式追踪：自动从 HTTP Header 提取 trace_id
-  ✅ 结构化日志：可选的 JSON 格式输出
-  ✅ 日志级别动态调整：set_log_level()
-  ✅ diag() 增强：集成健康检查输出
-  ✅ EventBus.get_history() 替代直接访问 _history
+  新增 @timed 轻量级计时装饰器
+  新增 @fallback 优雅降级装饰器
+  新增 HealthChecker 健康检查组件
+  分布式追踪：自动从 HTTP Header 提取 trace_id
+  结构化日志：可选的 JSON 格式输出
+  日志级别动态调整：set_log_level()
+  diag() 增强：集成健康检查输出
+  EventBus.get_history() 替代直接访问 _history
 
   ── v6.1 ──
-  ✅ HealthChecker 重写：
+  HealthChecker 重写：
        - 修复"在已有事件循环中调用 run() 死锁"
          现在降级为 degraded + 提示用 run_async()
        - 新增 run_async() / format_async() 异步版本
        - register() 支持"直接调用"和"装饰器"两种用法
-  ✅ _setup_logging 支持重建：检测 JSON 格式变化，自动清空 handler
-  ✅ boost(json_log=True) 现在能真正生效（不再被 import 时的旧 handler 吃掉）
+  _setup_logging 支持重建：检测 JSON 格式变化，自动清空 handler
+  boost(json_log=True) 现在能真正生效（不再被 import 时的旧 handler 吃掉）
 
   ── v6.2 ──
-  ✅ P1-1：系统健康检查的内存阈值统一。
+  P1-1：系统健康检查的内存阈值统一。
            原硬编码 `1024 * 0.9` 与 boost(memory_limit_mb=2048) 不一致，
            导致用户设 4G 时 900MB 就告警。现按 boost 参数动态计算。
-  ✅ P1-2：_eventbus_health 改用公开的 EventBus.subscriber_count()，
+  P1-2：_eventbus_health 改用公开的 EventBus.subscriber_count()，
            不再通过 getattr(EVENTS, "_subs") 访问私有属性。
-  ✅ P1-3：@trace 装饰器的 finally 块简化。
+  P1-3：@trace 装饰器的 finally 块简化。
            原 async/sync 两处 if/else 重复计算 ms，现统一为一行。
-  ✅ P2-4：EventBus.emit / emit_async 的异常 stderr 输出加注释说明
+  P2-4：EventBus.emit / emit_async 的异常 stderr 输出加注释说明
            为何有意使用 print 而非 logger（防 log 未初始化 / 递归）。
 
 Usage:
@@ -426,7 +426,7 @@ def _setup_logging(
     """
     初始化 good_addons logger。
 
-    ✅ P0-2 修复：
+    P0-2 修复：
       - 支持重复调用：若日志格式（JSON vs 文本）变化，自动清空 handler 重建。
       - 这样 boost(json_log=True) 能真正生效，而不是被 import 时的旧 handler 吃掉。
 
@@ -487,7 +487,7 @@ def _setup_logging(
     handler.addFilter(_sanitize_filter)
     logger.addHandler(handler)
 
-    # ✅ 记录本次格式，供下次判断
+    # 记录本次格式，供下次判断
     logger._log_json_format = target_json  # type: ignore
 
     # ── root logger 兜底（仅在无 handler 时添加） ──
@@ -627,7 +627,7 @@ def trace(
                 raise
             finally:
                 _ctx_trace_id.reset(old)
-                # ✅ P1-3：统一计算 ms，避免 if/else 分支重复
+                # P1-3：统一计算 ms，避免 if/else 分支重复
                 ms = (time.perf_counter() - t0) * 1000
                 if not _recorded:
                     PERF.record(fname, ms)
@@ -656,7 +656,7 @@ def trace(
                 raise
             finally:
                 _ctx_trace_id.reset(old)
-                # ✅ P1-3：统一计算 ms，避免 if/else 分支重复
+                # P1-3：统一计算 ms，避免 if/else 分支重复
                 ms = (time.perf_counter() - t0) * 1000
                 if not _recorded:
                     PERF.record(fname, ms)
@@ -1333,7 +1333,7 @@ class HealthChecker(metaclass=_SingletonMeta):
         check_fn: Callable[[], dict[str, Any]] | None = None,
     ) -> Callable[[Callable[[], dict[str, Any]]], Callable[[], dict[str, Any]]] | Callable[[], dict[str, Any]]:
         """
-        ✅ P0-3 修复：同时支持两种用法。
+        P0-3 修复：同时支持两种用法。
 
         用法 1（装饰器）：
             @HEALTH.register("db")
@@ -1385,7 +1385,7 @@ class HealthChecker(metaclass=_SingletonMeta):
         """
         同步运行所有健康检查。
 
-        ✅ P0-1 修复：在已有运行中事件循环的上下文中，
+        P0-1 修复：在已有运行中事件循环的上下文中，
           异步检查函数不再导致死锁，而是降级为 degraded，
           并提示调用方改用 `await run_async()`。
         """
@@ -1401,7 +1401,7 @@ class HealthChecker(metaclass=_SingletonMeta):
         for name, fn in self._snapshot_checks().items():
             if inspect.iscoroutinefunction(fn):
                 if has_running_loop:
-                    # ✅ 不能在这里跑协程，明确降级而非阻塞
+                    # 不能在这里跑协程，明确降级而非阻塞
                     results[name] = {
                         "status": "degraded",
                         "error": (
@@ -1434,7 +1434,7 @@ class HealthChecker(metaclass=_SingletonMeta):
 
     async def run_async(self, timeout: float = 5.0) -> dict[str, Any]:
         """
-        ✅ P0-1 修复：异步版本，推荐在 asyncio 上下文里使用。
+        P0-1 修复：异步版本，推荐在 asyncio 上下文里使用。
 
         - 异步检查函数 → `await asyncio.wait_for(fn(), timeout)`
         - 同步检查函数 → 直接调用（如很慢应改为 async）
@@ -1513,7 +1513,7 @@ def _system_health() -> dict[str, Any]:
     mem = SystemMonitor.memory_info()
     cpu = SystemMonitor.cpu_percent()
     rss = mem.get("rss_mb", 0)
-    # ✅ P1-1：阈值与 boost(memory_limit_mb=...) 一致
+    # P1-1：阈值与 boost(memory_limit_mb=...) 一致
     status = "degraded" if rss > _memory_limit_mb * 0.9 else "ok"
     return {
         "status": status,
@@ -1682,7 +1682,7 @@ def _enhance_web_app(app: Any, csp_policy: str | None = None) -> None:
             _wrap_dash_callbacks(app)
 
         log.info(
-            "✅ Web app enhanced [%s] | CSP: %s | hooks: headers, trace, logging, errors%s",
+            "Web app enhanced [%s] | CSP: %s | hooks: headers, trace, logging, errors%s",
             framework,
             effective_csp[:60] + ("..." if len(effective_csp) > 60 else ""),
             ", callback-wrapping" if is_dash else "",
@@ -1809,7 +1809,7 @@ def boost(
 
     v6.0:
       - 支持从 HTTP Header 自动提取 trace_id (X-Trace-ID)
-      - json_log=True 启用 JSON 格式日志（✅ P0-2 修复：现在能真正生效）
+      - json_log=True 启用 JSON 格式日志（P0-2 修复：现在能真正生效）
       - 自动注册健康检查
     """
     global log, _boost_initialized, _LOG_JSON_FORMAT, _memory_limit_mb
@@ -1831,7 +1831,7 @@ def boost(
     elif os.getenv("GOOD_ADDONS_LOG_JSON", "false").lower() == "true":
         _LOG_JSON_FORMAT = True
 
-    # ✅ P0-2 修复：每次调用 _setup_logging 都会判断是否需要重建 handler，
+    # P0-2 修复：每次调用 _setup_logging 都会判断是否需要重建 handler，
     #    因此 json_log 参数现在能真正生效。
     log = _setup_logging(
         level=log_level,
@@ -1862,7 +1862,7 @@ def boost(
         ] if f
     ]
     log.info(
-        "✅ boost() complete | deps: %s | pid: %d | json_log: %s",
+        "boost() complete | deps: %s | pid: %d | json_log: %s",
         ", ".join(deps) or "stdlib",
         os.getpid(),
         _LOG_JSON_FORMAT,

@@ -123,7 +123,7 @@ async def refine_node(state: TaskState, config: RunnableConfig) -> dict[str, Any
     intent = state["intent"]
     cancel_event = get_cancel_event()
 
-    # ✅ Semaphore 绑定当前 event loop：
+    # Semaphore 绑定当前 event loop：
     #    模块级创建会在首次 await 时绑定 loop，跨 loop 复用抛 RuntimeError。
     #    每次 refine_node 调用创建一个——绑定当前 loop，服务于本次所有任务。
     #    注意粒度：不是每个 _refine_one 创建（那会让并发上限失效），
@@ -149,14 +149,14 @@ async def refine_node(state: TaskState, config: RunnableConfig) -> dict[str, Any
              由外层 results 过滤识别并处理
            - 业务层取消走 cancel_event 检查，语义独立
         """
-        # ✅ 快路径：排队等信号量前先检查取消
+        # 快路径：排队等信号量前先检查取消
         if cancel_event and cancel_event.is_set():
             logger.info("[Graph] 节点%s细化跳过(已取消, req=%s)", n.get("id"), rid)
             n["details"] = "⏹️ 用户取消"
             return n
 
-        async with semaphore:  # ✅ 并发上限（当前 loop 绑定）
-            # ✅ 安全网：拿到信号量后再检查一次，覆盖排队窗口内发生的取消
+        async with semaphore:  # 并发上限（当前 loop 绑定）
+            # 安全网：拿到信号量后再检查一次，覆盖排队窗口内发生的取消
             if cancel_event and cancel_event.is_set():
                 logger.info("[Graph] 节点%s细化跳过(已取消-信号量内, req=%s)", n.get("id"), rid)
                 n["details"] = "⏹️ 用户取消"
@@ -169,7 +169,7 @@ async def refine_node(state: TaskState, config: RunnableConfig) -> dict[str, Any
                     req_id=rid,
                     cancel_event=cancel_event,
                 )
-                # ✅ 防御自己的 LLM 边界：refine_node 返回值不信任——
+                # 防御自己的 LLM 边界：refine_node 返回值不信任——
                 # LLM 内部工具调用失败可能返回 None / 非 dict。
                 # 类型声明 dict[str, Any] 不等于运行时保证。
                 if not isinstance(r, dict):
@@ -200,7 +200,7 @@ async def refine_node(state: TaskState, config: RunnableConfig) -> dict[str, Any
             break
 
         tasks.append(_refine_one(dict(n)))
-        # ✅ 让出控制权：给事件循环一个调度点，让外部取消信号
+        # 让出控制权：给事件循环一个调度点，让外部取消信号
         #    （session.cancel_event.set() 由 commands.cancel_task 触发）
         #    有机会在循环迭代之间被感知。
         #    不加这行：主循环是同步的——1000 个协程对象瞬间创建完毕，
@@ -214,7 +214,7 @@ async def refine_node(state: TaskState, config: RunnableConfig) -> dict[str, Any
 
     refined: list[dict[str, Any]] = []
     for i, res in enumerate(results):
-        # ✅ 用 BaseException 而非 Exception：
+        # 用 BaseException 而非 Exception：
         #    - gather(return_exceptions=True) 会捕获所有异常，包括 BaseException
         #      子类（如 asyncio.CancelledError、KeyboardInterrupt）
         #    - 用 isinstance(res, Exception) 会漏掉这些，把它们当成"正常结果"
@@ -230,7 +230,7 @@ async def refine_node(state: TaskState, config: RunnableConfig) -> dict[str, Any
             )
             refined.append(fallback)
         elif isinstance(res, dict):
-            # ✅ 契约检查：_refine_one 类型上保证返回 dict，
+            # 契约检查：_refine_one 类型上保证返回 dict，
             # 但类型声明 != 运行时保证。这里显式确认，让 refined 的
             # list[dict] 类型标注在运行时也成立。
             refined.append(res)
@@ -254,7 +254,7 @@ async def refine_node(state: TaskState, config: RunnableConfig) -> dict[str, Any
 
     return {
         "refined_nodes": refined,
-        # ✅ 独立副本：避免下游对 nodes 的就地修改污染 refined_nodes（或反之）。
+        # 独立副本：避免下游对 nodes 的就地修改污染 refined_nodes（或反之）。
         # 两个字段共享引用会退化成一个字段的语义，且这个隐式契约未在
         # 代码里声明——未来下游若做了 append/pop/sort，refined_nodes 会跟着变。
         "nodes": list(refined),

@@ -64,7 +64,7 @@ async def save_node(state: TaskState, config: RunnableConfig) -> dict[str, Any]:
         return {
             "task_id": fallback_id,
             "steps": state.get("steps", []) + [f"⚠️ 未入库(降级): {fallback_id}"],
-            # ✅ Patch：删掉 "error": ""。
+            # Patch：删掉 "error": ""。
             # 原写法有两层问题：
             #   1. 空操作——create_initial_state 里 error 本就是 ""，
             #      返回它等于返回旧值。

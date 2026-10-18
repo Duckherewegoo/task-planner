@@ -20,7 +20,7 @@ from task_planner.infrastructure.constants import USER_VISIBLE_NODE_FIELDS
 from task_planner.infrastructure.llm_client import (LLMCancelledError,
                                                     LLMTimeoutError)
 from task_planner.infrastructure.llm_client import \
-    _extract_json as _parse_json  # ✅ 修复 P0-1：补上缺失的三个符号
+    _extract_json as _parse_json  # 修复 P0-1：补上缺失的三个符号
 from task_planner.infrastructure.llm_client import (_render_template,
                                                     direct_chat,
                                                     execute_node_llm,
@@ -52,7 +52,7 @@ class SafeNodeView(TypedDict, total=False):
 
 def sanitize_node_for_user(node: dict[str, Any]) -> SafeNodeView:
     """过滤掉内部 debug/meta 字段"""
-    # ✅ 修复 P1：用 cast 替代 type: ignore
+    # 修复 P1：用 cast 替代 type: ignore
     return cast(
         SafeNodeView,
         {k: v for k, v in node.items() if k in USER_VISIBLE_NODE_FIELDS},
@@ -110,7 +110,7 @@ async def intent_node(state: TaskState, config: RunnableConfig) -> dict[str, Any
         "user_input": user_input,
         "intent": intent,
         "needs_planning": intent.get("needs_planning", False),
-        # ✅ 注：无 reducer 方案下，这里是「读旧 + 追加」的手动累积，保持原样
+        # 注：无 reducer 方案下，这里是「读旧 + 追加」的手动累积，保持原样
         "steps": state.get("steps", []) + [f"意图识别: planning={intent.get('needs_planning')}"],
     }
 
@@ -219,7 +219,7 @@ async def save_node(state: TaskState, config: RunnableConfig) -> dict[str, Any]:
     """
     入库节点（异步）。
 
-    ✅ 降级策略：DB 不可用时不再让整个图崩溃，而是：
+    降级策略：DB 不可用时不再让整个图崩溃，而是：
        - 生成一个本地 task_id（uuid 前缀标记）
        - 记录 warning 日志
        - 继续后续节点（render / execute）
@@ -246,7 +246,7 @@ async def save_node(state: TaskState, config: RunnableConfig) -> dict[str, Any]:
         }
 
     except Exception as e:
-        # ✅ 降级：DB 不可用时用本地 ID 继续
+        # 降级：DB 不可用时用本地 ID 继续
         fallback_id = f"local-{uuid.uuid4().hex[:12]}"
         logger.warning(
             "[Graph] save_node DB 写入失败，降级为本地 ID: %s | err=%s",
@@ -280,7 +280,7 @@ async def render_node(state: TaskState, config: RunnableConfig) -> dict[str, Any
 
 
 async def execute_node(state: TaskState, config: RunnableConfig) -> dict[str, Any]:
-    # ✅ 修复 P1：返回类型统一为 dict[str, Any]
+    # 修复 P1：返回类型统一为 dict[str, Any]
     """执行节点（异步 + interrupt + 异常分级响应）"""
     rid = set_req_id()
     logger.info("[Graph] execute_node (req=%s)", rid)
@@ -359,7 +359,7 @@ async def execute_node(state: TaskState, config: RunnableConfig) -> dict[str, An
     }
 
     if action == UserAction.MODIFY and modified_input:
-        # ✅ 修复 P0-3：MODIFY 分支重置所有"上一轮残留"状态，避免 steps 里旧日志污染前端
+        # 修复 P0-3：MODIFY 分支重置所有"上一轮残留"状态，避免 steps 里旧日志污染前端
         cleaned = _sanitize_input(modified_input)
         updates["user_input"] = cleaned
         updates["current_node_index"] = 0

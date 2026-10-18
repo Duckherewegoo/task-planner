@@ -41,7 +41,7 @@ cyto.load_extra_layouts()
 app = dash.Dash(
     __name__,
     title="🧠 通用任务规划助手",
-    assets_folder="../assets",       # 指向 main/assets
+    assets_folder="./assets",       # 指向 main/assets
     suppress_callback_exceptions=True,
 )
 

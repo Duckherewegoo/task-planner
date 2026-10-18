@@ -293,7 +293,7 @@ def build_layout() -> html.Div:
                             html.Div("🎯 节点操作（先点击历史流程图中的节点）",
                                     style=SECTION_HEADER_STYLE),
                             html.Div([
-                                html.Button("✅ 标记完成", id="history-node-done-btn",
+                                html.Button("标记完成", id="history-node-done-btn",
                                            n_clicks=0, disabled=True, style={
                                     "backgroundColor": "#10b981", "color": "white",
                                     "border": "none", "padding": "10px 18px",

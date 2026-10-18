@@ -168,7 +168,7 @@ async def test_refine_cancel_mid_loop_marks_remaining_unsubmitted(monkeypatch):
         lambda: "rid",
     )
 
-    # ✅ 后台任务：在主循环跑了几轮之后设置 cancel——
+    # 后台任务：在主循环跑了几轮之后设置 cancel——
     #    模拟 commands.cancel_task 在用户点击时的行为。
     async def _cancel_later():
         # 让主循环至少迭代 3 次，确保它进入"边提交边检查"的状态

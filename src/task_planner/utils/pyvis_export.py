@@ -11,13 +11,13 @@ pyvis_export.py — DAG 静态可视化导出引擎 (Graphviz Backend) v4
 调用方式：所有导出函数均为同步，请用 asyncio.to_thread 隔离阻塞 I/O。
 
 ── v4（KISS 加固）──
-  ✅ P1-5：顶部 logger import 改为直接导入，去掉 try/except 反模式。
+  P1-5：顶部 logger import 改为直接导入，去掉 try/except 反模式。
            内部模块不可用时应当立即暴露问题，而非静默降级。
-  ✅ P1-6：_shorten_label 改累积宽度，O(n²) → O(n)。
-  ✅ P1-7：4 个 export 函数去掉"整体 try/except 打日志再重抛"，
+  P1-6：_shorten_label 改累积宽度，O(n²) → O(n)。
+  P1-7：4 个 export 函数去掉"整体 try/except 打日志再重抛"，
            改为只在核心渲染步骤捕获，异常栈更清晰。
-  ✅ P2-4：删除文件末尾废弃的 _render_pyvis_html 注释块。
-  ✅ P2-5：加 __all__，明确公开接口。
+  P2-4：删除文件末尾废弃的 _render_pyvis_html 注释块。
+  P2-5：加 __all__，明确公开接口。
 
 ⚠️ 完整变更历史见 CHANGELOG.md。
 """
@@ -58,7 +58,7 @@ def _normalize_node_states(
 def _shorten_label(label: str, max_width: int = 60) -> str:
     """
     按 Unicode 显示宽度截断 label。
-    ✅ P1-6：累积宽度，O(n) 复杂度。
+    P1-6：累积宽度，O(n) 复杂度。
     """
     if not label:
         return label
@@ -288,7 +288,7 @@ def export_dag_to_svg(
     _write_if_requested(svg_bytes, output_path)
     if output_path is not None:
         logger.info(
-            "[Export] ✅ SVG 已保存: %s (%.1f KB)",
+            "[Export] SVG 已保存: %s (%.1f KB)",
             output_path, len(svg_bytes) / 1024,
         )
     return svg_bytes
@@ -363,7 +363,7 @@ def export_dag_to_png(
     _write_if_requested(png_bytes, output_path)
     if output_path is not None:
         logger.info(
-            "[Export] ✅ PNG 已保存: %s (%.1f KB)",
+            "[Export] PNG 已保存: %s (%.1f KB)",
             output_path, len(png_bytes) / 1024,
         )
     return png_bytes
@@ -406,7 +406,7 @@ def export_dag_to_pdf(
     _write_if_requested(pdf_bytes, output_path)
     if output_path is not None:
         logger.info(
-            "[Export] ✅ PDF 已保存: %s (%.1f KB)",
+            "[Export] PDF 已保存: %s (%.1f KB)",
             output_path, len(pdf_bytes) / 1024,
         )
     return pdf_bytes
@@ -476,7 +476,7 @@ def export_from_dag_store(
             p = Path(output_path)
             p.parent.mkdir(parents=True, exist_ok=True)
             p.write_text(dot_str, encoding="utf-8")
-            logger.info("[Export] ✅ DOT 已保存: %s", output_path)
+            logger.info("[Export] DOT 已保存: %s", output_path)
         return dot_str.encode("utf-8")
 
     fmt_map = {

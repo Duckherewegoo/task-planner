@@ -74,7 +74,7 @@ class LLMResponseError(LLMClientError):
 _client: Optional[AsyncOpenAI] = None
 _dashscope_available = False
 
-# ✅ P0-3 修复：懒加载 Lock/Semaphore，避免模块级创建时绑定错误的事件循环
+# P0-3 修复：懒加载 Lock/Semaphore，避免模块级创建时绑定错误的事件循环
 _client_lock: Optional[asyncio.Lock] = None
 _semaphore: Optional[asyncio.Semaphore] = None
 
@@ -136,15 +136,15 @@ async def get_llm_client() -> Optional[AsyncOpenAI]:
 #  工具函数（与同步版本保持一致，但无需改动）
 # ============================================================
 
-# ✅ [Fix-2] 用字符串拼接构建正则，彻底避免 HTML 标签在复制/渲染/版本管理中被吞噬
+# [Fix-2] 用字符串拼接构建正则，彻底避免 HTML 标签在复制/渲染/版本管理中被吞噬
 #    运行时等价于 re.compile(r'</think>.*?', re.DOTALL)
 _THINK_RE = THINK_RE
 
 
-# ✅ P0-1 修复：用标准库 json.JSONDecoder.raw_decode，
+# P0-1 修复：用标准库 json.JSONDecoder.raw_decode，
 #    正确处理字符串转义、嵌套花括号、Unicode 等所有边界情况。
 #    不再自己维护引号状态机。
-# ✅ P0-1 修复（v2）：用标准库 raw_decode + 尾部锚点校验
+# P0-1 修复（v2）：用标准库 raw_decode + 尾部锚点校验
 _JSON_DECODER = JSONDecoder()
 
 
@@ -178,7 +178,7 @@ def _extract_tail_json(text: str) -> str | None:
             return None
         try:
             obj, end = _JSON_DECODER.raw_decode(text, start)
-            # ✅ 关键校验：必须解析到尾部锚点，否则是内层对象，跳过
+            # 关键校验：必须解析到尾部锚点，否则是内层对象，跳过
             if isinstance(obj, dict) and end == target_end:
                 logger.debug("[LLM] 尾部JSON提取成功, len=%d", end - start)
                 return text[start:end]
@@ -195,7 +195,7 @@ def _clean_json_str(text: str) -> str:
     text = re.sub(r'[\u200b\u200c\u200d\ufeff]', '', text)
 
     # 2. 剥离 thinking 标签（标准 thinking 格式）
-    #    ✅ [Fix-2] 使用预编译的 _THINK_RE + 回退保护
+    #    [Fix-2] 使用预编译的 _THINK_RE + 回退保护
     _prev = text
     text = _THINK_RE.sub('', text).strip()
     if not text:
@@ -207,7 +207,7 @@ def _clean_json_str(text: str) -> str:
     if text.startswith("思考过程") or text.startswith("思考："):
         logger.debug("[LLM] _clean_json_str 检测到纯文本思考前缀，启用尾部JSON提取")
 
-        # ✅ 替换为锚点跳跃 + 状态感知的提取函数
+        # 替换为锚点跳跃 + 状态感知的提取函数
         candidate = _extract_tail_json(text)
         if candidate is not None:
             return candidate
@@ -271,7 +271,7 @@ def _extract_json(raw: str) -> dict:
         return {}
 
 
-# ✅ P0-2 修复：返回 key 与 refine_node 期望的契约对齐
+# P0-2 修复：返回 key 与 refine_node 期望的契约对齐
 #    （name / details / meta），而不是 content。
 def _normalize_llm_output(raw: dict, expected_keys: list[str]) -> dict:
     """
@@ -311,7 +311,7 @@ def _normalize_llm_output(raw: dict, expected_keys: list[str]) -> dict:
                 meta["notes"] = raw["notes"]
             return {
                 "name": raw.get("name", ""),   # LLM 给了 name 就用，否则留给上游兜底
-                "details": result_val,          # ✅ 关键：用 details 而非 content
+                "details": result_val,          # 关键：用 details 而非 content
                 "meta": meta,
             }
         else:
@@ -443,7 +443,7 @@ async def _async_call_llm(
                 if not content:
                     raise LLMResponseError("API 返回内容为空", req_id)
 
-                logger.info("[LLMClient] ✅ %s 成功 (attempt=%d, req=%s)", model, attempt, req_id)
+                logger.info("[LLMClient] %s 成功 (attempt=%d, req=%s)", model, attempt, req_id)
                 return content
 
         except LLMCancelledError:
@@ -456,7 +456,7 @@ async def _async_call_llm(
             last_error = e
 
         # 重试前等待
-        # ✅ P1 修复：区分瞬态/非瞬态错误；非瞬态直接抛，不浪费重试
+        # P1 修复：区分瞬态/非瞬态错误；非瞬态直接抛，不浪费重试
         except (asyncio.TimeoutError, TimeoutError):
             last_error = LLMTimeoutError(f"请求超时 ({timeout}s)", req_id)
         except Exception as e:
@@ -479,7 +479,7 @@ async def _async_call_llm(
 
             last_error = e
 
-        # ✅ P1 修复：退避加全抖动（full jitter），避免高并发惊群
+        # P1 修复：退避加全抖动（full jitter），避免高并发惊群
         base_wait = LLM_RETRY_BACKOFF ** attempt
         wait = random.uniform(0, base_wait)
 
@@ -495,7 +495,7 @@ async def _async_call_llm(
         else:
             logger.error("[LLMClient] ❌ %s 最终失败: %s (req=%s)", model, last_error, req_id)
             if isinstance(last_error, LLMTimeoutError):
-                # ✅ 不要 `from last_error`（自己 cause 自己），用 from None
+                # 不要 `from last_error`（自己 cause 自己），用 from None
                 raise last_error from None
             raise LLMClientError(f"LLM 调用最终失败: {last_error}", req_id) from last_error
 
@@ -512,12 +512,12 @@ def _render_template(template, req_id: str, **kwargs) -> str:
     """
     安全渲染 string.Template。
 
-    ✅ 使用 safe_substitute 替代 substitute：
+    使用 safe_substitute 替代 substitute：
        - substitute 是严格模式：模板中有多余 $ 或用户输入含 $ 时会抛 ValueError
        - safe_substitute 对未匹配的占位符保留原样，不会崩溃
 
-    ✅ 渲染后记录 prompt 尾部日志，快速发现占位符未替换问题。
-    ✅ 正则同时覆盖 ${var} 和 $var 两种格式，并排除 $$ 转义。
+    渲染后记录 prompt 尾部日志，快速发现占位符未替换问题。
+    正则同时覆盖 ${var} 和 $var 两种格式，并排除 $$ 转义。
     """
     try:
         result = template.safe_substitute(**kwargs)
@@ -526,7 +526,7 @@ def _render_template(template, req_id: str, **kwargs) -> str:
         logger.debug(
             "[LLM] _render_template 渲染完成 (req=%s) | 尾部: %s", req_id, tail)
 
-        # ✅ 主动检测：如果渲染后仍包含未替换的占位符，发出警告
+        # 主动检测：如果渲染后仍包含未替换的占位符，发出警告
         #    findall 返回元组列表如 [('var1', ''), ('', 'var2')]，展平并过滤空串
         matches = _UNREPLACED_PATTERN.findall(result)
         unreplaced = [name for group in matches for name in group if name]
@@ -569,11 +569,11 @@ async def direct_chat(
 
 def _validate_intent(intent: dict, user_input: str) -> dict:
     """
-    ✅ 仅做枚举校验和非法值降级。
+    仅做枚举校验和非法值降级。
        不设置任何默认值——默认值统一由 recognize_intent 在 _validate_intent 之后处理。
        职责分离：本函数只管"纠偏"，不管"兜底"。
 
-    ✅ 返回字典副本（浅拷贝），避免原地修改入参带来的副作用，
+    返回字典副本（浅拷贝），避免原地修改入参带来的副作用，
        保证上游仍可访问原始 LLM 返回值用于审计或重试判断。
     """
     validated = dict(intent)  # 浅拷贝，值是字符串，无需深拷贝
@@ -592,7 +592,7 @@ def _validate_intent(intent: dict, user_input: str) -> dict:
         )
         validated["complexity"] = "medium"
 
-    # ✅ 不在此处设置任何默认值（如 needs_planning、summary 等）
+    # 不在此处设置任何默认值（如 needs_planning、summary 等）
     #    默认值统一在 recognize_intent 中处理
     return validated
 
@@ -831,7 +831,7 @@ async def execute_node_llm(
     if USE_MOCK_LLM:
         if cancel_event and cancel_event.is_set():
             raise LLMCancelledError("Mock: cancelled by event", rid)
-        return True, "✅ Mock执行完成"
+        return True, "Mock执行完成"
 
     try:
         async with _get_semaphore():

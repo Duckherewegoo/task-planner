@@ -3,12 +3,12 @@
 remove_compat_shells.py — 移除重构期的兼容薄壳与旧名 alias（安全版 v2）
 ═══════════════════════════════════════════════════════════════════════
 安全机制：
-  ✅ 阶段化：Plan → Validate → Backup → Apply → Verify
-  ✅ AST 验证：所有改动后的源码必须先通过 ast.parse 才能落盘
-  ✅ 时间戳备份：写到 .compat_removal_backup/<时间戳>/，不用 .bak
-  ✅ 全有或全无：任一文件验证失败 → 全部回滚，不写一个文件
-  ✅ 备份含 manifest.json：回滚时可精确还原
-  ✅ 默认 dry-run：必须显式 --apply
+  阶段化：Plan → Validate → Backup → Apply → Verify
+  AST 验证：所有改动后的源码必须先通过 ast.parse 才能落盘
+  时间戳备份：写到 .compat_removal_backup/<时间戳>/，不用 .bak
+  全有或全无：任一文件验证失败 → 全部回滚，不写一个文件
+  备份含 manifest.json：回滚时可精确还原
+  默认 dry-run：必须显式 --apply
 
 用法：
     # 1. dry-run（默认，安全）
@@ -415,7 +415,7 @@ def do_rollback(backup_dir: Path, root: Path) -> int:
         shutil.copy2(src, dst)
         print(f"  ↩️  {rel}")
 
-    print(f"\n✅ 回滚完成。备份目录保留：{backup_dir}")
+    print(f"\n回滚完成。备份目录保留：{backup_dir}")
     return 0
 
 
@@ -508,12 +508,12 @@ def main() -> int:
         print("     修复脚本规则后重试。")
         return 1
 
-    print(f"  ✅ 所有 {len(changes)} 个文件语法检查通过")
+    print(f"  所有 {len(changes)} 个文件语法检查通过")
 
     # 待删文件检查
     shell_paths = [root / rel for rel in SHELL_FILES]
     existing_shells = [p for p in shell_paths if p.exists()]
-    print(f"  ✅ 待删薄壳 {len(existing_shells)}/{len(SHELL_FILES)} 存在")
+    print(f"  待删薄壳 {len(existing_shells)}/{len(SHELL_FILES)} 存在")
 
     # ══════════════════════════════════════════════════════════
     # 阶段 3：Preview / Backup
@@ -567,7 +567,7 @@ def main() -> int:
         "modified": backed_up,
         "deleted": backed_up_deleted,
     })
-    print(f"  ✅ 已备份 {len(backed_up)} 文件 + {len(backed_up_deleted)} 待删文件")
+    print(f"  已备份 {len(backed_up)} 文件 + {len(backed_up_deleted)} 待删文件")
 
     # ══════════════════════════════════════════════════════════
     # 阶段 4：Apply
@@ -585,7 +585,7 @@ def main() -> int:
             _old, new, n = changes[path]
             path.write_text(new, encoding="utf-8")
             written.append(path)
-            print(f"  ✅ 改写 {path.relative_to(root)}  ({n} 处)")
+            print(f"  改写 {path.relative_to(root)}  ({n} 处)")
 
         for p in shell_paths:
             if p.exists():
@@ -625,14 +625,14 @@ def main() -> int:
         do_rollback(backup_dir, root)
         return 3
 
-    print(f"  ✅ {len(written)} 文件语法正确，{len(deleted)} 薄壳已删")
+    print(f"  {len(written)} 文件语法正确，{len(deleted)} 薄壳已删")
 
     # ══════════════════════════════════════════════════════════
     # 完成
     # ══════════════════════════════════════════════════════════
     print()
     print("═" * 72)
-    print(f"✅ 全部完成")
+    print(f"全部完成")
     print("═" * 72)
     print()
     print("下一步：")

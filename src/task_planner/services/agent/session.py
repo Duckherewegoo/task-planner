@@ -90,7 +90,7 @@ class TaskSession:
 #    见模块 docstring 的"关于 SessionStore 的可替换性"。
 _session_store: SessionStore = InMemorySessionStore()
 
-# ✅ 惰性创建 + loop 绑定检测：
+# 惰性创建 + loop 绑定检测：
 #    asyncio.Lock 在 Python 3.10+ 首次 await 时绑定当前 loop，
 #    跨 loop 复用会抛 RuntimeError。这里检测 loop 变化后重建，
 #    让测试/CLI 场景（进程内多 loop）不崩。

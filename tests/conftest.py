@@ -11,7 +11,7 @@ import sys
 
 import pytest
 
-# ✅ 在任何 task_planner 模块被 import 之前，先固定测试环境
+# 在任何 task_planner 模块被 import 之前，先固定测试环境
 #    防止 config.py 读到真实 .env，导致 USE_MOCK_LLM=False
 os.environ.setdefault("USE_MOCK_LLM", "true")
 os.environ.setdefault("DEBUG", "true")

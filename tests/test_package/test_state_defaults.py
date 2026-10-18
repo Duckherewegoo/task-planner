@@ -4,7 +4,7 @@ import pytest
 from task_planner.core.graph.state import create_initial_state
 
 
-# ✅ 新增：测应用层行为，不测框架层默认值
+# 新增：测应用层行为，不测框架层默认值
 def test_make_initial_state_normal_needs_planning_true():
     """普通输入 → needs_planning=True（让 intent 判断）"""
     from task_planner.services.agent.state import make_initial_state

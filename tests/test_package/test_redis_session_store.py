@@ -2,12 +2,12 @@
 test_redis_session_store.py — RedisSessionStore 契约测试
 
 与 test_session_store.py 的差异：
-  ✅ 用 fakeredis 模拟（不需要真 Redis）
-  ✅ 检查 Redis 版的语义差异：
+  用 fakeredis 模拟（不需要真 Redis）
+  检查 Redis 版的语义差异：
        - 重复 set 会重置 TTL（InMemory 版不重置）
        - cleanup_stale 是 no-op
        - 无 __len__ / __contains__（用 count/exists 代替）
-  ✅ 环境无 redis 依赖时整个文件自动 skip
+  环境无 redis 依赖时整个文件自动 skip
 
 运行：
     pytest tests/test_package/test_redis_session_store.py -v

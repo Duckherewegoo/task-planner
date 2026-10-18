@@ -3,13 +3,13 @@ presentation_utils.py — 通用展示辅助函数（Dropdown 构建、任务 ID
 ═══════════════════════════════════════════════════════════════════════
 
 ── v2（KISS 加固）──
-  ✅ P2-1：_display_truncate 改累积宽度，从 O(n²) 降到 O(n)。
+  P2-1：_display_truncate 改累积宽度，从 O(n²) 降到 O(n)。
            原实现每次迭代重算 wcswidth(truncated + ch)，长文本下明显变慢。
-  ✅ P2-2：_display_truncate 的省略号宽度从 _ELLIPSIS 常量推导，
+  P2-2：_display_truncate 的省略号宽度从 _ELLIPSIS 常量推导，
            不再硬编码 1，未来换符号不用改代码。
-  ✅ P2-3：修正注释——不声称"与 flowchart_pro 完全一致"，
+  P2-3：修正注释——不声称"与 flowchart_pro 完全一致"，
            因为后者的 _short_label 会先清停用词，两者语义不同。
-  ✅ P2-4：extract_first_task_id 的 else 分支显式拒绝 dict/tuple，
+  P2-4：extract_first_task_id 的 else 分支显式拒绝 dict/tuple，
            避免 str({'a': 1}) 产出垃圾字符串。
 
 ⚠️ 完整变更历史见 CHANGELOG.md。
@@ -30,8 +30,8 @@ def _display_truncate(text: str, max_width: int) -> str:
     与 flowchart_pro._short_label 的**截断方式**类似，
     但不做停用词清理——后者用于图内标签，语义不同。
 
-    ✅ P2-1：累积宽度，O(n) 复杂度。
-    ✅ P2-2：省略号宽度由常量推导。
+    P2-1：累积宽度，O(n) 复杂度。
+    P2-2：省略号宽度由常量推导。
     """
     if not text:
         return text
@@ -112,7 +112,7 @@ def extract_first_task_id(
     if isinstance(task_ids, str):
         return task_ids
 
-    # ✅ P2-4：dict / tuple / set 等容器不是有效的 task_id，显式拒绝
+    # P2-4：dict / tuple / set 等容器不是有效的 task_id，显式拒绝
     #          int / float 等标量仍兼容转为字符串
     if isinstance(task_ids, (dict, tuple, set)):
         return None

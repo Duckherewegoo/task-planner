@@ -2,21 +2,21 @@
 flowchart_pro.py — 通用任务流程图渲染器（生产优化版 v8）
 
 ── v8（KISS 加固，不影响功能）──
-  ✅ P1-5：加本地 _safe_int，替换所有 int(node.get(...))，
+  P1-5：加本地 _safe_int，替换所有 int(node.get(...))，
            容忍 None / 非法字符串。
-  ✅ P1-6：build_clean_svg 里 node["id"] 改 node.get("id", "?")，
+  P1-6：build_clean_svg 里 node["id"] 改 node.get("id", "?")，
            避免 KeyError。
-  ✅ P1-7：_extract_svg_from_html 的 lxml 分支加 except Exception，
+  P1-7：_extract_svg_from_html 的 lxml 分支加 except Exception，
            捕获 XMLSyntaxError 等 lxml 特有异常。
-  ✅ P1-8：render_interactive 用 rsplit 精确替换**最后一个** </body>，
+  P1-8：render_interactive 用 rsplit 精确替换**最后一个** </body>，
            避免多 </body> 场景污染结构。
-  ✅ P1-9：_validate_dag 的 nx.simple_cycles 加上限 _MAX_CYCLES_DETECT=50，
+  P1-9：_validate_dag 的 nx.simple_cycles 加上限 _MAX_CYCLES_DETECT=50，
            超过后只记录数量不展开。
-  ✅ P2-7：_extract_svg_from_html 用 html.unescape（顶部已 import html）。
-  ✅ P2-8：_render_png_pdf 的 import base64 提到模块顶部。
-  ✅ P2-9：get_edge_style 的 "soft" 改用 EDGE_TYPE_SOFT 常量。
-  ✅ P2-10：__init__ 注释与代码对齐（去掉"死 try/except"措辞）。
-  ✅ P2-11：_build_tooltip / _build_card_data 的 node['id'] 改 .get。
+  P2-7：_extract_svg_from_html 用 html.unescape（顶部已 import html）。
+  P2-8：_render_png_pdf 的 import base64 提到模块顶部。
+  P2-9：get_edge_style 的 "soft" 改用 EDGE_TYPE_SOFT 常量。
+  P2-10：__init__ 注释与代码对齐（去掉"死 try/except"措辞）。
+  P2-11：_build_tooltip / _build_card_data 的 node['id'] 改 .get。
 
 ⚠️ 完整变更历史见 CHANGELOG.md。
 """
@@ -57,7 +57,7 @@ RENDER_WIDTH = _hub.dev.RENDER_WIDTH
 
 _EDGE_DASH_MAP = EDGE_DASH_MAP
 
-# ✅ P1-9：环检测上限，畸形图不再无脑展开
+# P1-9：环检测上限，畸形图不再无脑展开
 _MAX_CYCLES_DETECT = 50
 
 
@@ -65,7 +65,7 @@ _MAX_CYCLES_DETECT = 50
 #  通用工具
 # ══════════════════════════════════════════════════
 def _safe_int(val: Any, default: int = 0) -> int:
-    """✅ P1-5：容忍 None / 字符串 / 非法值"""
+    """P1-5：容忍 None / 字符串 / 非法值"""
     try:
         return int(val)
     except (TypeError, ValueError):
@@ -79,7 +79,7 @@ def get_edge_style(edge_type: str) -> dict[str, Any]:
     """根据边类型返回 pyvis add_edge 可用的样式字典。"""
     color = EDGE_TYPE_COLOR.get(edge_type, "#666666")
     style = EDGE_TYPE_STYLE.get(edge_type, "solid")
-    # ✅ P2-9：用常量替代硬编码 "soft"
+    # P2-9：用常量替代硬编码 "soft"
     width = (
         RENDER_EDGE_WIDTH * 0.75
         if edge_type == EDGE_TYPE_SOFT
@@ -167,7 +167,7 @@ class ProFlowchartRenderer:
     """通用任务流程图渲染器"""
 
     def __init__(self) -> None:
-        # ✅ P2-10：占位，为未来懒加载预留（pyvis 当前在模块顶部 import）
+        # P2-10：占位，为未来懒加载预留（pyvis 当前在模块顶部 import）
         pass
 
     # ── DAG 校验 + 环边提取 ──
@@ -197,7 +197,7 @@ class ProFlowchartRenderer:
             return g, cycle_edges
 
         try:
-            # ✅ P1-9：限制展开上限，畸形图不卡死
+            # P1-9：限制展开上限，畸形图不卡死
             cycles_iter = nx.simple_cycles(g)
             cycles: list[list[str]] = []
             for i, c in enumerate(cycles_iter):
@@ -221,7 +221,7 @@ class ProFlowchartRenderer:
                         )
             else:
                 logger.info(
-                    "[FlowchartPro] ✅ DAG 校验通过（无环）| 节点=%d 边=%d req=%s",
+                    "[FlowchartPro] DAG 校验通过（无环）| 节点=%d 边=%d req=%s",
                     len(nodes), len(edges), req_id,
                 )
         except Exception as e:
@@ -243,7 +243,7 @@ class ProFlowchartRenderer:
         if pre:
             items = "<br>".join(f"• {html.escape(str(p))}" for p in pre[:2])
             pre_html = f"<br><b>前置条件:</b><br>{items}"
-        # ✅ P2-11：用 .get 避免 KeyError
+        # P2-11：用 .get 避免 KeyError
         name = str(node.get("name", f"步骤{node.get('id', '?')}"))
         return f"<b>{html.escape(name)}</b><br><br>{escaped}{pre_html}"
 
@@ -424,7 +424,7 @@ class ProFlowchartRenderer:
             )
             legend = self._build_legend(uid)
 
-            # ✅ P1-8：精确替换**最后一个** </body>，避免多 </body> 污染
+            # P1-8：精确替换**最后一个** </body>，避免多 </body> 污染
             if "</body>" in base_html:
                 head, _, tail = base_html.rpartition("</body>")
                 base_html = head + data_script + legend + "</body>" + tail
@@ -432,7 +432,7 @@ class ProFlowchartRenderer:
                 base_html = base_html + data_script + legend
 
             logger.info(
-                "[FlowchartPro] ✅ 流程图渲染完成 | task=%s req=%s",
+                "[FlowchartPro] 流程图渲染完成 | task=%s req=%s",
                 task_id, req_id,
             )
             return base_html
@@ -453,7 +453,7 @@ class ProFlowchartRenderer:
                 f"{html_content}</div>"
             )
 
-        # ✅ P2-7：用 html.unescape（顶部已 import html）
+        # P2-7：用 html.unescape（顶部已 import html）
         svg_unescaped = html.unescape(match.group(1))
 
         # 优先用 lxml
@@ -467,7 +467,7 @@ class ProFlowchartRenderer:
         except ImportError:
             logger.debug("[FlowchartPro] lxml 未安装，使用标准库降级")
         except Exception as e:
-            # ✅ P1-7：捕获所有异常（含 lxml.XMLSyntaxError 等）
+            # P1-7：捕获所有异常（含 lxml.XMLSyntaxError 等）
             logger.warning("[FlowchartPro] lxml SVG 清理失败: %s", e)
 
         # 降级：html.parser
@@ -539,7 +539,7 @@ class ProFlowchartRenderer:
                 )
                 mime = "application/pdf"
 
-            # ✅ P2-8：base64 已在顶部 import
+            # P2-8：base64 已在顶部 import
             b64 = base64.b64encode(output).decode("ascii")
             return f"data:{mime};base64,{b64}"
         except ImportError:
@@ -608,7 +608,7 @@ def build_clean_svg(
     node_positions: dict[Any, tuple[int, int]] = {}
 
     for i, node in enumerate(nodes):
-        # ✅ P1-6：用 .get 避免 KeyError
+        # P1-6：用 .get 避免 KeyError
         nid = node.get("id", f"__node_{i}")
         col, row = i % cols, i // cols
         x = col * cell_w + cell_w // 2

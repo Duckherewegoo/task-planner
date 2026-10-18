@@ -117,7 +117,7 @@ async def generate_golden_case(
             is_valid, reason = validate_golden_plan(case.expected_plan)
             if is_valid:
                 logger.info(
-                    "[Golden] ✅ %s 生成成功 (nodes=%d, edges=%d)",
+                    "[Golden] %s 生成成功 (nodes=%d, edges=%d)",
                     case_id, len(case.expected_plan["nodes"]),
                     len(case.expected_plan["edges"]),
                 )

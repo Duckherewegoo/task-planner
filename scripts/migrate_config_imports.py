@@ -447,14 +447,14 @@ def main() -> int:
                     old, encoding="utf-8"
                 )
             path.write_text(new, encoding="utf-8")
-            print(f"✅ {path}")
+            print(f"{path}")
         else:
             show_diff(path, old, new)
 
     print()
     print("═" * 72)
     if args.apply:
-        print(f"✅ 已写入 {changed_files} 个文件")
+        print(f"已写入 {changed_files} 个文件")
     else:
         print(f"🔍 dry-run：{changed_files} 个文件会被改动（加 --apply 生效）")
     print("═" * 72)

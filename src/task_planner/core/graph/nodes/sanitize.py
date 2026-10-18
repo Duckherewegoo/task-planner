@@ -3,14 +3,14 @@ sanitize.py — 横切关注点：脱敏、用户视图过滤
 所有节点共用，不依赖其他 nodes 子模块。
 
 ── v4 ──
-  ✅ P3-1：_FIELD_TYPE_MAP 从 SafeNodeView.__annotations__ 派生，
+  P3-1：_FIELD_TYPE_MAP 从 SafeNodeView.__annotations__ 派生，
            消灭与真源的同步漂移；bool 防御逻辑改为对 type 集合判断，
            对元组类型同样生效。
-  ✅ P3-2：模块加载时 assert 真源字段 == SafeNodeView 字段，
+  P3-2：模块加载时 assert 真源字段 == SafeNodeView 字段，
            配置不一致在 import 阶段就炸，而不是运行时静默降级。
-  ✅ P3-3：非 dict 输入直接 return {}，去掉无意义的 cast。
-  ✅ P3-4：审计日志补 input_len / pattern_hits 两个关键字段。
-  ✅ P3-5：docstring 补"SENSITIVE_PATTERNS 顺序敏感、不短路"的契约。
+  P3-3：非 dict 输入直接 return {}，去掉无意义的 cast。
+  P3-4：审计日志补 input_len / pattern_hits 两个关键字段。
+  P3-5：docstring 补"SENSITIVE_PATTERNS 顺序敏感、不短路"的契约。
 
 ⚠️ 完整变更历史见 CHANGELOG.md。
 """
@@ -24,7 +24,7 @@ from task_planner.infrastructure.regexes import SENSITIVE_PATTERNS
 
 logger = get_logger(__name__)
 
-# ✅ P2-3：模块加载时一次性转 frozenset。
+# P2-3：模块加载时一次性转 frozenset。
 _VISIBLE_FIELDS: frozenset[str] = frozenset(USER_VISIBLE_NODE_FIELDS)
 
 
@@ -42,7 +42,7 @@ class SafeNodeView(TypedDict, total=False):
     result: str
 
 
-# ✅ P3-1：从 SafeNodeView.__annotations__ 派生字段 → 期望类型。
+# P3-1：从 SafeNodeView.__annotations__ 派生字段 → 期望类型。
 # 好处：
 #   1. 消灭 SafeNodeView 与字段映射之间的重复维护
 #   2. 未来加字段只改 SafeNodeView 一处
@@ -73,7 +73,7 @@ def _extract_expected_types() -> dict[str, tuple[type, ...]]:
 
 _FIELD_TYPE_MAP: dict[str, tuple[type, ...]] = _extract_expected_types()
 
-# ✅ P3-2：模块加载时强校验真源与 SafeNodeView 字段一致。
+# P3-2：模块加载时强校验真源与 SafeNodeView 字段一致。
 # 配置漂移在 import 阶段就炸，而不是生产环境静默丢字段。
 _DRIFT_MISSING_IN_VIEW = _VISIBLE_FIELDS - _FIELD_TYPE_MAP.keys()
 _DRIFT_MISSING_IN_SOURCE = _FIELD_TYPE_MAP.keys() - _VISIBLE_FIELDS
@@ -119,7 +119,7 @@ def sanitize_node_for_user(node: dict[str, Any]) -> SafeNodeView:
             "[Sanitize] sanitize_node_for_user received %r, returning empty view",
             type(node).__name__,
         )
-        # ✅ P3-3：total=False 的空 dict 天然兼容 SafeNodeView，无需 cast
+        # P3-3：total=False 的空 dict 天然兼容 SafeNodeView，无需 cast
         return {}
 
     view: dict[str, Any] = {}
@@ -190,7 +190,7 @@ def sanitize_input(text: str, *, audit_log: bool = True) -> str:
             hits += n
             sanitized = new_text
 
-    # ✅ P2-4 / P3-4：惰性计算 hash，且日志补 input_len / pattern_hits
+    # P2-4 / P3-4：惰性计算 hash，且日志补 input_len / pattern_hits
     if audit_log and hits:
         original_hash = hashlib.sha256(text.encode()).hexdigest()
         logger.info(

@@ -63,7 +63,7 @@ async def intent_node(state: TaskState, config: RunnableConfig) -> dict[str, Any
         user_input, req_id=rid, cancel_event=cancel_event,
     )
 
-    # ✅ Pydantic 边界校验——LLM 输出不可信
+    # Pydantic 边界校验——LLM 输出不可信
     #    - 缺字段 → 用模型默认值补上（category="other" / summary="" / ...）
     #    - 多字段 → extra="ignore" 静默丢弃（LLM 多给不报错）
     #    - 枚举非法（如 category="unknown_domain"）→ ValidationError

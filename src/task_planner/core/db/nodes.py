@@ -45,7 +45,7 @@ async def update_node_status(
         },
     )
 
-    # ✅ 用 matched_count 而非 modified_count：
+    # 用 matched_count 而非 modified_count：
     #    语义是"找到了节点吗"，而不是"值变了吗"
     if result.matched_count == 0:
         logger.warning("[DB] update_node_status: 节点 #%d 未找到", node_id)

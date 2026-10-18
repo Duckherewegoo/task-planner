@@ -80,7 +80,7 @@ class InMemorySessionStore:
     async def cleanup_stale(self, ttl: int) -> int:
         """
         清理超过 ttl 秒未更新的会话。
-        ✅ P1-3：基于 store 自记的 created_at，不依赖 session 内部时钟。
+        P1-3：基于 store 自记的 created_at，不依赖 session 内部时钟。
         """
         now = time.time()
         async with self._lock:

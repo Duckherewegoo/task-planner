@@ -27,7 +27,7 @@ async def render_node(state: TaskState, config: RunnableConfig) -> dict[str, Any
             rid,
          )
     except Exception as e:
-        # ✅ 渲染失败不阻断执行链：留空 HTML，下游 execute 照常跑
+        # 渲染失败不阻断执行链：留空 HTML，下游 execute 照常跑
         logger.warning(
             "[Graph] render_node 渲染失败(不影响执行): %s (req=%s)", e, rid
         )

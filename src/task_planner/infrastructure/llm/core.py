@@ -117,7 +117,7 @@ async def async_call_llm(
                     raise LLMResponseError("API 返回内容为空", req_id)
 
                 logger.info(
-                    "[LLMClient] ✅ %s 成功 (attempt=%d, req=%s)",
+                    "[LLMClient] %s 成功 (attempt=%d, req=%s)",
                     model, attempt, req_id,
                 )
                 return content

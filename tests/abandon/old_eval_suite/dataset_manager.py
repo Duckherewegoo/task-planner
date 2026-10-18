@@ -3,14 +3,14 @@
 支持 JSON/YAML 格式，包含 input, expected_output, metadata 等字段
 
 Changelog:
-  ✅ P0-1：加载失败的 case 记录 idx + id，不再静默丢弃
-  ✅ P0-2：显式校验 raw 是 list，非 list / 空文件不再崩溃
-  ✅ P0-3：TestCase 加 __post_init__ 校验，语义冲突字段自动纠正
-  ✅ P1-1：load_dataset 加 force_reload 参数
-  ✅ P1-2：id 重复检测并警告
-  ✅ P1-3：mkdir(parents=True)
-  ✅ P1-4：format 参数改名为 file_format（避免遮蔽内置）
-  ✅ P2-x：日志统一 %s 风格
+  P0-1：加载失败的 case 记录 idx + id，不再静默丢弃
+  P0-2：显式校验 raw 是 list，非 list / 空文件不再崩溃
+  P0-3：TestCase 加 __post_init__ 校验，语义冲突字段自动纠正
+  P1-1：load_dataset 加 force_reload 参数
+  P1-2：id 重复检测并警告
+  P1-3：mkdir(parents=True)
+  P1-4：format 参数改名为 file_format（避免遮蔽内置）
+  P2-x：日志统一 %s 风格
 """
 
 import json
@@ -38,7 +38,7 @@ class TestCase:
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self):
-        """✅ P0-3 修复：字段一致性校验"""
+        """P0-3 修复：字段一致性校验"""
         # 期望不规划，但又指定节点数 → 语义冲突
         if not self.expected_needs_planning and self.expected_plan_nodes is not None:
             logger.warning(
@@ -76,7 +76,7 @@ class DatasetManager:
         self.data_dir = (
             Path(data_dir) if data_dir else Path(__file__).parent / "data"
         )
-        # ✅ P1-3 修复：parents=True 支持多层目录
+        # P1-3 修复：parents=True 支持多层目录
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self._datasets: dict[str, list[TestCase]] = {}
 
@@ -89,10 +89,10 @@ class DatasetManager:
         """
         从文件加载数据集。
 
-        ✅ P1-1 修复：加 force_reload 参数，默认走缓存。
+        P1-1 修复：加 force_reload 参数，默认走缓存。
            原实现每次都重新读文件，但缓存不更新——语义不一致。
 
-        ✅ P1-4 修复：format → file_format，避免遮蔽内置 format。
+        P1-4 修复：format → file_format，避免遮蔽内置 format。
         """
         # 缓存命中
         if not force_reload and name in self._datasets:
@@ -118,7 +118,7 @@ class DatasetManager:
         if isinstance(raw, dict) and "cases" in raw:
             raw = raw["cases"]
 
-        # ✅ P0-2 修复：显式校验 raw 是 list
+        # P0-2 修复：显式校验 raw 是 list
         if not isinstance(raw, list):
             logger.error(
                 "[Dataset] %s 顶层结构不是 list，实际 type=%s，返回空列表",
@@ -134,7 +134,7 @@ class DatasetManager:
         cases: list[TestCase] = []
         seen_ids: set[str] = set()
 
-        # ✅ P0-1 修复：记录 idx + id，让失败可定位
+        # P0-1 修复：记录 idx + id，让失败可定位
         for idx, item in enumerate(raw):
             # 非 dict 项直接跳过
             if not isinstance(item, dict):
@@ -147,7 +147,7 @@ class DatasetManager:
             try:
                 case_id = item.get("id") or f"case_{idx}"
 
-                # ✅ P1-2：id 重复检测
+                # P1-2：id 重复检测
                 if case_id in seen_ids:
                     logger.warning(
                         "[Dataset] %s 第 %d 条 id=%s 重复，已跳过",
@@ -218,7 +218,7 @@ class DatasetManager:
     def save_dataset(
         self, name: str, cases: list[TestCase], file_format: str = "json",
     ) -> Path:
-        """✅ P2-2 补：把 TestCase 列表写回磁盘"""
+        """P2-2 补：把 TestCase 列表写回磁盘"""
         file_path = self.data_dir / f"{name}.{file_format}"
         payload = {"cases": [c.to_dict() for c in cases]}
 

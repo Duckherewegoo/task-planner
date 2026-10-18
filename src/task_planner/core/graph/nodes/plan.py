@@ -25,7 +25,7 @@ async def plan_node(state: TaskState, config: RunnableConfig) -> dict[str, Any]:
         req_id=rid, cancel_event=cancel_event,
     )
 
-    # ✅ Patch A-1：防御 generate_plan 返回非 dict（None / 字符串等）
+    # Patch A-1：防御 generate_plan 返回非 dict（None / 字符串等）
     # 若不防御，`plan.get(...)` 会以"NoneType has no attribute 'get'"
     # 这种零信息量的错误炸掉，无法定位是 planner prompt 还是模型问题。
     if not isinstance(plan, dict):
@@ -40,7 +40,7 @@ async def plan_node(state: TaskState, config: RunnableConfig) -> dict[str, Any]:
     nodes_raw = plan.get("nodes", [])
     edges_raw = plan.get("edges", [])
 
-    # ✅ Patch A-2：防御非 list——`list("字符串")` 会静默拆成单字符列表，
+    # Patch A-2：防御非 list——`list("字符串")` 会静默拆成单字符列表，
     # 形成"非空垃圾"，后续节点名全是单字符，下游才会以莫名其妙的方式炸。
     # 这里先验证类型，再复制。
     if not isinstance(nodes_raw, list):
@@ -60,12 +60,12 @@ async def plan_node(state: TaskState, config: RunnableConfig) -> dict[str, Any]:
             f"规划失败：plan['edges'] 应为 list，实际为 {type(edges_raw).__name__} (req={rid})"
         )
 
-    # ✅ 元素级校验：list[dict] 只保外层——元素可能是 str / None。
+    # 元素级校验：list[dict] 只保外层——元素可能是 str / None。
     #    refine_node 里 n.get("id") 会在非 dict 元素上崩。
     validate_node_elements(nodes_raw, rid)
     validate_edge_elements(edges_raw, rid)
 
-    # ✅ Patch A-3：类型确认后，再做防御式复制——
+    # Patch A-3：类型确认后，再做防御式复制——
     # 避免下游节点直接修改 plan 内部的 list 引用。
     nodes_raw = list(nodes_raw)
     edges_raw = list(edges_raw)

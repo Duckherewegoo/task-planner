@@ -137,7 +137,7 @@ async def fail_node(thread_id: str, node_id: str, dag: dict) -> dict[str, Any]:
 async def get_ready_nodes(thread_id: str, dag: dict) -> list[str]:
     """
     获取所有可操作节点（前置已完成且自身未处理）。
-    ✅ Bug 修复：只把 hard 边算作硬依赖，与 auto_unlock_downstream 保持一致。
+    Bug 修复：只把 hard 边算作硬依赖，与 auto_unlock_downstream 保持一致。
     """
     state = await get_stream_state(thread_id)
     if not state:
@@ -147,7 +147,7 @@ async def get_ready_nodes(thread_id: str, dag: dict) -> list[str]:
     edges = dag.get("edges") or []
     nodes = dag.get("nodes") or []
 
-    # ✅ 预建 {target: [sources]} 索引，仅 hard 边参与依赖判断
+    # 预建 {target: [sources]} 索引，仅 hard 边参与依赖判断
     in_edges: dict[str, list[str]] = {}
     for e in edges:
         if get_edge_type(e) != EDGE_TYPE_HARD:

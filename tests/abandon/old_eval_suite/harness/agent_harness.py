@@ -2,15 +2,15 @@
 Agent 运行时封装：异步调用 task_planner 的流式执行，收集输出
 
 Changelog:
-  ✅ P0-1：用 asyncio.timeout 显式包裹流消费，防止 case 卡死拖垮整个评估批次；
+  P0-1：用 asyncio.timeout 显式包裹流消费，防止 case 卡死拖垮整个评估批次；
            Python 3.10 用等价上下文管理器兜底。
-  ✅ P0-2：set_req_id() 不传参（让它自己生成），thread_id 独立生成；
+  P0-2：set_req_id() 不传参（让它自己生成），thread_id 独立生成；
            两者语义分离，日志里能区分"会话"与"单次请求"。
-  ✅ P1-1：移除对 stream_manager 的依赖，直接复用 agent.cancel_task，
+  P1-1：移除对 stream_manager 的依赖，直接复用 agent.cancel_task，
            避免 stream_manager 未初始化或循环导入问题。
-  ✅ P1-2：get_task 改用 async 调用；如果不存在则跳过 final_state 采集。
-  ✅ P1-3：所有 `except:` 改为 `except Exception:`，不再吞 KeyboardInterrupt。
-  ✅ P2-x：output 字段语义明确（= direct_response）；
+  P1-2：get_task 改用 async 调用；如果不存在则跳过 final_state 采集。
+  P1-3：所有 `except:` 改为 `except Exception:`，不再吞 KeyboardInterrupt。
+  P2-x：output 字段语义明确（= direct_response）；
            success 语义增强（无 error 且确实产出结果）；
            needs_planning 判断简化；日志全部 %s 风格。
 """
@@ -27,7 +27,7 @@ from task_planner.services.agent import cancel_task, run_task_stream
 logger = get_logger("eval.agent_harness")
 
 
-# ✅ P0-1 修复：兼容 Python 3.10（asyncio.timeout 是 3.11+）
+# P0-1 修复：兼容 Python 3.10（asyncio.timeout 是 3.11+）
 if sys.version_info >= (3, 11):
     from asyncio import timeout as _asyncio_timeout
 else:
@@ -91,7 +91,7 @@ class AgentHarness:
                 "success": bool,
             }
         """
-        # ✅ P0-2 修复：thread_id 与 req_id 独立生成
+        # P0-2 修复：thread_id 与 req_id 独立生成
         #    - thread_id: 会话标识（用于 checkpoint / session store）
         #    - req_id:    单次请求追踪（用于日志串联）
         self.thread_id = str(uuid.uuid4())
@@ -119,7 +119,7 @@ class AgentHarness:
 
         start_time = time.time()
         try:
-            # ✅ P0-1 修复：显式超时包裹流消费，防止永久 hang
+            # P0-1 修复：显式超时包裹流消费，防止永久 hang
             async with _asyncio_timeout(self.timeout):
                 async for snapshot in run_task_stream(
                     user_input=user_input,
@@ -132,7 +132,7 @@ class AgentHarness:
                     # ── 提取关键字段（后到的快照会覆盖先到的）──
                     if snapshot.get("direct_response"):
                         result["direct_response"] = snapshot["direct_response"]
-                        # ✅ P2 修复：output 语义明确 = 用户可见的输出
+                        # P2 修复：output 语义明确 = 用户可见的输出
                         result["output"] = snapshot["direct_response"]
 
                     if snapshot.get("nodes"):
@@ -142,7 +142,7 @@ class AgentHarness:
                     if snapshot.get("task_id"):
                         result["task_id"] = snapshot["task_id"]
 
-                    # ✅ P2 修复：bool 字段直接取，简化判断
+                    # P2 修复：bool 字段直接取，简化判断
                     if "needs_planning" in snapshot:
                         result["needs_planning"] = bool(snapshot["needs_planning"])
 
@@ -158,7 +158,7 @@ class AgentHarness:
                     try:
                         from task_planner.core.db import get_task
 
-                        # ✅ P1-2 修复：直接 await（若 get_task 是 async）
+                        # P1-2 修复：直接 await（若 get_task 是 async）
                         #    若你的 get_task 是同步函数，把下面这行换成：
                         #    task_data = await asyncio.to_thread(get_task, result["task_id"])
                         task_data = await get_task(result["task_id"])
@@ -169,7 +169,7 @@ class AgentHarness:
                     except Exception as e:
                         logger.warning("[Harness] 获取 final_state 失败: %s", e)
 
-            # ✅ P2 修复：success 语义增强——无 error 且确实产出了结果
+            # P2 修复：success 语义增强——无 error 且确实产出了结果
             has_output = bool(result["direct_response"]) or bool(result["nodes"])
             result["success"] = result["error"] is None and has_output
 
@@ -191,7 +191,7 @@ class AgentHarness:
 
         finally:
             result["elapsed"] = time.time() - start_time
-            # ✅ P1-3 修复：用 except Exception 而非裸 except
+            # P1-3 修复：用 except Exception 而非裸 except
             if self.thread_id:
                 try:
                     await cancel_task(self.thread_id)
@@ -221,7 +221,7 @@ class AgentHarness:
         try:
             return await get_thread_state_async(thread_id)
         except Exception as e:
-            # ✅ P1-3 修复：不再裸 except
+            # P1-3 修复：不再裸 except
             logger.debug("[Harness] get_checkpoint_state failed: %s", e)
             return None
 

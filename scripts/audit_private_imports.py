@@ -7,9 +7,9 @@ audit_private_imports.py — 跨模块私有名审计（v3）
   【B】跨模块 `from X import _private`（引用别人的私有）
 
 v3 Changelog:
-  ✅ P1-1：find_py_files 改用 relative_to(root) 过滤，
+  P1-1：find_py_files 改用 relative_to(root) 过滤，
            避免用户主目录含 env/build 等关键词时误排整个项目。
-  ✅ P2-1：相对导入解析加注释，说明为何不用 importlib.util.resolve_name。
+  P2-1：相对导入解析加注释，说明为何不用 importlib.util.resolve_name。
 
 设计说明：
   本脚本**纯静态分析**——不导入任何目标模块，只读 AST。
@@ -64,7 +64,7 @@ def find_project_root(start: Path) -> Path:
 
 
 def find_py_files(root: Path) -> List[Path]:
-    """✅ P1-1：用相对路径过滤，避免绝对路径误伤"""
+    """P1-1：用相对路径过滤，避免绝对路径误伤"""
     root = root.resolve()
     result: List[Path] = []
     for p in root.rglob("*.py"):
@@ -280,7 +280,7 @@ def main() -> int:
             print(f"    {f.target_module}::{f.name}")
             print(f"      {f.file}")
     else:
-        print("    ✅ 无")
+        print("    无")
 
     print(f"\n【B】跨模块引用私有名 —— {len(b_findings)} 处")
     print("─" * 78)
@@ -304,12 +304,12 @@ def main() -> int:
         print()
         print("  提示：'?' 表示解析出的模块未在 src 里找到")
     else:
-        print("    ✅ 无")
+        print("    无")
 
     total = len(a_findings) + len(b_findings)
     print(f"\n{sep}")
     if total == 0:
-        print("✅ 全部通过")
+        print("全部通过")
     else:
         print(f"⚠️  {total} 处待审查（A={len(a_findings)}, B={len(b_findings)}）")
     print(sep)

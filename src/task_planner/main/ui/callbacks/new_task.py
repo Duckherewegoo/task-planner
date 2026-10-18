@@ -91,7 +91,7 @@ def register() -> None:
             return html.Button(label, id=btn_id, n_clicks=0, style=style)
 
         buttons = [
-            make_btn("✅ 完成", "complete-btn", "done"),
+            make_btn("完成", "complete-btn", "done"),
             make_btn("⏭️ 跳过", "skip-btn-panel", "skipped"),
             make_btn("❌ 失败", "fail-btn-panel", "failed"),
             html.Button(
@@ -225,7 +225,7 @@ def register() -> None:
                 return (elements, f"❌ 任务失败: {state.error} (⏱️ {elapsed}s)",
                         True, False, True, True, dag, BAR_ERROR)
             return (elements,
-                    "✅ 流程图渲染完成！请先在图中点击一个高亮（黄色）节点，再选择操作",
+                    "流程图渲染完成！请先在图中点击一个高亮（黄色）节点，再选择操作",
                     True, False, True, False, dag, BAR_DONE)
 
         return (elements, status_text, False, True, False, True, dag, BAR_LOADING)
@@ -323,7 +323,7 @@ def register() -> None:
         done_count = sum(1 for v in new_states.values() if v == "done")
         total = len(nodes)
         pct = int(done_count / total * 100) if total > 0 else 0
-        status_msg = f"✅ 完成 {done_count}/{total} ({pct}%)"
+        status_msg = f"完成 {done_count}/{total} ({pct}%)"
         if pct >= 100:
             status_msg = "🎉 所有节点已完成！"
 

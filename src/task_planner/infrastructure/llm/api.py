@@ -308,7 +308,7 @@ async def execute_node_llm(
     if _hub.dev.USE_MOCK_LLM:
         if cancel_event and cancel_event.is_set():
             raise LLMCancelledError("Mock: cancelled by event", rid)
-        return True, "✅ Mock执行完成"
+        return True, "Mock执行完成"
 
     try:
         async with get_semaphore():

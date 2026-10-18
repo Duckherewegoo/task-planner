@@ -4,12 +4,12 @@ state.py — LangGraph 状态定义
 目标运行时：Python 3.14+（StrEnum / NotRequired / PEP 649 / PEP 695 全部原生）
 
 ── v8 ──
-  ✅ Patch A：needs_planning 默认值改为 True。
+  Patch A：needs_planning 默认值改为 True。
               与 workflow.py 的 _route_start 契约对齐——新任务默认走
               intent 由意图节点判断，避免 create_initial_state 后
               直接跳 direct_answer、intent 永不执行。
-  ✅ P7-1：导入分组按 PEP 8 整理（stdlib / 第三方空行分隔）。
-  ✅ P7-2：三指针优先级 docstring 补"消费方"说明——当前
+  P7-1：导入分组按 PEP 8 整理（stdlib / 第三方空行分隔）。
+  P7-2：三指针优先级 docstring 补"消费方"说明——当前
            execute.py / route_after_execute 均未消费该字段，
            提醒下一轮迭代必须补齐实现方。
 
@@ -227,7 +227,7 @@ def create_initial_state(
     empty_node_results: list[NodeResult] = []
 
     state: TaskState = {
-        # ✅ 显式初始化 messages——MessagesState 的 add_messages reducer
+        # 显式初始化 messages——MessagesState 的 add_messages reducer
         #    对 [] 是 no-op，显式给 [] 保证字段完整性（下游按字段存在性
         #    做契约检查时不会误判）。
         "messages": [],

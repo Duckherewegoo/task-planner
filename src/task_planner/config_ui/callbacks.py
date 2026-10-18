@@ -101,7 +101,7 @@ def register() -> None:
         n_u = len(user_updates)
         n_e = len(env_updates)
         return (
-            f"✅ 已保存（user.yaml: {n_u} 项，.env: {n_e} 项）。"
+            f"已保存（user.yaml: {n_u} 项，.env: {n_e} 项）。"
             f"请重启主应用使配置生效。",
             {"color": "#10b981", "marginTop": "16px", "fontWeight": "bold"},
         )

@@ -21,7 +21,7 @@ def register() -> None:
         prevent_initial_call=True,
     )
     async def on_export_data(n_clicks, history_task_ids, dag_store, fmt):
-        # ✅ Bug 1 修复：node_states 从 dag_store 里取
+        # Bug 1 修复：node_states 从 dag_store 里取
         dag_store = dag_store or {}
         nodes, edges, _node_states, task_id_str = await resolve_dag_data(
             history_task_ids, dag_store, dag_store.get("node_states")
@@ -38,7 +38,7 @@ def register() -> None:
 
         try:
             result = await asyncio.to_thread(export_fn, nodes, edges, task_id_str)
-            logger.info("[Export] ✅ %s 导出成功 (task=%s)", fmt.upper(), task_id_str)
+            logger.info("[Export] %s 导出成功 (task=%s)", fmt.upper(), task_id_str)
             return result
         except Exception as e:
             logger.error("[Export] %s 导出失败: %s", fmt.upper(), e, exc_info=True)
@@ -70,7 +70,7 @@ def register() -> None:
                     export_svg_bytes, nodes, edges, node_states, title
                 )
                 logger.info(
-                    "[Export] ✅ SVG 导出成功 (%.1f KB, task=%s)",
+                    "[Export] SVG 导出成功 (%.1f KB, task=%s)",
                     len(svg_bytes) / 1024, task_id_str,
                 )
                 return dcc.send_bytes(
@@ -83,7 +83,7 @@ def register() -> None:
                     export_png_bytes, nodes, edges, node_states, title
                 )
                 logger.info(
-                    "[Export] ✅ PNG 导出成功 (%.1f KB, task=%s)",
+                    "[Export] PNG 导出成功 (%.1f KB, task=%s)",
                     len(png_bytes) / 1024, task_id_str,
                 )
                 return dcc.send_bytes(

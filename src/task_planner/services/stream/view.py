@@ -30,14 +30,14 @@ def get_status_text(snapshot: dict) -> str:
 
     direct_resp = snapshot.get("direct_response", "")
     if direct_resp and direct_resp != "__DIRECT_RESPONSE_PENDING__":
-        return f"✅ {snapshot.get('status_text') or '已完成'}"
+        return f"{snapshot.get('status_text') or '已完成'}"
 
     # ── 有节点：按进度 ──
     nodes = snapshot.get("nodes") or []
     idx = snapshot.get("current_node_index", 0)
     if nodes:
         if idx >= len(nodes):
-            return "✅ 任务完成"
+            return "任务完成"
         return f"🔄 执行中 ({idx}/{len(nodes)})"
 
     # ── 回退到 type ──
@@ -54,7 +54,7 @@ def get_status_text(snapshot: dict) -> str:
     if snap_type == "interrupt":
         return f"⏸️ {msg or '等待用户操作'}"
     if snap_type == "complete":
-        return f"✅ {snapshot.get('status_text') or '完成'}"
+        return f"{snapshot.get('status_text') or '完成'}"
     if snap_type == "cancelled":
         return "⏹️ 已停止"
     if snap_type == "timeout":

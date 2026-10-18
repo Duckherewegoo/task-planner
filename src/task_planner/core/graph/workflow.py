@@ -4,16 +4,16 @@ workflow.py — LangGraph 工作流定义（异步优化版）
 目标运行时：Python 3.14+
 
 ── v4 ──
-  ✅ Patch J：resume_graph_async docstring 明确契约——
+  Patch J：resume_graph_async docstring 明确契约——
               本函数**只更新状态，不续跑图**。调用方拿到 next_nodes 后
               必须自行 `g.astream(None, config)` 让图继续执行。
               这是当前最容易被误解的点：函数名"resume"暗示"一调就恢复"，
               但 LangGraph 的 update_state 语义是"只写状态不推进"。
               不改名（会破坏现有调用方），但把隐含契约显式化。
-  ✅ Patch K：顶部 checkpointer 迁移说明补一句——异步 checkpointer
+  Patch K：顶部 checkpointer 迁移说明补一句——异步 checkpointer
               的资源释放需要 await，atexit 无法 await。迁移时必须在
               ASGI lifespan shutdown 里 await _cleanup_checkpointers_async()。
-  ✅ Patch L：feedback["user_action"] 显式 str(action)——
+  Patch L：feedback["user_action"] 显式 str(action)——
               避免异步 checkpointer 反序列化时丢失枚举类型，
               导致 routes.py 的 isinstance assert 失败。
 
@@ -123,7 +123,7 @@ def _cleanup_checkpointers() -> None:
     _sqlite_connections.clear()
 
 
-# ✅ Patch B：flag 挂 sys，模块被 reload 时不会重置
+# Patch B：flag 挂 sys，模块被 reload 时不会重置
 if not getattr(sys, "_task_planner_atexit_registered", False):
     atexit.register(_cleanup_checkpointers)
     sys._task_planner_atexit_registered = True
@@ -270,7 +270,7 @@ def _force_rebuild_graph():
     """
     global _graph_instance
     with _graph_lock:
-        # ✅ Patch D：先清旧资源，防累积泄漏
+        # Patch D：先清旧资源，防累积泄漏
         _cleanup_checkpointers()
         _graph_instance = _build_graph()
     return _graph_instance
@@ -283,7 +283,7 @@ class _LazyGraphProxy:
     """
     代理对象：转发属性访问与调用到真实 graph 实例。
 
-    ✅ Patch E：改为黑名单——只拦本模块私有成员，其他属性（含所有
+    Patch E：改为黑名单——只拦本模块私有成员，其他属性（含所有
        dunder 协议如 __aenter__ / __await__ / __iter__）全部转发，
        让 `async with graph:` / `await graph` / `for x in graph` 正常工作。
     """
@@ -310,7 +310,7 @@ class _LazyGraphProxy:
     def __repr__(self) -> str:
         if _graph_instance is not None:
             return f"<LazyGraphProxy → {type(_graph_instance).__name__} (initialized)>"
-        # ✅ Patch E：不再硬编码 "CompiledGraph"
+        # Patch E：不再硬编码 "CompiledGraph"
         return "<LazyGraphProxy → (not yet initialized)>"
 
 
@@ -367,10 +367,10 @@ async def resume_graph_async(
         ValueError: thread_id 无历史状态 / user_action 非法 /
                     target_node_index 与 resume_from_node_index 同时非空
     """
-    # ✅ Patch F：校验入口，非法值立即报错
+    # Patch F：校验入口，非法值立即报错
     action = validate_user_action(user_action)
 
-    # ✅ Patch F-补：与 state.py 三指针优先级保持一致，拒绝模糊调用
+    # Patch F-补：与 state.py 三指针优先级保持一致，拒绝模糊调用
     if target_node_index is not None and resume_from_node_index is not None:
         raise ValueError(
             "target_node_index（retry_node）与 resume_from_node_index 语义冲突，"
@@ -378,11 +378,11 @@ async def resume_graph_async(
             "请调用方明确意图后只传一个。"
         )
 
-    # ✅ Patch F-补：首次调用可能 build 图，走 to_thread 避免阻塞 loop
+    # Patch F-补：首次调用可能 build 图，走 to_thread 避免阻塞 loop
     g = await asyncio.to_thread(get_graph)
     config = {"configurable": {"thread_id": thread_id}}
 
-    # ✅ Patch F：同步 checkpointer 用 to_thread 避免阻塞事件循环。
+    # Patch F：同步 checkpointer 用 to_thread 避免阻塞事件循环。
     # 未来 checkpointer 异步化后，机械替换为 await g.aget_state(config)
     snapshot = await asyncio.to_thread(g.get_state, config)
     if not snapshot or not snapshot.values:
@@ -393,8 +393,8 @@ async def resume_graph_async(
         thread_id, action, as_node or "<auto>",
     )
 
-    # ✅ Patch F：键名与 TaskState 字段对齐
-    # ✅ Patch L：显式 str(action)——checkpointer 反序列化不保证还原枚举，
+    # Patch F：键名与 TaskState 字段对齐
+    # Patch L：显式 str(action)——checkpointer 反序列化不保证还原枚举，
     # 下游 routes.py 的 isinstance(UserAction) 断言可能失败。
     # StrEnum 的 str() 返回值本身就是 .value（'modify' 等），语义无损。
     feedback: dict[str, Any] = {"user_action": str(action)}
@@ -414,7 +414,7 @@ async def resume_graph_async(
     return {
         "thread_id": thread_id,
         "state": new_snapshot.values if new_snapshot else {},
-        # ✅ Patch G：snapshot.next 是 tuple，返回前转 list
+        # Patch G：snapshot.next 是 tuple，返回前转 list
         "next_nodes": list(new_snapshot.next) if new_snapshot else [],
     }
 
@@ -429,18 +429,18 @@ async def get_thread_state_async(thread_id: str) -> dict[str, Any] | None:
     Raises:
         Exception: 底层存储访问失败（区别于"未找到"）
     """
-    # ✅ Patch F-补：首次调用可能 build 图，走 to_thread
+    # Patch F-补：首次调用可能 build 图，走 to_thread
     g = await asyncio.to_thread(get_graph)
     config = {"configurable": {"thread_id": thread_id}}
 
-    # ✅ Patch G：异常上抛，不再把"错"伪装成"无"
+    # Patch G：异常上抛，不再把"错"伪装成"无"
     snapshot = await asyncio.to_thread(g.get_state, config)
     if not snapshot or not snapshot.values:
         return None
     return {
         "thread_id": thread_id,
         "state": snapshot.values,
-        # ✅ Patch G：tuple → list
+        # Patch G：tuple → list
         "next_nodes": list(snapshot.next),
     }
 
@@ -456,9 +456,9 @@ def _run_sync(
     """
     在同步上下文中运行协程；在已有 loop 时立即报错而非死循环。
 
-    ✅ Patch H：传入 factory 而非 coroutine——
+    Patch H：传入 factory 而非 coroutine——
        避免错误用法下创建出永不 await 的协程对象、触发 RuntimeWarning。
-    ✅ P1-1：显式传入 async_api_name，不再靠字符串替换推导。
+    P1-1：显式传入 async_api_name，不再靠字符串替换推导。
     """
     try:
         asyncio.get_running_loop()
@@ -481,7 +481,7 @@ def resume_graph(thread_id: str, **kwargs) -> dict[str, Any]:
 
     ⚠️ 异步环境请用: await resume_graph_async(thread_id, ...)
     """
-    # ✅ Patch H：传 factory
+    # Patch H：传 factory
     return _run_sync(
         lambda: resume_graph_async(thread_id, **kwargs),
         sync_api_name="resume_graph",
@@ -495,7 +495,7 @@ def get_thread_state(thread_id: str) -> dict[str, Any] | None:
 
     ⚠️ 异步环境请用: await get_thread_state_async(thread_id)
     """
-    # ✅ Patch H：传 factory
+    # Patch H：传 factory
     return _run_sync(
         lambda: get_thread_state_async(thread_id),
         sync_api_name="get_thread_state",

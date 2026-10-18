@@ -63,7 +63,7 @@ def write_user_yaml(path: Path, updates: dict[str, Any]) -> None:
         _atomic_write(path, header + body)
         return
 
-    logger.info("[ConfigUI] ✅ 已写入 %s (%d 项)", path, len(updates))
+    logger.info("[ConfigUI] 已写入 %s (%d 项)", path, len(updates))
 
 
 def read_env(path: Path) -> dict[str, str]:
@@ -104,4 +104,4 @@ def write_env(path: Path, updates: dict[str, str]) -> None:
             lines.append(f"{k}={v}")
 
     _atomic_write(path, "\n".join(lines) + "\n")
-    logger.info("[ConfigUI] ✅ 已写入 %s (%d 项)", path, len(updates))
+    logger.info("[ConfigUI] 已写入 %s (%d 项)", path, len(updates))

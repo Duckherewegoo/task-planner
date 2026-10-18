@@ -265,7 +265,7 @@ def main() -> int:
             results.append(r)
 
     if not results:
-        print("✅ 没有需要迁移的文件")
+        print("没有需要迁移的文件")
         return 0
 
     # 打印汇总表
@@ -300,8 +300,8 @@ def main() -> int:
     # 写入 CHANGELOG.md
     _write_changelog(cl_path, results)
 
-    print(f"\n✅ 已更新 {len(results)} 个源文件")
-    print(f"✅ 已写入 {cl_path}")
+    print(f"\n已更新 {len(results)} 个源文件")
+    print(f"已写入 {cl_path}")
     return 0
 
 

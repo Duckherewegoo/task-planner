@@ -5,19 +5,19 @@ database.py — MongoDB 异步数据层（Motor 驱动版）
 连接延迟初始化，线程安全（协程安全）。
 
 Changelog:
-  ✅ P0-1：mark_task_success 终态判断补全（TIMEOUT/SKIPPED 不再被覆盖）
-  ✅ P0-2：init_db 失败时清理半成品 client，避免连接池泄漏
-  ✅ P0-3：get_node_status 边界检查更严格
-  ✅ P0-4：nodes[].updated_at 统一用 datetime（与顶层一致）
-  ✅ P1-1：_validate_plan 返回新 dict，不再原地修改入参
-  ✅ P1-2：get_task 补全 schema 默认值
-  ✅ P1-3：load_task_with_plan 区分"未找到"与"数据损坏"
-  ✅ P1-5：logger 改用 get_logger（绑定 QueueListener）
-  ✅ P1-6：_validate_plan 丢弃的边记录原因
-  ✅ P2-1：删除死导入
-  ✅ P2-2：_STATUS_NAMES 改为模块级常量
-  ✅ P2-3：init_db 加 serverSelectionTimeoutMS
-  ✅ P2-4：新增 close_db()
+  P0-1：mark_task_success 终态判断补全（TIMEOUT/SKIPPED 不再被覆盖）
+  P0-2：init_db 失败时清理半成品 client，避免连接池泄漏
+  P0-3：get_node_status 边界检查更严格
+  P0-4：nodes[].updated_at 统一用 datetime（与顶层一致）
+  P1-1：_validate_plan 返回新 dict，不再原地修改入参
+  P1-2：get_task 补全 schema 默认值
+  P1-3：load_task_with_plan 区分"未找到"与"数据损坏"
+  P1-5：logger 改用 get_logger（绑定 QueueListener）
+  P1-6：_validate_plan 丢弃的边记录原因
+  P2-1：删除死导入
+  P2-2：_STATUS_NAMES 改为模块级常量
+  P2-3：init_db 加 serverSelectionTimeoutMS
+  P2-4：新增 close_db()
 """
 import asyncio
 import time
@@ -39,10 +39,10 @@ from task_planner.infrastructure.logger_setup import get_logger, get_req_id
 logger = get_logger("task_planner.db")
 
 
-# ✅ P2-2 修复：模块级常量，不再懒加载
+# P2-2 修复：模块级常量，不再懒加载
 _STATUS_NAMES: dict[int, str] = {v: k for k, v in TASK_STATUS.items()}
 
-# ✅ P0-1 修复：明确的终态集合
+# P0-1 修复：明确的终态集合
 _TERMINAL_STATUSES = frozenset({
     TASK_STATUS["SUCCESS"],   # 2
     TASK_STATUS["FAILED"],    # 3
@@ -75,7 +75,7 @@ async def init_db() -> None:
         if _initialized:
             return
 
-        # ✅ P0-2 修复：先构造本地变量，全部成功后再赋给全局
+        # P0-2 修复：先构造本地变量，全部成功后再赋给全局
         new_client = None
         try:
             new_client = AsyncIOMotorClient(
@@ -83,7 +83,7 @@ async def init_db() -> None:
                 port=MONGO_PORT,
                 maxPoolSize=100,
                 minPoolSize=10,
-                # ✅ P2-3 修复：显式超时，避免默认 30s hang
+                # P2-3 修复：显式超时，避免默认 30s hang
                 serverSelectionTimeoutMS=5000,
                 connectTimeoutMS=5000,
             )
@@ -95,11 +95,11 @@ async def init_db() -> None:
             _db = new_db
             _initialized = True
             logger.info(
-                "[DB] ✅ MongoDB 异步连接成功 (%s:%d/%s)",
+                "[DB] MongoDB 异步连接成功 (%s:%d/%s)",
                 MONGO_HOST, MONGO_PORT, MONGO_DB,
             )
         except Exception as e:
-            # ✅ P0-2 修复：失败时清理半成品
+            # P0-2 修复：失败时清理半成品
             if new_client is not None:
                 try:
                     new_client.close()
@@ -134,7 +134,7 @@ async def get_db() -> AsyncIOMotorDatabase:
 
 
 async def close_db() -> None:
-    """✅ P2-4 新增：显式关闭连接（用于测试/进程退出）"""
+    """P2-4 新增：显式关闭连接（用于测试/进程退出）"""
     global _client, _db, _initialized
     async with _db_lock:
         if _client is not None:
@@ -163,8 +163,8 @@ def _validate_plan(plan_data: dict[str, Any]) -> dict[str, Any]:
     """
     清洗 nodes/edges，确保 ID 合法，并补全字段。
 
-    ✅ P1-1 修复：返回新 dict，不再原地修改入参。
-    ✅ P1-6 修复：丢弃的边记录原因。
+    P1-1 修复：返回新 dict，不再原地修改入参。
+    P1-6 修复：丢弃的边记录原因。
     """
     nodes_raw = list(plan_data.get("nodes", []) or [])
     edges_raw = list(plan_data.get("edges", []) or [])
@@ -207,7 +207,7 @@ def _validate_plan(plan_data: dict[str, Any]) -> dict[str, Any]:
         len(edges_raw) - len(clean_edges),
     )
 
-    # ✅ P1-1 修复：返回新 dict
+    # P1-1 修复：返回新 dict
     return {
         **plan_data,
         "nodes": clean_nodes,
@@ -237,7 +237,7 @@ async def create_task_with_plan(
     task_id = f"task_{int(time.time() * 1000)}"
     plan_id = f"plan_{task_id}"
 
-    # ✅ P1-1：_validate_plan 返回新 dict
+    # P1-1：_validate_plan 返回新 dict
     plan_data = _validate_plan(plan_data)
 
     now = datetime.now(timezone.utc)
@@ -273,7 +273,7 @@ async def create_task_with_plan(
         await db["plans"].insert_one(plan_doc)
         await db["tasks"].insert_one(task_doc)
         logger.info(
-            "[DB] ✅ 创建 Task=%s / Plan=%s (nodes=%d, edges=%d, req=%s)",
+            "[DB] 创建 Task=%s / Plan=%s (nodes=%d, edges=%d, req=%s)",
             task_id, plan_id, len(plan_doc["nodes"]), len(plan_doc["edges"]), rid,
         )
         return task_doc, plan_doc
@@ -314,7 +314,7 @@ async def create_direct_answer_task(
         "updated_at": now,
     }
     await db["tasks"].insert_one(task_doc)
-    logger.info("[DB] ✅ 创建直接回答 Task=%s (req=%s)", task_id, rid)
+    logger.info("[DB] 创建直接回答 Task=%s (req=%s)", task_id, rid)
     return task_doc
 
 
@@ -322,7 +322,7 @@ async def get_task(task_id: str) -> Optional[dict[str, Any]]:
     """
     返回 task 字段字典。
 
-    ✅ P1-2 修复：补全所有 schema 字段的默认值，避免下游 KeyError。
+    P1-2 修复：补全所有 schema 字段的默认值，避免下游 KeyError。
     """
     db = await get_db()
     doc = await db["tasks"].find_one({"task_id": task_id})
@@ -358,7 +358,7 @@ async def load_task_with_plan(task_id: str) -> Optional[dict[str, Any]]:
     """
     Task + Plan 一起拿。
 
-    ✅ P1-3 修复：区分三种返回语义
+    P1-3 修复：区分三种返回语义
       - task 不存在       → None
       - task 存在无 plan  → {"task": task, "plan": None}
       - task + plan 存在  → {"task": task, "plan": plan}
@@ -393,7 +393,7 @@ async def list_tasks(limit: int = 50) -> list[dict[str, Any]]:
         has_plan = bool(t.get("plan_id"))
         prefix = "📋" if has_plan else "💬"
 
-        # ✅ P2-5 修复：兼容 created_at 是字符串或缺失的情况
+        # P2-5 修复：兼容 created_at 是字符串或缺失的情况
         created_at = t.get("created_at")
         if isinstance(created_at, datetime):
             created_str = created_at.strftime("%Y-%m-%d %H:%M")
@@ -455,7 +455,7 @@ async def update_node_status(
             "$set": {
                 "nodes.$.status": new_status,
                 "nodes.$.details": details,
-                # ✅ P0-4 修复：统一用 datetime，不用 isoformat
+                # P0-4 修复：统一用 datetime，不用 isoformat
                 "nodes.$.updated_at": now,
                 "updated_at": now,
             },
@@ -473,7 +473,7 @@ async def update_node_status(
 
 
 async def mark_task_success(task_id: str) -> None:
-    """✅ P0-1 修复：终态判断补全 TIMEOUT / SKIPPED"""
+    """P0-1 修复：终态判断补全 TIMEOUT / SKIPPED"""
     db = await get_db()
     result = await db["tasks"].update_one(
         {"task_id": task_id, "status": {"$nin": list(_TERMINAL_STATUSES)}},
@@ -574,7 +574,7 @@ async def reset_node_status(task_id: str, node_id: int) -> bool:
             "$set": {
                 "nodes.$.status": TASK_STATUS["PENDING"],
                 "nodes.$.error_msg": "",
-                # ✅ P0-4 修复：统一 datetime
+                # P0-4 修复：统一 datetime
                 "nodes.$.updated_at": now,
                 "updated_at": now,
             },
@@ -602,7 +602,7 @@ async def get_node_status(task_id: str, node_id: int) -> Optional[int]:
         {"plan_id": plan_id, "nodes.id": node_id},
         {"nodes.$": 1},
     )
-    # ✅ P0-3 修复：更严格的边界检查
+    # P0-3 修复：更严格的边界检查
     if not plan:
         return None
     nodes = plan.get("nodes")

@@ -96,7 +96,7 @@ class StreamStateCleaner:
                 else:
                     if state.is_expired(now):
                         should_remove = True
-                        # ✅ 用公开方法，不访问私有属性
+                        # 用公开方法，不访问私有属性
                         logger.warning(
                             "[Cleaner] TTL 超时强制回收: %s (age=%.0fs)",
                             tid, state.age_since_created(now),

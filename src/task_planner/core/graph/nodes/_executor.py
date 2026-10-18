@@ -3,12 +3,12 @@ _executor.py — 单节点执行器（nodes 包内部使用）。
 对外只暴露 execute_single_node()。
 
 ── v5 ──
-  ✅ P5-1：NodeExecResult 从 TypedDict → Pydantic BaseModel。
+  P5-1：NodeExecResult 从 TypedDict → Pydantic BaseModel。
            收益：消费方（execute.py）用属性访问（result.status）而非
            下标访问（result["status"]）——IDE 补全 + 拼错字段立刻报错。
            _make_result 仍是唯一构造入口；frozen=True 保证不可变；
            extra="forbid" 拒绝多余字段。
-  ✅ P5-2：bool 归一化逻辑抽出为 field_validator——execute_single_node
+  P5-2：bool 归一化逻辑抽出为 field_validator——execute_single_node
            不再直接调 _coerce_node_id，归一化推迟到构造时（单点保证）。
            _coerce_node_id 保留为归一化函数，供 validator 与测试复用。
 
@@ -184,11 +184,11 @@ async def execute_single_node(
             retryable=False,  # 结构问题重试无意义
         )
 
-    # ✅ P5-2：node["id"] 的归一化推迟到 _make_result 构造时
+    # P5-2：node["id"] 的归一化推迟到 _make_result 构造时
     #    （由 NodeExecResult._normalize_node_id validator 承担）。
     #    这里只做"缺失时的默认值"兜底。
     nid = node.get("id", "?")
-    # ✅ P4-3：用 _coerce_text 处理 name——
+    # P4-3：用 _coerce_text 处理 name——
     #   - None → "" → 落到 f"步骤{nid}" 兜底
     #   - 空串 → 同样落到兜底（name 为空在 UI 无意义）
     #   - 其他类型 → str(...)
@@ -210,12 +210,12 @@ async def execute_single_node(
         prompt = render_template(
             EXECUTE_NODE_PROMPT, rid,
             user_input=user_input,
-            # ✅ P4-4：category 同用 _coerce_text——
+            # P4-4：category 同用 _coerce_text——
             #   原写法 str(intent.get("category", "other")) 在
             #   intent["category"] = None 时会产出 "None" 字符串。
             category=_coerce_text(intent.get("category")) or "other",
             name=name,
-            # ✅ P4-3：details 优先，detail 兜底；两者都为 None 时变空串。
+            # P4-3：details 优先，detail 兜底；两者都为 None 时变空串。
             #   原写法 node.get("details", node.get("detail", "")) 在
             #   details 存在但为 None 时会返回 None，再被 str() 变成 "None"。
             detail=_coerce_text(node.get("details") or node.get("detail")),
@@ -256,7 +256,7 @@ async def execute_single_node(
         return _make_result(
             nid, name,
             status="failed",
-            # ✅ P4-2：整句截断——前缀 + 类型名 + 消息合计不超过 _DETAIL_MAX_LEN。
+            # P4-2：整句截断——前缀 + 类型名 + 消息合计不超过 _DETAIL_MAX_LEN。
             #   原写法 str(e)[:_DETAIL_MAX_LEN] 只截消息，
             #   前缀不计入，实际最多约 230 字符，与 docstring 承诺不符。
             detail=(

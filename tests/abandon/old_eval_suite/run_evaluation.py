@@ -2,13 +2,13 @@
 主入口：运行评估套件
 
 Changelog:
-  ✅ P0-1：fmt.replace('html', 'html') 无意义语句删除
-  ✅ P0-2：main() 加 try/except，异常不再直接裸抛到终端
-  ✅ P1-1：set_req_id 兼容两种签名（无参 / 有参）
-  ✅ P1-2：所有 logger 改为 %s 延迟格式化
-  ✅ P1-3：mkdir 加 parents=True，支持多层目录
-  ✅ P1-4：input() 挪到 asyncio.run 之外，避免阻塞事件循环
-  ✅ P2-1：移除未使用的 logger 引用（改用 get_logger 统一）
+  P0-1：fmt.replace('html', 'html') 无意义语句删除
+  P0-2：main() 加 try/except，异常不再直接裸抛到终端
+  P1-1：set_req_id 兼容两种签名（无参 / 有参）
+  P1-2：所有 logger 改为 %s 延迟格式化
+  P1-3：mkdir 加 parents=True，支持多层目录
+  P1-4：input() 挪到 asyncio.run 之外，避免阻塞事件循环
+  P2-1：移除未使用的 logger 引用（改用 get_logger 统一）
 """
 
 import argparse
@@ -25,7 +25,7 @@ from .hitl_reviewer import HITLReviewer
 logger = get_logger("eval.runner")
 
 
-# ✅ P1-1 修复：set_req_id 兼容两种签名
+# P1-1 修复：set_req_id 兼容两种签名
 def _safe_set_req_id(req_id: str) -> str:
     """
     兼容 set_req_id 的两种可能签名：
@@ -47,7 +47,7 @@ def _safe_set_req_id(req_id: str) -> str:
     return req_id
 
 
-# 输出格式 → 文件扩展名（✅ P0-1 修复：删除无意义的 .replace）
+# 输出格式 → 文件扩展名（P0-1 修复：删除无意义的 .replace）
 _FORMAT_EXT = {
     "json": "json",
     "markdown": "md",
@@ -96,7 +96,7 @@ async def run_evaluation(
 
     # ── 3. 生成报告 ──
     reports_dir = Path(output_dir)
-    # ✅ P1-3 修复：parents=True 支持多层目录
+    # P1-3 修复：parents=True 支持多层目录
     reports_dir.mkdir(parents=True, exist_ok=True)
 
     if output_format == "all":
@@ -123,7 +123,7 @@ async def run_evaluation(
                         len(flagged), req_file)
             print("\n=== HITL Review Request ===")
             print(f"Please review cases in {req_file}")
-            # ✅ P1-4 说明：input() 阻塞事件循环，此处已接近流程末尾，
+            # P1-4 说明：input() 阻塞事件循环，此处已接近流程末尾，
             #    实际影响很小，如需完全避免可改为 async 输入方案。
             answer = input("Start interactive review? (y/n): ").strip().lower()
             if answer == "y":
@@ -148,7 +148,7 @@ def main() -> int:
 
     args = parser.parse_args()
 
-    # ✅ P0-2 修复：捕获异常，返回非零退出码，CI 能感知失败
+    # P0-2 修复：捕获异常，返回非零退出码，CI 能感知失败
     try:
         summary = asyncio.run(run_evaluation(
             dataset_name=args.dataset,

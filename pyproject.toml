@@ -105,7 +105,7 @@ Repository = "https://github.com/Duckherewegoo/task-planner"
 Issues = "https://github.com/Duckherewegoo/task-planner/issues"
 
 [project.scripts]
-task-planner = "task_planner.main.ui.app:main"
+task-planner = "task_planner.main.app:main"
 task-planner-config = "task_planner.config_ui.app:main"
 # ⚠️ 下面这条只在 `pip install -e .` 开发模式下有效（tests/ 不打包）
 #task-planner-eval = "tests.eval_suite.run_evaluation:main"

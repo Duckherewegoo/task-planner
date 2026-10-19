@@ -37,7 +37,7 @@ pytestmark = pytest.mark.integration
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  环境探测 + 安全护栏（模块级，只跑一次）
+# 环境探测 + 安全护栏（模块级，只跑一次）
 # ═══════════════════════════════════════════════════════════════════
 @pytest.fixture(scope="module", autouse=True)
 def _mongodb_env():
@@ -81,7 +81,7 @@ def _mongodb_env():
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  测试隔离：每个测试前后清空 collections
+# 测试隔离：每个测试前后清空 collections
 # ═══════════════════════════════════════════════════════════════════
 @pytest.fixture
 async def clean_db():
@@ -100,7 +100,7 @@ async def clean_db():
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  测试数据工厂
+# 测试数据工厂
 # ═══════════════════════════════════════════════════════════════════
 def make_plan_data(
     task_name: str = "测试计划",
@@ -129,7 +129,7 @@ def make_plan_data(
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  client.py — 连接生命周期
+# client.py — 连接生命周期
 # ═══════════════════════════════════════════════════════════════════
 async def test_init_db_idempotent():
     """init_db 重复调用不重复建连——第二次是 no-op"""
@@ -173,7 +173,7 @@ async def test_close_then_get_reinit():
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  tasks.py — 创建
+# tasks.py — 创建
 # ═══════════════════════════════════════════════════════════════════
 async def test_create_task_with_plan_returns_docs(clean_db):
     """返回 (task_doc, plan_doc)，且 task_doc.plan_id 指向 plan_doc"""
@@ -240,7 +240,7 @@ async def test_create_direct_answer_task(clean_db):
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  tasks.py — 查询
+# tasks.py — 查询
 # ═══════════════════════════════════════════════════════════════════
 async def test_get_task_not_found_returns_none(clean_db):
     from task_planner.core.db import get_task
@@ -387,7 +387,7 @@ async def test_get_recent_tasks_returns_strings(clean_db):
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  tasks.py — 状态更新
+# tasks.py — 状态更新
 # ═══════════════════════════════════════════════════════════════════
 async def test_mark_task_running(clean_db):
     from task_planner.core.db import (
@@ -468,7 +468,7 @@ async def test_mark_task_timeout(clean_db):
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  tasks.py — 删除
+# tasks.py — 删除
 # ═══════════════════════════════════════════════════════════════════
 async def test_delete_task_removes_task_and_plan(clean_db):
     """删除任务时级联删除关联 Plan"""
@@ -515,7 +515,7 @@ async def test_batch_delete_tasks_empty(clean_db):
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  plans.py — Plan CRUD
+# plans.py — Plan CRUD
 # ═══════════════════════════════════════════════════════════════════
 async def test_create_plan_returns_doc(clean_db):
     from datetime import UTC, datetime
@@ -581,7 +581,7 @@ async def test_delete_plans_empty(clean_db):
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  nodes.py — 节点数组操作
+# nodes.py — 节点数组操作
 # ═══════════════════════════════════════════════════════════════════
 async def test_update_node_status_success(clean_db):
     """数组位置操作符 nodes.$ 更新正确节点"""

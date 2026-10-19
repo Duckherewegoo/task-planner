@@ -47,7 +47,7 @@ logger = get_logger(__name__)
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  内部：resume 执行入口
+# 内部：resume 执行入口
 # ═══════════════════════════════════════════════════════════════════
 async def _resume_with_command(
     session: TaskSession,
@@ -84,7 +84,7 @@ async def _resume_with_command(
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  公开命令
+# 公开命令
 # ═══════════════════════════════════════════════════════════════════
 async def cancel_task(thread_id: str) -> bool:
     """
@@ -130,7 +130,7 @@ async def modify_task(thread_id: str, new_input: str) -> bool:
         return False
 
     # 修正：sanitize_input 不抛异常——它把非 str 输入转成空串。
-    #    显式检查空结果，而不是靠 except ValueError（那是死代码）。
+    # 显式检查空结果，而不是靠 except ValueError（那是死代码）。
     cleaned = sanitize_input(new_input)
     if not cleaned:
         logger.warning(
@@ -209,7 +209,7 @@ async def retry_node_cmd(thread_id: str, node_index: int) -> bool:
         # 键名对齐 execute.execute_node 的 feedback.get("user_action")
         "user_action": UserAction.RETRY_NODE,
         # 键名对齐 state.TaskState 的 retry_node_index 字段
-        #    （原写法 "node_index" 永远读不到——execute 读的是 retry_node_index）
+        # （原写法 "node_index" 永远读不到——execute 读的是 retry_node_index）
         "retry_node_index": node_index,
     })
     return True

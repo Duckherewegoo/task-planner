@@ -15,7 +15,7 @@ _MAX_CACHE_INPUT_BYTES = _hub.dev.MAX_CACHE_INPUT_BYTES
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  回调结果容器
+# 回调结果容器
 # ═══════════════════════════════════════════════════════════════════
 @dataclass
 class HistorySelectResult:
@@ -72,7 +72,7 @@ class HistoryTapNodeResult:
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  Cytoscape 元素缓存
+# Cytoscape 元素缓存
 # ═══════════════════════════════════════════════════════════════════
 _cyto_cache: dict[str, Any] = {"hash": None, "elements": None}
 _cyto_lock = threading.Lock()

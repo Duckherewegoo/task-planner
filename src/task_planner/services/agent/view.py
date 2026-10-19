@@ -15,8 +15,8 @@ def extract_snapshot(
     if mode == "updates":
         return None
     # start_time 来自 TaskSession——它是 agent 侧"任务开始时间"的
-    #    唯一来源。TaskStreamState 也有 _created_at，但那是在 stream 层
-    #    注册时创建的时间——语义不同（agent 启动 vs stream 注册）
+    # 唯一来源。TaskStreamState 也有 _created_at，但那是在 stream 层
+    # 注册时创建的时间——语义不同（agent 启动 vs stream 注册）
     elapsed = time.time() - session.start_time
     view = {k: event.get(k) for k in FRONTEND_FIELDS}
     view.update({

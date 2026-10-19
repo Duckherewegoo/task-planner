@@ -61,9 +61,9 @@ class StreamStateCleaner:
                 return
             self._running = True
             # ⚠️ 本方法必须在常驻 loop 上首次调用——否则 create_task 会绑
-            #    Dash 回调的一次性 loop，回调返回后 _cleanup_loop 立刻被取消。
-            #    当前唯一调用方 launcher._bootstrap 在常驻 loop 上执行，满足前提。
-            #    若未来新增其他调用方，务必同样通过 async_runtime.submit 提交。
+            # Dash 回调的一次性 loop，回调返回后 _cleanup_loop 立刻被取消。
+            # 当前唯一调用方 launcher._bootstrap 在常驻 loop 上执行，满足前提。
+            # 若未来新增其他调用方，务必同样通过 async_runtime.submit 提交。
             self._task = asyncio.create_task(self._cleanup_loop())
             logger.info(
                  "[Cleaner] 清理协程已启动 (interval=%ds)",

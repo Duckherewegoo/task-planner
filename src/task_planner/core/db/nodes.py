@@ -13,7 +13,7 @@ logger = get_logger("task_planner.core.db.nodes")
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  写操作
+# 写操作
 # ═══════════════════════════════════════════════════════════════════
 async def update_node_status(
     task_id: str,
@@ -46,7 +46,7 @@ async def update_node_status(
     )
 
     # 用 matched_count 而非 modified_count：
-    #    语义是"找到了节点吗"，而不是"值变了吗"
+    # 语义是"找到了节点吗"，而不是"值变了吗"
     if result.matched_count == 0:
         logger.warning("[DB] update_node_status: 节点 #%d 未找到", node_id)
         return False
@@ -92,7 +92,7 @@ async def reset_node_status(task_id: str, node_id: int) -> bool:
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  读操作
+# 读操作
 # ═══════════════════════════════════════════════════════════════════
 async def get_node_status(task_id: str, node_id: int) -> int | None:
     """

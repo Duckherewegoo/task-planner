@@ -38,7 +38,7 @@ from pathlib import Path
 from typing import Dict, List, Set, Tuple
 
 # ═══════════════════════════════════════════════════════════════════════
-#  1. 变量分类表
+# 1. 变量分类表
 # ═══════════════════════════════════════════════════════════════════════
 RUNTIME_VARS: Set[str] = {
     # base
@@ -115,7 +115,7 @@ _ALL_KNOWN = (RUNTIME_VARS | CONSTANT_VARS | REGEX_VARS | PROMPT_VARS
 
 
 # ═══════════════════════════════════════════════════════════════════════
-#  2. AST：找旧 config import
+# 2. AST：找旧 config import
 # ═══════════════════════════════════════════════════════════════════════
 def _is_old_config_import(node: ast.ImportFrom) -> bool:
     mod = node.module or ""
@@ -140,7 +140,7 @@ def find_imports(tree: ast.Module) -> List[ast.ImportFrom]:
 
 
 # ═══════════════════════════════════════════════════════════════════════
-#  3. 生成新 import 块
+# 3. 生成新 import 块
 # ═══════════════════════════════════════════════════════════════════════
 def _indent_of(lines: List[str], lineno: int) -> str:
     line = lines[lineno - 1]
@@ -189,7 +189,7 @@ def build_import_block(
 
 
 # ═══════════════════════════════════════════════════════════════════════
-#  4. tokenize：业务代码里加 _hub.dev. 前缀
+# 4. tokenize：业务代码里加 _hub.dev. 前缀
 # ═══════════════════════════════════════════════════════════════════════
 def rewrite_names(source: str, runtime_names: Set[str]) -> str:
     """
@@ -241,7 +241,7 @@ def rewrite_names(source: str, runtime_names: Set[str]) -> str:
 
 
 # ═══════════════════════════════════════════════════════════════════════
-#  5. __all__ 清理（仅 direct 模式调用）
+# 5. __all__ 清理（仅 direct 模式调用）
 # ═══════════════════════════════════════════════════════════════════════
 def clean_dunder_all(source: str, migrated: Set[str]) -> str:
     """把 __all__ 里被迁移的名字删掉（仅 direct 模式使用）"""
@@ -286,7 +286,7 @@ def clean_dunder_all(source: str, migrated: Set[str]) -> str:
 
 
 # ═══════════════════════════════════════════════════════════════════════
-#  6. 单文件转换
+# 6. 单文件转换
 # ═══════════════════════════════════════════════════════════════════════
 def transform(source: str, mode: str) -> Tuple[str, Dict, Set[str]]:
     """
@@ -355,7 +355,7 @@ def transform(source: str, mode: str) -> Tuple[str, Dict, Set[str]]:
 
 
 # ═══════════════════════════════════════════════════════════════════════
-#  7. 文件遍历
+# 7. 文件遍历
 # ═══════════════════════════════════════════════════════════════════════
 _SKIP_DIRS = {
     "__pycache__", ".git", ".venv", "venv", "env",
@@ -386,7 +386,7 @@ def show_diff(path: Path, old: str, new: str) -> None:
 
 
 # ═══════════════════════════════════════════════════════════════════════
-#  8. main
+# 8. main
 # ═══════════════════════════════════════════════════════════════════════
 def main() -> int:
     ap = argparse.ArgumentParser(

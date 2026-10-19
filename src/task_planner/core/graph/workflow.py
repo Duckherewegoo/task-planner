@@ -74,21 +74,21 @@ logger = get_logger(__name__)
 
 
 # ══════════════════════════════════════════════════
-#  单例状态
+# 单例状态
 # ══════════════════════════════════════════════════
 _graph_instance: Any | None = None
 _graph_lock = threading.Lock()
 
 
 # ══════════════════════════════════════════════════
-#  Checkpointer 资源管理
+# Checkpointer 资源管理
 # ══════════════════════════════════════════════════
-#  设计说明：
-#    CHECKPOINTER_TYPE / CHECKPOINT_DB_PATH / CHECKPOINT_POSTGRES_URL
-#    直接从环境变量读，不进 cog。原因：
-#      - 这些是 LangGraph 框架层的运行时配置，非应用业务配置
-#      - 运维/部署关心，不应该出现在 config/schema.yaml 的用户可见项里
-#      - 未来若要动态化，再加一个 cog section 也不迟
+# 设计说明：
+# CHECKPOINTER_TYPE / CHECKPOINT_DB_PATH / CHECKPOINT_POSTGRES_URL
+# 直接从环境变量读，不进 cog。原因：
+# - 这些是 LangGraph 框架层的运行时配置，非应用业务配置
+# - 运维/部署关心，不应该出现在 config/schema.yaml 的用户可见项里
+# - 未来若要动态化，再加一个 cog section 也不迟
 _sqlite_connections: list[Any] = []
 _postgres_savers: list[Any] = []
 
@@ -177,7 +177,7 @@ def _build_checkpointer():
 
 
 # ══════════════════════════════════════════════════
-#  图构建
+# 图构建
 # ══════════════════════════════════════════════════
 def _build_graph():
     """构建并编译 LangGraph（所有节点为异步）"""
@@ -277,7 +277,7 @@ def _force_rebuild_graph():
 
 
 # ══════════════════════════════════════════════════
-#  Lazy 代理
+# Lazy 代理
 # ══════════════════════════════════════════════════
 class _LazyGraphProxy:
     """
@@ -318,7 +318,7 @@ graph: Any = _LazyGraphProxy()
 
 
 # ══════════════════════════════════════════════════
-#  异步断点续传 API
+# 异步断点续传 API
 # ══════════════════════════════════════════════════
 async def resume_graph_async(
     thread_id: str,
@@ -446,7 +446,7 @@ async def get_thread_state_async(thread_id: str) -> dict[str, Any] | None:
 
 
 # ══════════════════════════════════════════════════
-#  同步兼容层
+# 同步兼容层
 # ══════════════════════════════════════════════════
 def _run_sync(
     coro_factory: Callable[[], Coroutine],
@@ -504,7 +504,7 @@ def get_thread_state(thread_id: str) -> dict[str, Any] | None:
 
 
 # ══════════════════════════════════════════════════
-#  公开 API
+# 公开 API
 # ══════════════════════════════════════════════════
 __all__ = [
     "build_graph",

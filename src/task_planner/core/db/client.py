@@ -37,16 +37,16 @@ from task_planner.infrastructure.logger_setup import get_logger
 logger = get_logger("task_planner.core.db.client")
 
 # ═══════════════════════════════════════════════════════════════════
-#  模块级状态
+# 模块级状态
 # ═══════════════════════════════════════════════════════════════════
 _client: MongoClient | None = None
 _db: Database | None = None
 
 # 并发保护：
-#    pymongo 的 MongoClient 本身线程安全，但"检查 _client + 创建"这个
-#    复合操作不是原子的。多 worker / 多线程场景下两个线程可能同时
-#    通过 if _client is None 检查 → 各自建一个 client → 一个覆盖另
-#    一个 → 旧连接泄漏。用 _init_lock 串行化初始化。
+# pymongo 的 MongoClient 本身线程安全，但"检查 _client + 创建"这个
+# 复合操作不是原子的。多 worker / 多线程场景下两个线程可能同时
+# 通过 if _client is None 检查 → 各自建一个 client → 一个覆盖另
+# 一个 → 旧连接泄漏。用 _init_lock 串行化初始化。
 _init_lock = threading.Lock()
 
 # 失败冷却——全局，与线程无关
@@ -81,7 +81,7 @@ def init_db() -> None:
                 host=_hub.dev.MONGO_HOST,
                 port=_hub.dev.MONGO_PORT,
                 # 本地工具：不预热连接（minPoolSize=0）；
-                #    生产若多 worker，每个进程独立池——20 足够。
+                # 生产若多 worker，每个进程独立池——20 足够。
                 maxPoolSize=20,
                 minPoolSize=0,
                 serverSelectionTimeoutMS=5000,
@@ -170,7 +170,7 @@ def close_db() -> None:
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  atexit 兜底
+# atexit 兜底
 # ═══════════════════════════════════════════════════════════════════
 # GracefulShutdown.install() 在 debug 模式下会被 WERKZEUG_RUN_MAIN
 # 守卫跳过——atexit 是那条路径的兜底。

@@ -28,8 +28,8 @@ logger = get_logger(__name__)
 DIRECT_RESPONSE_PENDING = "__DIRECT_RESPONSE_PENDING__"
 
 # 注：原写法 `_SKIP_PLANNING_PATTERNS = SKIP_PLANNING_PATTERNS` 是纯 no-op 别名，
-#     grep 确认无外部依赖后删除。若未来真需要"间接层"（如按环境切换 pattern 集），
-#     应显式引入工厂函数而不是别名——别名无法表达"未来会变"这层意图。
+# grep 确认无外部依赖后删除。若未来真需要"间接层"（如按环境切换 pattern 集），
+# 应显式引入工厂函数而不是别名——别名无法表达"未来会变"这层意图。
 
 
 def should_skip_planning(user_input: str) -> bool:
@@ -85,8 +85,8 @@ def make_initial_state(user_input: str, thread_id: str) -> TaskState:
         logger.info("[Agent] 关键词/正则拦截：用户明确要求跳过规划")
 
     # 组合而非复制：字段定义只在 create_initial_state 一处。
-    #    agent 层只写"它独有的 3 个业务 override"。
-    #    schema_version 由 create_initial_state 决定（默认 1）。
+    # agent 层只写"它独有的 3 个业务 override"。
+    # schema_version 由 create_initial_state 决定（默认 1）。
     return create_initial_state(
         user_input,
         thread_id,

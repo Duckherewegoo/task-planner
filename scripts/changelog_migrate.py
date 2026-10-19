@@ -25,7 +25,7 @@ import sys
 from pathlib import Path
 
 # ──────────────────────────────────────────────────────────
-#  配置
+# 配置
 # ──────────────────────────────────────────────────────────
 POINTER = "⚠️ 完整变更历史见 CHANGELOG.md。"
 
@@ -35,10 +35,10 @@ EXCLUDE_PATHS: set[str] = {
 }
 
 # 版本头匹配——兼容多形态：
-#   ── v1 ──
-#   ── v7.1 ──
-#   ── v6.0（vs v5.0）──
-#   ── v2（KISS 加固，不影响功能）──
+# ── v1 ──
+# ── v7.1 ──
+# ── v6.0（vs v5.0）──
+# ── v2（KISS 加固，不影响功能）──
 # 使用 U+2500（BOX DRAWINGS LIGHT HORIZONTAL）——项目里就是这个字符
 VERSION_RE = re.compile(
     r'^[ \t]*──[ \t]*(v\d+(?:\.\d+)?'
@@ -51,7 +51,7 @@ _MIGRATED_MARKERS = ("完整变更历史见", "完整日志见")
 
 
 # ──────────────────────────────────────────────────────────
-#  核心逻辑
+# 核心逻辑
 # ──────────────────────────────────────────────────────────
 def _version_key(header: str) -> tuple[int, int]:
     """
@@ -198,7 +198,7 @@ def process_one(path: Path, cwd: Path) -> dict | None:
 
 
 # ──────────────────────────────────────────────────────────
-#  CHANGELOG.md 写入
+# CHANGELOG.md 写入
 # ──────────────────────────────────────────────────────────
 def _write_changelog(cl_path: Path, results: list[dict]) -> None:
     """
@@ -221,7 +221,7 @@ def _write_changelog(cl_path: Path, results: list[dict]) -> None:
 
 
 # ──────────────────────────────────────────────────────────
-#  CLI
+# CLI
 # ──────────────────────────────────────────────────────────
 def _resolve_path(p: str, cwd: Path) -> Path:
     """把相对/绝对路径统一解析为 Path。"""

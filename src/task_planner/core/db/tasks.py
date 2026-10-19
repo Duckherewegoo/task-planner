@@ -17,7 +17,7 @@ logger = get_logger("task_planner.core.db.tasks")
 
 
 # ══════════════════════════════════════════════════
-#  创建
+# 创建
 # ══════════════════════════════════════════════════
 async def create_task_with_plan(
     raw_query: str,
@@ -103,7 +103,7 @@ async def create_direct_answer_task(
 
 
 # ══════════════════════════════════════════════════
-#  查询
+# 查询
 # ══════════════════════════════════════════════════
 async def get_task(task_id: str) -> dict[str, Any] | None:
     """返回 task 字段字典（补全 schema 默认值，防下游 KeyError）"""
@@ -201,7 +201,7 @@ async def get_recent_tasks(limit: int = 50, rid_tag: str = "query") -> list[str]
 
 
 # ══════════════════════════════════════════════════
-#  状态更新
+# 状态更新
 # ══════════════════════════════════════════════════
 async def mark_task_success(task_id: str) -> None:
     """终态判断补全 TIMEOUT / SKIPPED"""
@@ -253,7 +253,7 @@ async def mark_task_running(task_id: str) -> None:
 
 
 # ══════════════════════════════════════════════════
-#  删除
+# 删除
 # ══════════════════════════════════════════════════
 async def delete_task(task_id: str) -> bool:
     """删除任务并级联删除 Plan"""

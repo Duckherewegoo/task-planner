@@ -96,7 +96,7 @@ from datetime import UTC, datetime
 from typing import Any, TypeVar, cast, overload
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-#  Optional Dependencies (Graceful Degradation)
+# Optional Dependencies (Graceful Degradation)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 _HAS_PSUTIL = False
@@ -163,7 +163,7 @@ F = TypeVar("F", bound=Callable[..., Any])
 T = TypeVar("T")
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-#  Global Context Variables
+# Global Context Variables
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 _ctx_trace_id: contextvars.ContextVar[str] = contextvars.ContextVar("trace_id", default="")
@@ -1832,7 +1832,7 @@ def boost(
         _LOG_JSON_FORMAT = True
 
     # P0-2 修复：每次调用 _setup_logging 都会判断是否需要重建 handler，
-    #    因此 json_log 参数现在能真正生效。
+    # 因此 json_log 参数现在能真正生效。
     log = _setup_logging(
         level=log_level,
         rich=rich_logging,

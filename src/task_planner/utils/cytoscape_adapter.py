@@ -40,7 +40,7 @@ _VALID_EDGE_TYPES = VALID_EDGE_TYPES
 
 
 # ══════════════════════════════════════════════════
-#  显示宽度计算
+# 显示宽度计算
 # ══════════════════════════════════════════════════
 def _char_width(ch: str) -> int:
     """单字符显示宽度。wcswidth 对不可打印字符返回 -1，统一按 1 处理。"""
@@ -61,7 +61,7 @@ def _label_length(label: str) -> int:
 
 
 # ══════════════════════════════════════════════════
-#  循环检测（带缓存）
+# 循环检测（带缓存）
 # ══════════════════════════════════════════════════
 @lru_cache(maxsize=32)
 def _detect_cycles_cached(
@@ -125,7 +125,7 @@ def _detect_cycles(edges: list[dict[str, Any]]) -> set[tuple[str, str]]:
 
 
 # ══════════════════════════════════════════════════
-#  通用工具
+# 通用工具
 # ══════════════════════════════════════════════════
 _STOP_WORDS_PATTERN = re.compile(r"(?:后才能|准备好|已完成|完成|完毕|就绪)")
 
@@ -305,7 +305,7 @@ def _edge_class(edge: dict[str, Any], is_cycle: bool) -> str:
 
 
 # ══════════════════════════════════════════════════
-#  主转换函数
+# 主转换函数
 # ══════════════════════════════════════════════════
 def dag_to_cytoscape(
     nodes: list[dict[str, Any]],
@@ -455,7 +455,7 @@ def snapshot_to_elements(snapshot: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 # ══════════════════════════════════════════════════
-#  详情面板构造（Markdown 格式）
+# 详情面板构造（Markdown 格式）
 # ══════════════════════════════════════════════════
 def build_detail_markdown(node_data: dict[str, Any] | None) -> str:
     """生成节点详情的 Markdown 文本"""

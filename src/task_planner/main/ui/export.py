@@ -14,7 +14,7 @@ logger = get_logger(__name__)
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  DOT / JSON / HTML
+# DOT / JSON / HTML
 # ═══════════════════════════════════════════════════════════════════
 def _escape_dot_label(text: str) -> str:
     if not text:
@@ -144,7 +144,7 @@ DATA_EXPORT_STRATEGIES = {
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  SVG / PNG
+# SVG / PNG
 # ═══════════════════════════════════════════════════════════════════
 def export_svg_bytes(nodes, edges, node_states, title):
     return export_dag_to_svg(

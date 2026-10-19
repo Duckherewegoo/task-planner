@@ -33,7 +33,7 @@ from task_planner.infrastructure.session_store import RedisSessionStore, Session
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  测试替身
+# 测试替身
 # ═══════════════════════════════════════════════════════════════════
 class FakeSession:
     """跟 test_session_store.py 一致的测试替身"""
@@ -43,7 +43,7 @@ class FakeSession:
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  Fixture：用 fakeredis 注入客户端（不连真 Redis）
+# Fixture：用 fakeredis 注入客户端（不连真 Redis）
 # ═══════════════════════════════════════════════════════════════════
 @pytest.fixture
 def store():
@@ -59,7 +59,7 @@ def store():
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  契约一致性：跟 InMemory 版行为相同
+# 契约一致性：跟 InMemory 版行为相同
 # ═══════════════════════════════════════════════════════════════════
 @pytest.mark.asyncio
 async def test_implements_protocol(store):
@@ -116,7 +116,7 @@ async def test_concurrent_access(store):
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  Redis 版特有语义
+# Redis 版特有语义
 # ═══════════════════════════════════════════════════════════════════
 @pytest.mark.asyncio
 async def test_cleanup_stale_is_noop(store):
@@ -210,7 +210,7 @@ async def test_no_contains_method(store):
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  边界情况
+# 边界情况
 # ═══════════════════════════════════════════════════════════════════
 @pytest.mark.asyncio
 async def test_serialize_failure_raises_typeerror(store):
@@ -263,7 +263,7 @@ async def test_key_prefix_isolation():
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  真 Redis 集成测试（默认 skip）
+# 真 Redis 集成测试（默认 skip）
 # ═══════════════════════════════════════════════════════════════════
 @pytest.mark.integration
 @pytest.mark.asyncio

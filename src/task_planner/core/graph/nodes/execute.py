@@ -146,9 +146,9 @@ async def execute_node(state: TaskState, config: RunnableConfig) -> dict[str, An
     name = node.get("name", f"步骤{nid}")
 
     # DB 调用经 _safe_db_update 包裹：
-    #    save.py 若降级（task_id="local-..."），此处 DB 调用会失败——
-    #    但失败不应阻断执行。图的核心价值是"跑通节点"，
-    #    DB 状态同步是辅助功能。
+    # save.py 若降级（task_id="local-..."），此处 DB 调用会失败——
+    # 但失败不应阻断执行。图的核心价值是"跑通节点"，
+    # DB 状态同步是辅助功能。
     await _safe_db_update(
         lambda: mark_task_running(state["task_id"]),
         op_name="mark_task_running",

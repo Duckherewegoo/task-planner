@@ -185,13 +185,13 @@ async def execute_single_node(
         )
 
     # P5-2：node["id"] 的归一化推迟到 _make_result 构造时
-    #    （由 NodeExecResult._normalize_node_id validator 承担）。
-    #    这里只做"缺失时的默认值"兜底。
+    # （由 NodeExecResult._normalize_node_id validator 承担）。
+    # 这里只做"缺失时的默认值"兜底。
     nid = node.get("id", "?")
     # P4-3：用 _coerce_text 处理 name——
-    #   - None → "" → 落到 f"步骤{nid}" 兜底
-    #   - 空串 → 同样落到兜底（name 为空在 UI 无意义）
-    #   - 其他类型 → str(...)
+    # - None → "" → 落到 f"步骤{nid}" 兜底
+    # - 空串 → 同样落到兜底（name 为空在 UI 无意义）
+    # - 其他类型 → str(...)
     name = _coerce_text(node.get("name")) or f"步骤{nid}"
 
     # meta 非 dict 防御：LLM 输出可能漂移为 str / list
@@ -211,13 +211,13 @@ async def execute_single_node(
             EXECUTE_NODE_PROMPT, rid,
             user_input=user_input,
             # P4-4：category 同用 _coerce_text——
-            #   原写法 str(intent.get("category", "other")) 在
-            #   intent["category"] = None 时会产出 "None" 字符串。
+            # 原写法 str(intent.get("category", "other")) 在
+            # intent["category"] = None 时会产出 "None" 字符串。
             category=_coerce_text(intent.get("category")) or "other",
             name=name,
             # P4-3：details 优先，detail 兜底；两者都为 None 时变空串。
-            #   原写法 node.get("details", node.get("detail", "")) 在
-            #   details 存在但为 None 时会返回 None，再被 str() 变成 "None"。
+            # 原写法 node.get("details", node.get("detail", "")) 在
+            # details 存在但为 None 时会返回 None，再被 str() 变成 "None"。
             detail=_coerce_text(node.get("details") or node.get("detail")),
             preconditions=json.dumps(meta.get("preconditions", []), ensure_ascii=False),
             postconditions=json.dumps(meta.get("postconditions", []), ensure_ascii=False),
@@ -257,8 +257,8 @@ async def execute_single_node(
             nid, name,
             status="failed",
             # P4-2：整句截断——前缀 + 类型名 + 消息合计不超过 _DETAIL_MAX_LEN。
-            #   原写法 str(e)[:_DETAIL_MAX_LEN] 只截消息，
-            #   前缀不计入，实际最多约 230 字符，与 docstring 承诺不符。
+            # 原写法 str(e)[:_DETAIL_MAX_LEN] 只截消息，
+            # 前缀不计入，实际最多约 230 字符，与 docstring 承诺不符。
             detail=(
                 f"💥 未知异常: {type(e).__name__}: {e!s}"
             )[:_DETAIL_MAX_LEN],

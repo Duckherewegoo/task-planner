@@ -44,7 +44,7 @@ PathLike = str | Path
 
 
 # ══════════════════════════════════════════════════
-#  内部工具
+# 内部工具
 # ══════════════════════════════════════════════════
 def _normalize_node_states(
     node_states: dict[str, str] | None,
@@ -260,7 +260,7 @@ def _write_if_requested(data: bytes, output_path: PathLike | None) -> None:
 
 
 # ══════════════════════════════════════════════════
-#  导出接口
+# 导出接口
 # ══════════════════════════════════════════════════
 def export_dag_to_svg(
     nodes: list[dict],

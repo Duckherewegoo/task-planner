@@ -33,9 +33,9 @@ from .sanitize import SafeNodeView, sanitize_input, sanitize_node_for_user, sani
 from .save import save_node
 
 # ⚠️ NodeExecResult 是 execute_single_node 的返回契约，
-#    外部若需类型注解会用到——但由于 _executor 是包内部模块，
-#    这里导出等于把 _executor 的类型契约提升到包级。
-#    当前选择不导出，外部注解请从 _executor 直接引用。
+# 外部若需类型注解会用到——但由于 _executor 是包内部模块，
+# 这里导出等于把 _executor 的类型契约提升到包级。
+# 当前选择不导出，外部注解请从 _executor 直接引用。
 
 __all__ = [
     # 节点函数

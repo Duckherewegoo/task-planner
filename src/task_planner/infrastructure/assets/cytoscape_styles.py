@@ -37,7 +37,7 @@ CYTO_STYLESHEET: list[dict[str, Any]] = [
         "background-color": "#f3f4f6", "border-color": "#9ca3af", "opacity": 0.5,
     }},
     # 补齐 state-timeout（NODE_STATUS_CODE_MAP[4] = "timeout" 对应的样式）
-    #    配色取自 STATUS_COLOR[4] / STATUS_BORDER[4]，与后端状态语义一致
+    # 配色取自 STATUS_COLOR[4] / STATUS_BORDER[4]，与后端状态语义一致
     {"selector": ".state-timeout", "style": {
         "background-color": "#f3e5f5", "border-color": "#9c27b0",
         "border-style": "dashed", "border-width": 3,

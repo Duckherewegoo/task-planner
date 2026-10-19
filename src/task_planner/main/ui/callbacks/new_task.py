@@ -30,7 +30,7 @@ from ..data_ops import auto_unlock_downstream, safe_elapsed
 
 def register() -> None:
     # ═══════════════════════════════════════════════════════════
-    #  纯前端状态回调
+    # 纯前端状态回调
     # ═══════════════════════════════════════════════════════════
     @callback(
         Output("node-action-hint", "children"),
@@ -114,7 +114,7 @@ def register() -> None:
         return html.Div(panel_children), nid
 
     # ═══════════════════════════════════════════════════════════
-    #  异步：提交 / 轮询 / 停止 / 开始执行
+    # 异步：提交 / 轮询 / 停止 / 开始执行
     # ═══════════════════════════════════════════════════════════
     @callback(
         Output("thread-id-store", "data"),
@@ -295,7 +295,7 @@ def register() -> None:
         return new_states, elements, status_msg, True
 
     # ═══════════════════════════════════════════════════════════
-    #  节点操作：完成 / 跳过 / 失败 / 重置
+    # 节点操作：完成 / 跳过 / 失败 / 重置
     # ═══════════════════════════════════════════════════════════
     @callback(
         Output("node-states-store", "data", allow_duplicate=True),

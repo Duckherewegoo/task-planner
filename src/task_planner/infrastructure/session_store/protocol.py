@@ -23,7 +23,7 @@ from typing import Any, Protocol, runtime_checkable
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  接口
+# 接口
 # ═══════════════════════════════════════════════════════════════════
 @runtime_checkable
 class SessionStore(Protocol):

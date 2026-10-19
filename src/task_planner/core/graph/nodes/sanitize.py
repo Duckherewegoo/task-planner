@@ -44,9 +44,9 @@ class SafeNodeView(TypedDict, total=False):
 
 # P3-1：从 SafeNodeView.__annotations__ 派生字段 → 期望类型。
 # 好处：
-#   1. 消灭 SafeNodeView 与字段映射之间的重复维护
-#   2. 未来加字段只改 SafeNodeView 一处
-#   3. 每个字段的期望类型以类型注解为准，不会走样
+# 1. 消灭 SafeNodeView 与字段映射之间的重复维护
+# 2. 未来加字段只改 SafeNodeView 一处
+# 3. 每个字段的期望类型以类型注解为准，不会走样
 def _extract_expected_types() -> dict[str, tuple[type, ...]]:
     """
     从 SafeNodeView.__annotations__ 提取 {字段名: (期望类型...)}。

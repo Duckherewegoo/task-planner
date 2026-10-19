@@ -25,7 +25,7 @@ from contextvars import ContextVar
 from pathlib import Path
 
 # ================================================================
-#  0. 从 cog 导入配置
+# 0. 从 cog 导入配置
 # ================================================================
 from task_planner.infrastructure.cog import hub as _hub
 
@@ -42,7 +42,7 @@ _PROJECT_ROOT: Path = Path(__file__).resolve().parents[3]
 
 
 # ================================================================
-#  1. 上下文变量：自动传递 req_id
+# 1. 上下文变量：自动传递 req_id
 # ================================================================
 _req_id_var: ContextVar[str] = ContextVar("req_id", default="-")
 
@@ -113,7 +113,7 @@ def propagate_req_id() -> contextvars.Context:
 
 
 # ================================================================
-#  2. 自定义 Logger & Filter
+# 2. 自定义 Logger & Filter
 # ================================================================
 class ReqIdFilter(logging.Filter):
     """
@@ -158,7 +158,7 @@ class ReqIdLogger(logging.Logger):
 
 
 # ================================================================
-#  3. 日志系统初始化（幂等，线程安全）
+# 3. 日志系统初始化（幂等，线程安全）
 # ================================================================
 _init_lock = threading.Lock()
 _initialized = False
@@ -361,7 +361,7 @@ def _init_root_logger() -> None:
 
 
 # ================================================================
-#  4. 便捷函数
+# 4. 便捷函数
 # ================================================================
 def get_logger(name: str = _ROOT_LOGGER_NAME) -> ReqIdLogger:
     """

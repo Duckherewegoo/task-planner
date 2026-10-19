@@ -52,7 +52,7 @@ logger = get_logger("task_planner.infrastructure.redis_session_store")
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  可选依赖：redis
+# 可选依赖：redis
 # ═══════════════════════════════════════════════════════════════════
 try:
     from redis.asyncio import Redis
@@ -65,7 +65,7 @@ except ImportError:
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  RedisSessionStore
+# RedisSessionStore
 # ═══════════════════════════════════════════════════════════════════
 class RedisSessionStore:
     """
@@ -109,7 +109,7 @@ class RedisSessionStore:
         self._client_lock = asyncio.Lock()
 
     # ═══════════════════════════════════════════════════════════════
-    #  内部：客户端懒加载 + key 拼接
+    # 内部：客户端懒加载 + key 拼接
     # ═══════════════════════════════════════════════════════════════
     async def _get_client(self) -> Redis:
         """双重检查锁——多协程首次并发只建一个客户端"""
@@ -127,7 +127,7 @@ class RedisSessionStore:
         return f"{self._prefix}{tid}"
 
     # ═══════════════════════════════════════════════════════════════
-    #  接口实现（与 SessionStore Protocol 结构匹配）
+    # 接口实现（与 SessionStore Protocol 结构匹配）
     # ═══════════════════════════════════════════════════════════════
     async def get(self, tid: str) -> Any | None:
         """读取会话。不存在或反序列化失败返回 None。"""
@@ -220,7 +220,7 @@ class RedisSessionStore:
         return 0
 
     # ═══════════════════════════════════════════════════════════════
-    #  生命周期（非协议要求，但使用方应调用）
+    # 生命周期（非协议要求，但使用方应调用）
     # ═══════════════════════════════════════════════════════════════
     async def close(self) -> None:
         """
@@ -240,7 +240,7 @@ class RedisSessionStore:
                 self._client = None
 
     # ═══════════════════════════════════════════════════════════════
-    #  便利方法（替代 InMemory 版的 __len__ / __contains__）
+    # 便利方法（替代 InMemory 版的 __len__ / __contains__）
     # ═══════════════════════════════════════════════════════════════
     async def count(self) -> int:
         """

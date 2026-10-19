@@ -124,10 +124,10 @@ async def refine_node(state: TaskState, config: RunnableConfig) -> dict[str, Any
     cancel_event = get_cancel_event()
 
     # Semaphore 绑定当前 event loop：
-    #    模块级创建会在首次 await 时绑定 loop，跨 loop 复用抛 RuntimeError。
-    #    每次 refine_node 调用创建一个——绑定当前 loop，服务于本次所有任务。
-    #    注意粒度：不是每个 _refine_one 创建（那会让并发上限失效），
-    #              而是每次 refine_node 创建（本次内所有任务共享同一个）。
+    # 模块级创建会在首次 await 时绑定 loop，跨 loop 复用抛 RuntimeError。
+    # 每次 refine_node 调用创建一个——绑定当前 loop，服务于本次所有任务。
+    # 注意粒度：不是每个 _refine_one 创建（那会让并发上限失效），
+    # 而是每次 refine_node 创建（本次内所有任务共享同一个）。
     semaphore = asyncio.Semaphore(_REFINE_CONCURRENCY)
 
     async def _refine_one(n: dict[str, Any]) -> dict[str, Any]:
@@ -201,13 +201,13 @@ async def refine_node(state: TaskState, config: RunnableConfig) -> dict[str, Any
 
         tasks.append(_refine_one(dict(n)))
         # 让出控制权：给事件循环一个调度点，让外部取消信号
-        #    （session.cancel_event.set() 由 commands.cancel_task 触发）
-        #    有机会在循环迭代之间被感知。
-        #    不加这行：主循环是同步的——1000 个协程对象瞬间创建完毕，
-        #    中途任何外部 set 都无法被 break 检测到。
-        #    加了之后：每次迭代让出 → 外部任务可运行 → set →
-        #    下一轮检测到 → break。
-        #    代价：每节点一次事件循环调度（微秒级）。
+        # （session.cancel_event.set() 由 commands.cancel_task 触发）
+        # 有机会在循环迭代之间被感知。
+        # 不加这行：主循环是同步的——1000 个协程对象瞬间创建完毕，
+        # 中途任何外部 set 都无法被 break 检测到。
+        # 加了之后：每次迭代让出 → 外部任务可运行 → set →
+        # 下一轮检测到 → break。
+        # 代价：每节点一次事件循环调度（微秒级）。
         await asyncio.sleep(0)
 
     results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -215,12 +215,12 @@ async def refine_node(state: TaskState, config: RunnableConfig) -> dict[str, Any
     refined: list[dict[str, Any]] = []
     for i, res in enumerate(results):
         # 用 BaseException 而非 Exception：
-        #    - gather(return_exceptions=True) 会捕获所有异常，包括 BaseException
-        #      子类（如 asyncio.CancelledError、KeyboardInterrupt）
-        #    - 用 isinstance(res, Exception) 会漏掉这些，把它们当成"正常结果"
-        #      塞进 refined
-        #    - 后果：refined 里混入非 dict 对象，下游 node.get("id") 会抛
-        #      AttributeError——一个和"取消"毫无关系的报错
+        # - gather(return_exceptions=True) 会捕获所有异常，包括 BaseException
+        # 子类（如 asyncio.CancelledError、KeyboardInterrupt）
+        # - 用 isinstance(res, Exception) 会漏掉这些，把它们当成"正常结果"
+        # 塞进 refined
+        # - 后果：refined 里混入非 dict 对象，下游 node.get("id") 会抛
+        # AttributeError——一个和"取消"毫无关系的报错
         if isinstance(res, BaseException):
             fallback = dict(nodes_raw[i])
             fallback["details"] = f"细化异常: {res}"

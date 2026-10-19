@@ -66,10 +66,10 @@ async def save_node(state: TaskState, config: RunnableConfig) -> dict[str, Any]:
             "steps": state.get("steps", []) + [f"⚠️ 未入库(降级): {fallback_id}"],
             # Patch：删掉 "error": ""。
             # 原写法有两层问题：
-            #   1. 空操作——create_initial_state 里 error 本就是 ""，
-            #      返回它等于返回旧值。
-            #   2. 意图相反——如果上游某节点设置了 error（未来扩展），
-            #      这里会把那个错误静默清空，与注释说的"不污染"恰好相反。
+            # 1. 空操作——create_initial_state 里 error 本就是 ""，
+            # 返回它等于返回旧值。
+            # 2. 意图相反——如果上游某节点设置了 error（未来扩展），
+            # 这里会把那个错误静默清空，与注释说的"不污染"恰好相反。
             # 省略 error 键 → LangGraph 保留 state 里的现有值，
             # 这才是真正的"不污染"。"这不是错误"的语义已由
             # steps 里的 "⚠️ 未入库(降级)" 表达。

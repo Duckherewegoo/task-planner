@@ -12,7 +12,7 @@ _JSON_DECODER = JSONDecoder()
 
 
 # ═══════════════════════════════════════════════════════════════
-#  尾部 JSON 提取（用于"思考过程 + JSON" 混合输出）
+# 尾部 JSON 提取（用于"思考过程 + JSON" 混合输出）
 # ═══════════════════════════════════════════════════════════════
 def extract_tail_json(text: str) -> str | None:
     """
@@ -43,7 +43,7 @@ def extract_tail_json(text: str) -> str | None:
 
 
 # ═══════════════════════════════════════════════════════════════
-#  清洗：剥离 thinking / markdown / 尾部 JSON 提取
+# 清洗：剥离 thinking / markdown / 尾部 JSON 提取
 # ═══════════════════════════════════════════════════════════════
 def clean_json_str(text: str) -> str:
     """更稳健的 JSON 提取：兼容 thinking 标签、纯文本思考、markdown 代码块"""
@@ -135,7 +135,7 @@ def extract_json(raw: str) -> dict:
 
 
 # ═══════════════════════════════════════════════════════════════
-#  归一化：多种上游格式 → 统一 schema
+# 归一化：多种上游格式 → 统一 schema
 # ═══════════════════════════════════════════════════════════════
 def normalize_llm_output(raw: dict, expected_keys: list[str]) -> dict:
     """

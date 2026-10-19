@@ -20,7 +20,7 @@ from contextlib import contextmanager
 
 
 # ══════════════════════════════════════════════════
-#  异常
+# 异常
 # ══════════════════════════════════════════════════
 class OperationCancelled(Exception):
     """
@@ -37,23 +37,23 @@ class OperationCancelled(Exception):
 
 
 # ══════════════════════════════════════════════════
-#  上下文变量
+# 上下文变量
 # ══════════════════════════════════════════════════
 # 当前上下文的取消事件（None 表示无取消信号）
 #
 # ⚠️ ContextVar 跨 Task 语义：
-#   - asyncio.create_task(coro) 会**拷贝**当前上下文，
-#     所以子 Task 能读到父 Task 设置的 cancel_event。
-#   - 但子 Task 里 set 的值**不会**传回父 Task。
-#   - agent.py 的 run_task_stream 用了 contextvars.copy_context() + ctx.run()
-#     来做显式的跨生成器绑定，那是另一套机制，两者不冲突。
+# - asyncio.create_task(coro) 会**拷贝**当前上下文，
+# 所以子 Task 能读到父 Task 设置的 cancel_event。
+# - 但子 Task 里 set 的值**不会**传回父 Task。
+# - agent.py 的 run_task_stream 用了 contextvars.copy_context() + ctx.run()
+# 来做显式的跨生成器绑定，那是另一套机制，两者不冲突。
 cancel_event_var: contextvars.ContextVar[asyncio.Event | None] = (
     contextvars.ContextVar("cancel_event", default=None)
 )
 
 
 # ══════════════════════════════════════════════════
-#  读取 API（节点/LLM 调用方使用）
+# 读取 API（节点/LLM 调用方使用）
 # ══════════════════════════════════════════════════
 def get_cancel_event() -> asyncio.Event | None:
     """获取当前上下文的 cancel_event（None 表示无取消信号）。"""
@@ -82,7 +82,7 @@ def raise_if_cancelled() -> None:
 
 
 # ══════════════════════════════════════════════════
-#  绑定 API（会话/Agent 调用方使用）
+# 绑定 API（会话/Agent 调用方使用）
 # ══════════════════════════════════════════════════
 @contextmanager
 def cancel_scope(event: asyncio.Event):

@@ -64,10 +64,10 @@ async def intent_node(state: TaskState, config: RunnableConfig) -> dict[str, Any
     )
 
     # Pydantic 边界校验——LLM 输出不可信
-    #    - 缺字段 → 用模型默认值补上（category="other" / summary="" / ...）
-    #    - 多字段 → extra="ignore" 静默丢弃（LLM 多给不报错）
-    #    - 枚举非法（如 category="unknown_domain"）→ ValidationError
-    #    - 类型不匹配（如 needs_planning="not_a_bool"）→ ValidationError
+    # - 缺字段 → 用模型默认值补上（category="other" / summary="" / ...）
+    # - 多字段 → extra="ignore" 静默丢弃（LLM 多给不报错）
+    # - 枚举非法（如 category="unknown_domain"）→ ValidationError
+    # - 类型不匹配（如 needs_planning="not_a_bool"）→ ValidationError
     try:
         intent_model = IntentModel.model_validate(raw_intent)
     except ValidationError as e:
@@ -89,7 +89,7 @@ async def intent_node(state: TaskState, config: RunnableConfig) -> dict[str, Any
 
     return {
         # ⚠️ 覆盖 state["user_input"]：本字段在 state.py 契约中即"脱敏后版本"。
-        #    原始输入不留存于 state，审计靠 sanitize_input 的 audit 日志（hash）。
+        # 原始输入不留存于 state，审计靠 sanitize_input 的 audit 日志（hash）。
         "user_input": user_input,
         "intent": intent,
         "needs_planning": intent_model.needs_planning,

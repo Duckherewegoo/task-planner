@@ -61,7 +61,7 @@ async def plan_node(state: TaskState, config: RunnableConfig) -> dict[str, Any]:
         )
 
     # 元素级校验：list[dict] 只保外层——元素可能是 str / None。
-    #    refine_node 里 n.get("id") 会在非 dict 元素上崩。
+    # refine_node 里 n.get("id") 会在非 dict 元素上崩。
     validate_node_elements(nodes_raw, rid)
     validate_edge_elements(edges_raw, rid)
 

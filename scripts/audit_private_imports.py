@@ -26,7 +26,7 @@ from typing import Dict, List, NamedTuple, Optional, Set, Tuple
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  数据结构
+# 数据结构
 # ═══════════════════════════════════════════════════════════════════
 class Finding(NamedTuple):
     kind: str
@@ -46,7 +46,7 @@ class ModuleInfo(NamedTuple):
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  路径工具
+# 路径工具
 # ═══════════════════════════════════════════════════════════════════
 _SKIP_DIRS = {
     "__pycache__", ".git", ".venv", "venv", "env",
@@ -94,7 +94,7 @@ def module_path_of(file: Path, src_root: Path) -> Optional[Tuple[str, bool]]:
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  名字判定
+# 名字判定
 # ═══════════════════════════════════════════════════════════════════
 def is_dunder(name: str) -> bool:
     return name.startswith("__") and name.endswith("__")
@@ -109,14 +109,14 @@ def is_task_planner_module(target: str) -> bool:
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  相对导入解析
+# 相对导入解析
 # ═══════════════════════════════════════════════════════════════════
 #
-#  为什么不用 importlib.util.resolve_name？
-#    - 它接收 (name, package)，其中 package 是模块的 __package__
-#    - __package__ 只有在模块被实际导入后才存在
-#    - 本脚本**不导入**目标模块（静态分析），因此无法用它
-#    - 手写版本 15 行，等价于 CPython _bootstrap._resolve_name
+# 为什么不用 importlib.util.resolve_name？
+# - 它接收 (name, package)，其中 package 是模块的 __package__
+# - __package__ 只有在模块被实际导入后才存在
+# - 本脚本**不导入**目标模块（静态分析），因此无法用它
+# - 手写版本 15 行，等价于 CPython _bootstrap._resolve_name
 #
 # ═══════════════════════════════════════════════════════════════════
 
@@ -153,7 +153,7 @@ def resolve_relative_import(
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  AST 收集
+# AST 收集
 # ═══════════════════════════════════════════════════════════════════
 def collect_dunder_all(tree: ast.Module) -> Set[str]:
     """收集 __all__（支持 Assign 和 AnnAssign 两种写法）"""
@@ -179,7 +179,7 @@ def collect_dunder_all(tree: ast.Module) -> Set[str]:
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  Main
+# Main
 # ═══════════════════════════════════════════════════════════════════
 def main() -> int:
     ap = argparse.ArgumentParser(

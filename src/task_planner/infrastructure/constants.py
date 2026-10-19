@@ -4,7 +4,7 @@ constants.py — 全项目共享的代码常量/枚举。
 """
 
 # ══════════════════════════════════════════════════
-#  任务状态
+# 任务状态
 # ══════════════════════════════════════════════════
 TASK_STATUS = {
     "PENDING": 0,
@@ -16,7 +16,7 @@ TASK_STATUS = {
 }
 
 # ══════════════════════════════════════════════════
-#  边类型
+# 边类型
 # ══════════════════════════════════════════════════
 EDGE_TYPE_HARD = "hard"
 EDGE_TYPE_SOFT = "soft"
@@ -57,7 +57,7 @@ VALID_EDGE_TYPES: frozenset[str] = frozenset({
 })
 
 # ══════════════════════════════════════════════════
-#  状态颜色与样式映射
+# 状态颜色与样式映射
 # ══════════════════════════════════════════════════
 STATUS_TEXT = {
     0: "⏳ 待处理",
@@ -119,7 +119,7 @@ NODE_COLORS["completed"] = NODE_COLORS["done"]
 NODE_COLORS["default"] = ("#ffffff", "#e5e7eb", "#374151")
 
 # ══════════════════════════════════════════════════
-#  边样式（基于边类型）
+# 边样式（基于边类型）
 # ══════════════════════════════════════════════════
 _RENDER_EDGE_WIDTH_DEFAULT = 2.0  # 与 cog 中的 RENDER_EDGE_WIDTH 默认值保持一致
 
@@ -148,7 +148,7 @@ EDGE_STYLES = {
 DEFAULT_EDGE_STYLE = EDGE_STYLES[EDGE_TYPE_HARD]
 
 # ══════════════════════════════════════════════════
-#  节点样式
+# 节点样式
 # ══════════════════════════════════════════════════
 NODE_STYLES: dict[int, dict[str, str]] = {
     code: {
@@ -177,14 +177,14 @@ NODE_ACTION_CONFIG = {
 }
 
 # ══════════════════════════════════════════════════
-#  兼容旧名
+# 兼容旧名
 # ══════════════════════════════════════════════════
 NODE_STATUS_COLORS = STATUS_COLOR
 NODE_STATUS_BORDERS = STATUS_BORDER
 NODE_STATUS_ICONS = STATUS_ICONS
 
 # ══════════════════════════════════════════════════
-#  UI 状态（前端节点展示用）
+# UI 状态（前端节点展示用）
 # ══════════════════════════════════════════════════
 STATE_COLORS = {
     "done":    ("#10b981", "white"),
@@ -213,7 +213,7 @@ HINT_TEMPLATES = {
 }
 
 # ══════════════════════════════════════════════════
-#  意图
+# 意图
 # ══════════════════════════════════════════════════
 VALID_INTENT_CATEGORIES: frozenset[str] = frozenset({
     "cooking", "engineering", "logistics",
@@ -226,7 +226,7 @@ VALID_INTENT_COMPLEXITIES: frozenset[str] = frozenset(
 )
 
 # ══════════════════════════════════════════════════
-#  其它
+# 其它
 # ══════════════════════════════════════════════════
 USER_VISIBLE_NODE_FIELDS = {"id", "name", "details", "status", "result"}
 HISTORY_LABEL_MAX_LEN = 30

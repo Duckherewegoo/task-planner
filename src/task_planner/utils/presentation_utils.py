@@ -113,7 +113,7 @@ def extract_first_task_id(
         return task_ids
 
     # P2-4：dict / tuple / set 等容器不是有效的 task_id，显式拒绝
-    #          int / float 等标量仍兼容转为字符串
+    # int / float 等标量仍兼容转为字符串
     if isinstance(task_ids, (dict, tuple, set)):
         return None
 

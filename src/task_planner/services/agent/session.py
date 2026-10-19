@@ -47,7 +47,7 @@ _SESSION_TTL = _hub.dev.SESSION_TTL
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  TaskSession
+# TaskSession
 # ═══════════════════════════════════════════════════════════════════
 class TaskSession:
     """
@@ -84,17 +84,17 @@ class TaskSession:
         return {"configurable": {"thread_id": self.thread_id}}
 
 # ═══════════════════════════════════════════════════════════════════
-#  会话池（全局单例）
+# 会话池（全局单例）
 # ═══════════════════════════════════════════════════════════════════
 # ⚠️ 单进程内存实现——多 worker 部署需替换为 RedisSessionStore。
-#    见模块 docstring 的"关于 SessionStore 的可替换性"。
+# 见模块 docstring 的"关于 SessionStore 的可替换性"。
 _session_store: SessionStore = InMemorySessionStore()
 
 # 惰性创建 + loop 绑定检测：
-#    asyncio.Lock 在 Python 3.10+ 首次 await 时绑定当前 loop，
-#    跨 loop 复用会抛 RuntimeError。这里检测 loop 变化后重建，
-#    让测试/CLI 场景（进程内多 loop）不崩。
-#    生产单 loop 场景下，_sessions_lock 只创建一次。
+# asyncio.Lock 在 Python 3.10+ 首次 await 时绑定当前 loop，
+# 跨 loop 复用会抛 RuntimeError。这里检测 loop 变化后重建，
+# 让测试/CLI 场景（进程内多 loop）不崩。
+# 生产单 loop 场景下，_sessions_lock 只创建一次。
 _sessions_lock: asyncio.Lock | None = None
 _sessions_lock_loop: asyncio.AbstractEventLoop | None = None
 

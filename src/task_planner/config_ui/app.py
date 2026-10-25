@@ -1,11 +1,16 @@
-"""app.py — 配置工具 Dash 实例与启动入口"""
+"""app.py — 配置工具 Dash 实例与启动入口。
 
+本次变更：
+  - register() → register_config_callbacks(app, with_drawer=False)
+  - 布局从 build_layout() 拆成 build_config_panel() + 卡片外壳
+  - 独立 CLI 路径保留，作为运维降级路径
+"""
 import os
 import sys
 
 import dash
 
-from task_planner.config_ui.callbacks import register
+from task_planner.config_ui.callbacks import register_config_callbacks
 from task_planner.config_ui.layout import build_layout
 from task_planner.infrastructure.logger_setup import get_logger
 
@@ -23,7 +28,7 @@ def _make_app() -> dash.Dash:
         suppress_callback_exceptions=True,
     )
     app.layout = build_layout()
-    register()
+    register_config_callbacks(app, with_drawer=False)
     return app
 
 

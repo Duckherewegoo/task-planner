@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "task-planner"
-version = "3.2.2"
+version = "3.2.3"
 description = "基于 LangGraph 与大语言模型的自主任务规划引擎，支持动态 DAG 编排、多模态意图识别与全流程可观测性评估（异步版）。"
 requires-python = ">=3.14"
 license = "GPL-3.0-or-later"
@@ -31,7 +31,7 @@ dependencies = [
     "pymongo>=4.5.0",
 
     # ── 流程图（Dash 前端 + 导出）──
-    # ⚠️ dash[async] 必需——async 回调依赖 asgiref；
+    #  dash[async] 必需——async 回调依赖 asgiref；
     #    否则抛 "You are trying to use a coroutine without dash[async]"
     "dash[async]>=4.4.0",
     "dash-cytoscape>=1.0.0",
@@ -79,13 +79,15 @@ db_extra = [
     "motor>=3.6.0",
 ]
 # ── 评估套件依赖 ──
-eval = [
-    "python-Levenshtein>=0.25.0",   # 字符串相似度计算
-]
+# v3.2.3 起：evaluators 从 abandon 迁入 task_planner.evaluation，
+# P1-1 已移除硬 import Levenshtein（改用 _tokenize 词元级 Jaccard），
+# 因此本组不再需要 python-Levenshtein。如需外部脚本兼容旧实现，
+# 请在 dev 组或自建虚拟环境里安装。
+eval = []
 # ── 开发依赖 ──
 dev = [
     "pytest>=9.0.0",
-    # ⚠️ pytest-asyncio 1.x 与 0.x 的配置语法不同
+    #  pytest-asyncio 1.x 与 0.x 的配置语法不同
     #    （asyncio_default_fixture_loop_scope 等）
     "pytest-asyncio>=1.4.0",
     "pytest-cov>=7.0.0",
@@ -94,7 +96,8 @@ dev = [
     "ruff>=0.8.0",
     "pyright>=1.1.390",
     "mypy>=1.13.0",
-    "python-Levenshtein>=0.25.0",   # 评估套件需要
+    # 可选工具：用于外部脚本比对字符串相似度（本库自身不再依赖）
+    "python-Levenshtein>=0.25.0",
     "pyahocorasick>=2.1.0",         # 违禁词匹配性能测试需要
     "fakeredis>=2.20.0",            # Redis session store 测试用（无需真 Redis）
 ]
@@ -107,7 +110,7 @@ Issues = "https://github.com/Duckherewegoo/task-planner/issues"
 [project.scripts]
 task-planner = "task_planner.main.app:main"
 task-planner-config = "task_planner.config_ui.app:main"
-# ⚠️ 下面这条只在 `pip install -e .` 开发模式下有效（tests/ 不打包）
+#  下面这条只在 `pip install -e .` 开发模式下有效（tests/ 不打包）
 #task-planner-eval = "tests.eval_suite.run_evaluation:main"
 # eval 工具通过 `pytest -m eval_live` 或 `python -m tests.eval_suite.run_evaluation` 调用，
 # 不注册为 entry point（tests/ 不打包，注册后普通用户 pip install 会得到坏命令）
@@ -121,14 +124,15 @@ task-planner-config = "task_planner.config_ui.app:main"
 where = ["src"]
 include = ["task_planner*"]
 # 排除归档代码（不安装到 site-packages）
+# v3.2.3 起：task_planner.evaluation 已升级为正式包，被 include 自动纳入
 exclude = ["task_planner.abandon*"]
 
 [tool.setuptools.package-data]
-# ✅ prompts/ 下的 .txt 必须打包，否则 pip install 后运行时读不到
+#  prompts/ 下的 .txt 必须打包，否则 pip install 后运行时读不到
 "task_planner.infrastructure.prompts" = ["*.txt"]
-# ✅ assets 里的资源（如果未来加字体/图片）
+#  assets 里的资源（如果未来加字体/图片）
 "task_planner.main" = ["assets/*"]
-# ✅ 配置工具若有静态资源（当前没有，占位）
+#  配置工具若有静态资源（当前没有，占位）
 "task_planner.config_ui" = ["*.txt", "*.yaml"]
 
 
@@ -138,7 +142,7 @@ exclude = ["task_planner.abandon*"]
 
 [tool.black]
 line-length = 100
-# ⚠️ black 24.x 支持到 py313；black 25.x 起支持 py314。
+#  black 24.x 支持到 py313；black 25.x 起支持 py314。
 #    如 `black --check` 报 "Invalid value for '--target-version'"，降为 py313。
 target-version = ["py314"]
 
@@ -177,14 +181,14 @@ indent-style = "space"
 typeCheckingMode = "strict"
 pythonVersion = "3.14"
 extraPaths = ["src", "tests"]
-# ✅ 归档代码不检查（旧版本语法/缺依赖）
+# 归档代码不检查（旧版本语法/缺依赖）
 exclude = [
     "src/task_planner/abandon",
     "**/node_modules",
     "**/__pycache__",
     ".compat_removal_backup",
 ]
-# ✅ 关掉"第三方库缺 stub"警告
+#  关掉"第三方库缺 stub"警告
 reportMissingTypeStubs = false
 
 [tool.pytest.ini_options]
@@ -192,6 +196,24 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 asyncio_default_test_loop_scope = "function"
 testpaths = ["tests"]
+pythonpath = ["."]
+#  v3.2.3：废弃代码目录不参与 pytest collection。
+#    原因：abandon 下的模块级副作用（如 dataset_manager.py 的
+#    get_logger("eval.xxx")）会在 collection 阶段直接执行，一旦失败
+#    就拖垮整个 pytest 进程（不是某个 test case 失败，而是 collection ERROR）。
+#    注意：配置 norecursedirs 会覆盖 pytest 默认值，所以下方显式
+#    补齐了常用忽略目录（.git / venv / build 等），避免副作用。
+norecursedirs = [
+    "tests/abandon",
+    ".git",
+    ".venv",
+    "venv",
+    "node_modules",
+    "build",
+    "dist",
+    "*.egg-info",
+    "__pycache__",
+]
 filterwarnings = [
     # 本项目代码的 warning 升级为 error——逼我们清理自家问题
     "error::DeprecationWarning:task_planner.*",
@@ -203,7 +225,7 @@ filterwarnings = [
     "ignore::DeprecationWarning:pydantic.*",
     "ignore::ResourceWarning:httpx.*",
 ]
-# ✅ 默认排除 eval + integration：日常 pytest 只跑单元测试（快、免费）
+# 默认排除 eval + integration：日常 pytest 只跑单元测试（快、免费）
 #    跑 eval:        pytest -m eval_live
 #    跑 integration: pytest -m integration
 #    跑所有:         pytest -m "eval or integration or not (eval or integration)"

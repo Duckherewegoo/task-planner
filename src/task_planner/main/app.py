@@ -1,11 +1,16 @@
-"""app.py — Dash app 实例 + main()"""
+"""app.py — Dash app 实例 + main()。
 
+本次变更：
+  - 引入配置面板回调注册（含 URL 驱动 Offcanvas）。
+  - 零额外中间件、零额外 Flask 实例，高并发路径与原实现完全一致。
+"""
 import os
 import sys
 
 import dash
 import dash_cytoscape as cyto
 
+from task_planner.config_ui.callbacks import register_config_callbacks
 from task_planner.infrastructure.cog import hub as _hub
 from task_planner.infrastructure.constants import VALID_PORT_RANGE
 from task_planner.infrastructure.logger_setup import get_logger
@@ -16,39 +21,39 @@ cyto.load_extra_layouts()
 
 
 # ═══════════════════════════════════════════════════════════════════
-# DB 初始化——移除模块级 asyncio.run
+# DB 初始化——移除模块级 asyncio.run（原有因果链注释原样保留）
 # ═══════════════════════════════════════════════════════════════════
-# 删除 _bootstrap_db 的完整因果链：
-#
 # 原实现：模块 import 时 asyncio.run(init_db())
-# → asyncio.run 创建 loop A
-# → Motor client 绑定 loop A
-# → loop A 关闭
-# → 真实请求用 loop B 访问 client → "Event loop is closed"
-#
-# 这是"asyncio.run 的 loop 生命周期（跑完即毁）"与"Motor client 的
-# 生命周期（活到进程结束）"不匹配。
+# → asyncio.run 创建 loop A → Motor client 绑定 loop A → loop A 关闭
+# → 真实请求用 loop B → "Event loop is closed"
 #
 # 现在：Motor 换成同步 pymongo（见 core/db/client.py），无 loop 依赖。
-# DB 改为**首次请求时懒初始化**——get_db() 内部自动 init_db()。
-# 第一个请求慢一次（~100ms 建连+ping+建索引），之后走缓存。
-#
-# 代价：启动日志里不再有"[Dash] 数据库初始化完成"——
-# 改为首次请求时由 client.py 打 "[DB] MongoDB 连接成功"。
+# DB 改为首次请求时懒初始化——get_db() 内部自动 init_db()。
 
 
-# ── app 实例（唯一） ──
+# ── 主 app 实例（唯一） ──
 app = dash.Dash(
     __name__,
     title="🧠 通用任务规划助手",
-    assets_folder="./assets",       # 指向 main/assets
+    assets_folder="./assets",
     suppress_callback_exceptions=True,
 )
 
 os.environ["DASH_DISABLE_VERSION_CHECK"] = str(_hub.dev.DASH_DISABLE_VERSION_CHECK)
 
 
-# ── 启动入口 ──
+# ═══════════════════════════════════════════════════════════════════
+# 注册配置面板回调
+# ═══════════════════════════════════════════════════════════════════
+# 必须在 app.layout 赋值之前——Dash 的 CallbackGraph 在 layout 确定时构建，
+# 晚于 layout 注册的回调会触发「Output 引用不存在组件」异常。
+# with_drawer=True：主应用有 dcc.Location 和抽屉组件，注册 URL→开关逻辑。
+
+
+register_config_callbacks(app, with_drawer=True)
+
+
+# ── 启动入口（与原实现完全一致，零 WSGI 改动） ──
 def _validate_port(port_value) -> int:
     try:
         port = int(port_value)
@@ -78,24 +83,16 @@ def main() -> None:
         memory_watchdog=not debug,
     )
 
-    # 注册 DB 关闭到 GracefulShutdown——
-    # priority=-100：在所有 handler 之后执行（DB 最后关，
-    # 确保其他 handler 若需查 DB 时不至于用已关闭的连接）。
-    # GracefulShutdown.install() 由 boost() 内部调用。
-    # ⚠️ debug 模式下 boost 的 install() 会因 WERKZEUG_RUN_MAIN
-    # 守卫跳过——那时由 client.py 模块级的 atexit.register(close_db)
-    # 兜底。两处都调用 close_db，它已实现幂等。
     SHUTDOWN.register(close_db, priority=-100)
     from task_planner.infrastructure.async_runtime import shutdown as async_runtime_shutdown
     SHUTDOWN.register(async_runtime_shutdown, priority=-200)
+
     mode = "debug" if debug else "production"
     is_reloader = os.environ.get("WERKZEUG_RUN_MAIN") == "true"
     process_tag = " [reloader]" if is_reloader else ""
 
-    logger.info(
-        "[Startup] Dash starting (%s%s) | %s:%d",
-        mode, process_tag, host, port,
-    )
+    logger.info("[Startup] Dash starting (%s%s) | %s:%d | 配置抽屉=/config",
+                mode, process_tag, host, port)
 
     app.run(debug=debug, host=host, port=port)
 

@@ -4,7 +4,8 @@ test_evaluators.py — 锁定 evaluators 的 3 个 P0 修复
 from __future__ import annotations
 
 import pytest
-from tests.abandon.old_eval_suite.harness.evaluators import Evaluators, _tokenize
+
+from ..evaluation.evaluators import Evaluators, _tokenize
 
 
 class TestPlanNodeCountAccuracy:

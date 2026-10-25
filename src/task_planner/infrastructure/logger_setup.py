@@ -21,6 +21,7 @@ import queue
 import sys
 import threading
 import uuid
+import warnings
 from contextvars import ContextVar
 from pathlib import Path
 
@@ -40,6 +41,8 @@ LOG_MAX_DAYS = _hub.dev.LOG_MAX_DAYS
 # logger_setup.py → infrastructure/ → task_planner/ → src/ → 项目根
 _PROJECT_ROOT: Path = Path(__file__).resolve().parents[3]
 
+# 模块级：记录已警告过的名字，避免刷屏
+_warned_offroot_loggers: set[str] = set()
 
 # ================================================================
 # 1. 上下文变量：自动传递 req_id
@@ -364,12 +367,25 @@ def _init_root_logger() -> None:
 # 4. 便捷函数
 # ================================================================
 def get_logger(name: str = _ROOT_LOGGER_NAME) -> ReqIdLogger:
-    """
-    获取 logger（推荐使用该函数替代直接 logging.getLogger）。
-    内部保证日志系统已初始化。
-    """
-    return setup_logger(name)
+    """获取 logger（推荐使用该函数替代直接 logging.getLogger）。
 
+    行为分支：
+      - name 是 "task_planner" 或其子名 → 走 setup_logger()，
+        日志进入 QueueHandler / QueueListener 统一管线
+      - name 不在该层级下（如 "eval.xxx"、测试工具脚本） → 降级为
+        「独立 StreamHandler」，不进主队列，但正常输出到 console，
+        并用 warnings 提示一次
+
+    为什么降级而不是 raise：
+      测试代码 / abandon 目录 / 一次性脚本经常用 get_logger(__name__)，
+      名字天然不在 task_planner 下。直接 raise 会让「一个不规范的 logger
+      名」炸掉整个 pytest collection。降级方案保留了「早期发现」的价值
+      （通过 warnings），又不阻断合法的逃逸场景。
+    """
+    if name != _ROOT_LOGGER_NAME and not name.startswith(_ROOT_LOGGER_NAME + "."):
+        _warn_offroot_once(name)
+        return _make_standalone_logger(name)  # type: ignore[return-value]
+    return setup_logger(name)
 
 def is_initialized() -> bool:
     """
@@ -418,6 +434,39 @@ def shutdown_logging() -> None:
     except Exception:
         pass
 
+#-------------其他功能-----------
+
+def _warn_offroot_once(name: str) -> None:
+    """对非 task_planner 层级的 logger 名，只警告一次。"""
+    if name in _warned_offroot_loggers:
+        return
+    _warned_offroot_loggers.add(name)
+    warnings.warn(
+        f"logger 名 {name!r} 不在 {_ROOT_LOGGER_NAME!r} 层级下，"
+        f"将使用独立的 StreamHandler（不进入主日志队列）。"
+        f"若希望统一进队列，请改用 '{_ROOT_LOGGER_NAME}.xxx' 形式。",
+        stacklevel=3,
+    )
+
+
+def _make_standalone_logger(name: str) -> logging.Logger:
+    """为「非 task_planner 层级」的 logger 配置独立的 console handler。
+
+    - 只加一次 handler（幂等）：如果该 logger 已有 handler 就原样返回
+    - propagate=False：不再向上冒泡，避免被 Python root 重复打印
+    - level=INFO：默认 INFO 级别（独立 logger 不参与主应用的 DEBUG 配置）
+    """
+    logger = logging.getLogger(name)
+    if logger.handlers:
+        return logger
+
+    fmt = "%(asctime)s | %(levelname)-7s | %(name)s | %(message)s"
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter(fmt, datefmt="%Y-%m-%d %H:%M:%S"))
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
+    logger.propagate = False
+    return logger
 
 __all__ = [
     "ReqIdLogger",

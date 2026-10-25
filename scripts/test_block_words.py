@@ -2,6 +2,7 @@
 """
 test_block_words.py — 违禁词库加载 / 匹配 / 白名单 / 性能 一站式测试
 """
+
 from __future__ import annotations
 
 import sys
@@ -57,7 +58,7 @@ def test_basic_match() -> None:
         "帮我搭建一个 K8s 集群，要生产级配置",
         "分析一下这个算法的复杂度",
         "今天天气不错",
-        "这个方案应该可以",           # ← 新增，验证"一个""这个""可以"都被过滤
+        "这个方案应该可以",  # ← 新增，验证"一个""这个""可以"都被过滤
     ]
     for text in cases:
         r = check_text(text)
@@ -67,6 +68,7 @@ def test_basic_match() -> None:
             print(f"      blocked = {r['blocked'][:5]}")
         if r["review"]:
             print(f"      review  = {r['review'][:5]}")
+
 
 # ── 4. 白名单豁免 ──
 def test_whitelist() -> None:
@@ -96,10 +98,11 @@ def test_whitelist_edge() -> None:
         return
     sample = next(iter(m.block_words))
     from task_planner.infrastructure.blocked_words import BlockedWordMatcher
+
     mm = BlockedWordMatcher(
         block_words={sample},
         review_words=set(),
-        whitelist={sample},   # 白名单 = 敏感词本身
+        whitelist={sample},  # 白名单 = 敏感词本身
     )
     r = mm.match(f"这里有{sample}出现")
     if r["blocked"]:

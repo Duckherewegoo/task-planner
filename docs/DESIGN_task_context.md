@@ -598,10 +598,10 @@ class RedisTaskContext:
 
 ```python
 async def cancel_task(thread_id: str) -> bool:
-    ctx = await get_task_context(thread_id)   # 新入口——不再是 get_session
+    ctx = await get_task_context(thread_id)  # 新入口——不再是 get_session
     if ctx is None:
         return False
-    await ctx.request_cancel()   # 统一入口——内部处理本地 / 跨进程
+    await ctx.request_cancel()  # 统一入口——内部处理本地 / 跨进程
     return True
 ```
 
@@ -625,7 +625,7 @@ state = TaskStreamState(thread_id)
 await state_cleaner.register(thread_id, state)
 
 # 新
-ctx = await create_task_context(thread_id)   # 工厂函数——按环境返回 Local/Redis
+ctx = await create_task_context(thread_id)  # 工厂函数——按环境返回 Local/Redis
 ```
 
 ---

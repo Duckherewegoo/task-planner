@@ -22,6 +22,7 @@ strip_future_annotations.py — 批量删除 .py 文件里的
 
 建议在 git 干净工作区下跑，随时 `git diff` / `git restore` 回滚。
 """
+
 from __future__ import annotations
 
 import argparse
@@ -31,20 +32,28 @@ from pathlib import Path
 
 # 精确匹配"整行只有 from __future__ import annotations"
 # 允许行首缩进、行尾空白；不允许行内有逗号（那是复合 import）
-_STRICT_RE = re.compile(
-    r"^[ \t]*from[ \t]+__future__[ \t]+import[ \t]+annotations[ \t]*$"
-)
+_STRICT_RE = re.compile(r"^[ \t]*from[ \t]+__future__[ \t]+import[ \t]+annotations[ \t]*$")
 
 # 宽松匹配：仅用于"提醒用户手工检查"，不用于删除
-_LOOSE_RE = re.compile(
-    r"from[ \t]+__future__[ \t]+import[ \t]+.*\bannotations\b"
-)
+_LOOSE_RE = re.compile(r"from[ \t]+__future__[ \t]+import[ \t]+.*\bannotations\b")
 
 _DEFAULT_EXCLUDES = {
-    ".git", ".hg", ".svn",
-    ".venv", "venv", "env", ".env",
-    "__pycache__", ".mypy_cache", ".pytest_cache", ".ruff_cache",
-    "node_modules", "build", "dist", ".tox", ".eggs",
+    ".git",
+    ".hg",
+    ".svn",
+    ".venv",
+    "venv",
+    "env",
+    ".env",
+    "__pycache__",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    "node_modules",
+    "build",
+    "dist",
+    ".tox",
+    ".eggs",
     "site-packages",
 }
 
@@ -81,7 +90,9 @@ def strip_file(path: Path, apply: bool) -> tuple[int, int]:
         kept.append(line)
 
     # 顺便检测"复合 import 里含 annotations"的行，仅提示
-    loose = sum(1 for ln in lines if _LOOSE_RE.search(ln) and not _STRICT_RE.match(ln.rstrip("\r\n")))
+    loose = sum(
+        1 for ln in lines if _LOOSE_RE.search(ln) and not _STRICT_RE.match(ln.rstrip("\r\n"))
+    )
 
     if removed and apply:
         new_text = "".join(kept)
@@ -95,7 +106,9 @@ def main() -> int:
     ap.add_argument("--root", default=".", help="扫描根目录，默认当前目录")
     ap.add_argument("--apply", action="store_true", help="真正写回文件；不加则只 dry-run")
     ap.add_argument(
-        "--exclude", action="append", default=[],
+        "--exclude",
+        action="append",
+        default=[],
         help="额外排除的目录名（可多次传入，例如 --exclude build）",
     )
     args = ap.parse_args()
@@ -137,7 +150,9 @@ def main() -> int:
 
     if total_loose:
         print()
-        print(f"  ⚠️  发现 {total_loose} 处 'from __future__ import ...' 含 annotations 但不是单独一行")
+        print(
+            f"  ⚠️  发现 {total_loose} 处 'from __future__ import ...' 含 annotations 但不是单独一行"
+        )
         print("      （例如复合 import），脚本未处理，请手工检查：")
         # 二次扫描只为了打印位置
         for py in iter_py_files(root, excludes):

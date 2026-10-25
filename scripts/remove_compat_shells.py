@@ -26,6 +26,7 @@ remove_compat_shells.py — 移除重构期的兼容薄壳与旧名 alias（安�
     2 = 参数错误
     3 = 已回滚（apply 时失败）
 """
+
 from __future__ import annotations
 
 import argparse
@@ -55,16 +56,31 @@ MODULE_REWRITES: dict[str, str] = {
 # key   = (原模块, 原名)
 # value = (新模块, 新名, 保持的新别名)
 ALIAS_REWRITES: dict[tuple[str, str], tuple[str, str, str]] = {
-    ("task_planner.services.agent", "_is_graph_finished"):
-        ("task_planner.services.agent.view", "is_graph_finished", "_is_graph_finished"),
-    ("task_planner.services.agent", "_make_initial_state"):
-        ("task_planner.services.agent.state", "make_initial_state", "_make_initial_state"),
-    ("task_planner.infrastructure.llm_client", "_extract_tail_json"):
-        ("task_planner.infrastructure.llm.json_utils", "extract_tail_json", "_extract_tail_json"),
-    ("task_planner.infrastructure.llm_client", "_normalize_llm_output"):
-        ("task_planner.infrastructure.llm.json_utils", "normalize_llm_output", "_normalize_llm_output"),
-    ("task_planner.utils.cytoscape_adapter", "_get_edge_type"):
-        ("task_planner.utils.cytoscape_adapter", "get_edge_type", "_get_edge_type"),
+    ("task_planner.services.agent", "_is_graph_finished"): (
+        "task_planner.services.agent.view",
+        "is_graph_finished",
+        "_is_graph_finished",
+    ),
+    ("task_planner.services.agent", "_make_initial_state"): (
+        "task_planner.services.agent.state",
+        "make_initial_state",
+        "_make_initial_state",
+    ),
+    ("task_planner.infrastructure.llm_client", "_extract_tail_json"): (
+        "task_planner.infrastructure.llm.json_utils",
+        "extract_tail_json",
+        "_extract_tail_json",
+    ),
+    ("task_planner.infrastructure.llm_client", "_normalize_llm_output"): (
+        "task_planner.infrastructure.llm.json_utils",
+        "normalize_llm_output",
+        "_normalize_llm_output",
+    ),
+    ("task_planner.utils.cytoscape_adapter", "_get_edge_type"): (
+        "task_planner.utils.cytoscape_adapter",
+        "get_edge_type",
+        "_get_edge_type",
+    ),
 }
 
 # 待删薄壳文件（相对项目根）
@@ -78,8 +94,12 @@ SHELL_FILES: list[str] = [
 # 待删 alias 定义行（相对项目根 → 正则列表）
 LINES_TO_REMOVE: dict[str, list[re.Pattern]] = {
     "src/task_planner/services/agent/__init__.py": [
-        re.compile(r"^\s*from\s+\.\s*state\s+import\s+make_initial_state\s+as\s+_make_initial_state\b"),
-        re.compile(r"^\s*from\s+\.\s*view\s+import\s+is_graph_finished\s+as\s+_is_graph_finished\b"),
+        re.compile(
+            r"^\s*from\s+\.\s*state\s+import\s+make_initial_state\s+as\s+_make_initial_state\b"
+        ),
+        re.compile(
+            r"^\s*from\s+\.\s*view\s+import\s+is_graph_finished\s+as\s+_is_graph_finished\b"
+        ),
     ],
     "src/task_planner/utils/cytoscape_adapter.py": [
         re.compile(r"^\s*_get_edge_type\s*=\s*get_edge_type\s*$"),
@@ -95,9 +115,20 @@ CONTEXT_COMMENT_PATTERNS: list[re.Pattern] = [
 
 # 跳过目录
 _SKIP_DIRS = {
-    "__pycache__", ".git", ".venv", "venv", "env",
-    ".idea", ".vscode", "node_modules", "abandon",
-    ".mypy_cache", ".pytest_cache", "dist", "build", ".eggs",
+    "__pycache__",
+    ".git",
+    ".venv",
+    "venv",
+    "env",
+    ".idea",
+    ".vscode",
+    "node_modules",
+    "abandon",
+    ".mypy_cache",
+    ".pytest_cache",
+    "dist",
+    "build",
+    ".eggs",
 }
 
 
@@ -105,11 +136,9 @@ _SKIP_DIRS = {
 # 基础工具
 # ═══════════════════════════════════════════════════════════════════
 
+
 def find_py_files(root: Path) -> list[Path]:
-    return sorted(
-        p for p in root.rglob("*.py")
-        if not any(part in _SKIP_DIRS for part in p.parts)
-    )
+    return sorted(p for p in root.rglob("*.py") if not any(part in _SKIP_DIRS for part in p.parts))
 
 
 def _extract_indent(s: str) -> str:
@@ -195,7 +224,7 @@ def _parse_import_items(stmt: str) -> tuple[str, list[tuple[str, str | None]]]:
         raise ValueError(f"Not an import statement: {stmt!r}")
     module = m.group(2)
     # 剥离头部
-    body = stmt[m.end():].strip()
+    body = stmt[m.end() :].strip()
     # 剥离括号
     if body.startswith("(") and body.endswith(")"):
         body = body[1:-1]
@@ -239,6 +268,7 @@ def _format_import(
 # ═══════════════════════════════════════════════════════════════════
 # 改写逻辑
 # ═══════════════════════════════════════════════════════════════════
+
 
 def rewrite_source(source: str) -> tuple[str, int]:
     """改写源码 → (新源码, 改动数)"""
@@ -321,6 +351,7 @@ def remove_alias_lines(source: str, patterns: list[re.Pattern]) -> tuple[str, in
 # 验证
 # ═══════════════════════════════════════════════════════════════════
 
+
 def validate_python(path: Path, source: str) -> str | None:
     """AST 验证；返回 None 表示通过，返回字符串表示错误信息"""
     try:
@@ -334,14 +365,18 @@ def validate_python(path: Path, source: str) -> str | None:
 # Diff 输出
 # ═══════════════════════════════════════════════════════════════════
 
+
 def show_diff(path: Path, old: str, new: str, context: int = 2) -> None:
     if old == new:
         return
     print(f"\n── {path} ──")
     for line in difflib.unified_diff(
-        old.split("\n"), new.split("\n"),
-        fromfile=f"{path} (old)", tofile=f"{path} (new)",
-        lineterm="", n=context,
+        old.split("\n"),
+        new.split("\n"),
+        fromfile=f"{path} (old)",
+        tofile=f"{path} (new)",
+        lineterm="",
+        n=context,
     ):
         print(line)
 
@@ -349,6 +384,7 @@ def show_diff(path: Path, old: str, new: str, context: int = 2) -> None:
 # ═══════════════════════════════════════════════════════════════════
 # 备份
 # ═══════════════════════════════════════════════════════════════════
+
 
 def make_backup_dir(root: Path) -> Path:
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -377,6 +413,7 @@ def write_manifest(backup_dir: Path, info: dict) -> None:
 # 回滚
 # ═══════════════════════════════════════════════════════════════════
 
+
 def do_rollback(backup_dir: Path, root: Path) -> int:
     if not backup_dir.exists():
         print(f"[ERR] 备份目录不存在: {backup_dir}", file=sys.stderr)
@@ -387,8 +424,8 @@ def do_rollback(backup_dir: Path, root: Path) -> int:
         return 2
 
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    modified = manifest.get("modified", [])   # [(rel, ...), ...]
-    deleted = manifest.get("deleted", [])     # [rel, ...]
+    modified = manifest.get("modified", [])  # [(rel, ...), ...]
+    deleted = manifest.get("deleted", [])  # [rel, ...]
 
     print(f"回滚 {len(modified)} 个文件，恢复 {len(deleted)} 个已删文件……")
 
@@ -422,18 +459,18 @@ def do_rollback(backup_dir: Path, root: Path) -> int:
 # Main
 # ═══════════════════════════════════════════════════════════════════
 
+
 def main() -> int:
     ap = argparse.ArgumentParser(
         description="移除重构期留下的兼容薄壳与旧名 alias（安全版）",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     ap.add_argument("--root", type=Path, default=Path("."))
-    ap.add_argument("--apply", action="store_true",
-                    help="真正写入（默认 dry-run，先 AST 验证 + 备份）")
-    ap.add_argument("--dry-run", action="store_true",
-                    help="仅显示 diff（默认行为）")
-    ap.add_argument("--rollback", type=Path, default=None,
-                    help="从指定备份目录回滚")
+    ap.add_argument(
+        "--apply", action="store_true", help="真正写入（默认 dry-run，先 AST 验证 + 备份）"
+    )
+    ap.add_argument("--dry-run", action="store_true", help="仅显示 diff（默认行为）")
+    ap.add_argument("--rollback", type=Path, default=None, help="从指定备份目录回滚")
     args = ap.parse_args()
 
     # ── 回滚模式 ──
@@ -560,12 +597,15 @@ def main() -> int:
             rel = backup_file(p, root, backup_dir)
             backed_up_deleted.append(rel)
 
-    write_manifest(backup_dir, {
-        "timestamp": time.time(),
-        "root": str(root),
-        "modified": backed_up,
-        "deleted": backed_up_deleted,
-    })
+    write_manifest(
+        backup_dir,
+        {
+            "timestamp": time.time(),
+            "root": str(root),
+            "modified": backed_up,
+            "deleted": backed_up_deleted,
+        },
+    )
     print(f"  已备份 {len(backed_up)} 文件 + {len(backed_up_deleted)} 待删文件")
 
     # ══════════════════════════════════════════════════════════
@@ -636,7 +676,9 @@ def main() -> int:
     print()
     print("下一步：")
     print("  1. 跑测试:  pytest tests/ -q")
-    print("  2. 全链路:  python -c 'import task_planner; from task_planner.main.ui import app; print(\"OK\")'")
+    print(
+        "  2. 全链路:  python -c 'import task_planner; from task_planner.main.ui import app; print(\"OK\")'"
+    )
     print("  3. 手工改 README.md 里 'main.dash_app' → 'main.ui.app'")
     print()
     print("如需回滚：")

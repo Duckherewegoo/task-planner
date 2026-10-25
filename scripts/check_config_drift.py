@@ -28,6 +28,7 @@ check_config_drift.py — 配置漂移检测
 退出码：
     0 = 无缺失无漂移 / 1 = 有问题 / 2 = 参数错误
 """
+
 from __future__ import annotations
 
 import argparse
@@ -45,13 +46,32 @@ from typing import Any
 # ═══════════════════════════════════════════════════════════════════
 IGNORE_NAMES: set[str] = {
     # Python 标准库 / 常见导入
-    "os", "re", "sys", "logging", "warnings", "Path",
-    "Any", "Callable", "Dict", "List", "Set", "FrozenSet", "Tuple",
-    "Template", "load_dotenv", "annotations", "importlib",
+    "os",
+    "re",
+    "sys",
+    "logging",
+    "warnings",
+    "Path",
+    "Any",
+    "Callable",
+    "Dict",
+    "List",
+    "Set",
+    "FrozenSet",
+    "Tuple",
+    "Template",
+    "load_dotenv",
+    "annotations",
+    "importlib",
     # 旧 config 内部辅助
-    "_env", "_PROJECT_ROOT", "_dashscope_url", "logger",
+    "_env",
+    "_PROJECT_ROOT",
+    "_dashscope_url",
+    "logger",
     # 有意删除 / 反模式
-    "PULSE_CSS", "PROGRESS_CSS", "WERKZEUG_RUN_MAIN",
+    "PULSE_CSS",
+    "PROGRESS_CSS",
+    "WERKZEUG_RUN_MAIN",
 }
 
 
@@ -106,8 +126,7 @@ def extract_names(path: Path) -> tuple[set[str], dict[str, Any]]:
         exec(code, ns)
     except Exception as e:
         print(
-            f"[WARN] {path}: 执行失败，值对比将跳过"
-            f"（{type(e).__name__}: {e}）",
+            f"[WARN] {path}: 执行失败，值对比将跳过（{type(e).__name__}: {e}）",
             file=sys.stderr,
         )
 
@@ -192,9 +211,7 @@ def extract_from_yaml(path: Path) -> set[str]:
 # ═══════════════════════════════════════════════════════════════════
 # 5. 收集新模块
 # ═══════════════════════════════════════════════════════════════════
-def discover_modules(
-    root: Path, exclude_names: set[str] | None = None
-) -> list[Path]:
+def discover_modules(root: Path, exclude_names: set[str] | None = None) -> list[Path]:
     exclude_names = exclude_names or set()
     result: list[Path] = []
     for p in sorted(root.rglob("*.py")):
@@ -235,18 +252,23 @@ def main() -> int:
         description="配置漂移检测：旧 config.py vs 拆分后的新模块",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    ap.add_argument("--old", required=True, type=Path,
-                    help="旧 config.py 路径")
-    ap.add_argument("--new", action="append", default=[], type=Path,
-                    help="新模块路径（可多次指定）")
-    ap.add_argument("--new-root", type=Path, default=None,
-                    help="新模块根目录（自动递归发现所有 .py）")
-    ap.add_argument("--cog-yaml", type=Path, default=None,
-                    help="可选的 cog schema.yaml，把 YAML 中配置项也计入新集合")
-    ap.add_argument("--ignore-extra", action="append", default=[],
-                    help="额外忽略的名字（可多次指定）")
-    ap.add_argument("--strict", action="store_true",
-                    help="有任何缺失/漂移时退出码=1（CI 用）")
+    ap.add_argument("--old", required=True, type=Path, help="旧 config.py 路径")
+    ap.add_argument(
+        "--new", action="append", default=[], type=Path, help="新模块路径（可多次指定）"
+    )
+    ap.add_argument(
+        "--new-root", type=Path, default=None, help="新模块根目录（自动递归发现所有 .py）"
+    )
+    ap.add_argument(
+        "--cog-yaml",
+        type=Path,
+        default=None,
+        help="可选的 cog schema.yaml，把 YAML 中配置项也计入新集合",
+    )
+    ap.add_argument(
+        "--ignore-extra", action="append", default=[], help="额外忽略的名字（可多次指定）"
+    )
+    ap.add_argument("--strict", action="store_true", help="有任何缺失/漂移时退出码=1（CI 用）")
     args = ap.parse_args()
 
     if not args.old.exists():
@@ -258,8 +280,7 @@ def main() -> int:
     if args.new_root:
         new_paths.extend(discover_modules(args.new_root))
     if not new_paths and not args.cog_yaml:
-        print("[ERR] 至少指定 --new / --new-root / --cog-yaml 之一",
-              file=sys.stderr)
+        print("[ERR] 至少指定 --new / --new-root / --cog-yaml 之一", file=sys.stderr)
         return 2
 
     # ── 收集 ──

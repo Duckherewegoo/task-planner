@@ -26,6 +26,7 @@ migrate_config_imports.py — v3（tokenize + AST）
 
 退出码：0=成功 / 1=有警告 / 2=参数错误
 """
+
 from __future__ import annotations
 
 import argparse
@@ -40,76 +41,157 @@ from pathlib import Path
 # ═══════════════════════════════════════════════════════════════════════
 RUNTIME_VARS: set[str] = {
     # base
-    "DEBUG", "LOG_DIR", "LOG_FILE", "LOG_MAX_DAYS", "LOG_CONSOLE_LEVEL",
+    "DEBUG",
+    "LOG_DIR",
+    "LOG_FILE",
+    "LOG_MAX_DAYS",
+    "LOG_CONSOLE_LEVEL",
     "DASH_DISABLE_VERSION_CHECK",
     # dashscope
-    "DASHSCOPE_API_KEY", "DASHSCOPE_BASE_URL", "DASHSCOPE_REGION", "USE_MOCK_LLM",
+    "DASHSCOPE_API_KEY",
+    "DASHSCOPE_BASE_URL",
+    "DASHSCOPE_REGION",
+    "USE_MOCK_LLM",
     # llm
-    "LLM_INTENT_MODEL", "LLM_PLANNER_MODEL", "LLM_NODE_MODEL",
-    "LLM_INTENT_ENABLE_THINKING", "LLM_PLANNER_ENABLE_THINKING", "LLM_NODE_ENABLE_THINKING",
+    "LLM_INTENT_MODEL",
+    "LLM_PLANNER_MODEL",
+    "LLM_NODE_MODEL",
+    "LLM_INTENT_ENABLE_THINKING",
+    "LLM_PLANNER_ENABLE_THINKING",
+    "LLM_NODE_ENABLE_THINKING",
     "LLM_THINKING_BUDGET",
-    "LLM_TIMEOUT", "LLM_MAX_RETRIES", "LLM_RETRY_BACKOFF", "LLM_NODE_TIMEOUT",
-    "LLM_TASK_TOTAL_TIMEOUT", "MAX_TASK_RETRIES", "LATENCY_ACCEPTANCE_THRESHOLD",
+    "LLM_TIMEOUT",
+    "LLM_MAX_RETRIES",
+    "LLM_RETRY_BACKOFF",
+    "LLM_NODE_TIMEOUT",
+    "LLM_TASK_TOTAL_TIMEOUT",
+    "MAX_TASK_RETRIES",
+    "LATENCY_ACCEPTANCE_THRESHOLD",
     # mongo
-    "MONGO_HOST", "MONGO_PORT", "MONGO_DB",
+    "MONGO_HOST",
+    "MONGO_PORT",
+    "MONGO_DB",
     # web
-    "GRADIO_HOST", "GRADIO_PORT", "ENABLE_MCP", "DASH_HOST", "DASH_PORT",
+    "GRADIO_HOST",
+    "GRADIO_PORT",
+    "ENABLE_MCP",
+    "DASH_HOST",
+    "DASH_PORT",
     # render
-    "RENDER_DPI", "RENDER_FONT", "RENDER_DIR", "RENDER_WIDTH", "RENDER_HEIGHT",
-    "RENDER_EDGE_WIDTH", "RENDER_EDGE_LABEL_FONT_SIZE", "RENDER_SHOW_EDGE_LABELS",
-    "FLOWCHART_CYCLE_DETECTION", "DEFAULT_EXPORT_FORMAT",
+    "RENDER_DPI",
+    "RENDER_FONT",
+    "RENDER_DIR",
+    "RENDER_WIDTH",
+    "RENDER_HEIGHT",
+    "RENDER_EDGE_WIDTH",
+    "RENDER_EDGE_LABEL_FONT_SIZE",
+    "RENDER_SHOW_EDGE_LABELS",
+    "FLOWCHART_CYCLE_DETECTION",
+    "DEFAULT_EXPORT_FORMAT",
     # runtime
-    "LLM_MAX_CONCURRENT", "LLM_CONNECTION_POOL_SIZE",
+    "LLM_MAX_CONCURRENT",
+    "LLM_CONNECTION_POOL_SIZE",
     # security
-    "MAX_INPUT_LENGTH", "MAX_CACHE_INPUT_BYTES", "SESSION_TTL",
+    "MAX_INPUT_LENGTH",
+    "MAX_CACHE_INPUT_BYTES",
+    "SESSION_TTL",
 }
 
 CONSTANT_VARS: set[str] = {
     "TASK_STATUS",
-    "EDGE_TYPE_HARD", "EDGE_TYPE_SOFT", "EDGE_TYPE_CONDITIONAL", "EDGE_TYPE_RETRY",
-    "DEFAULT_EDGE_TYPE", "EDGE_TYPE_CSS", "EDGE_TYPE_COLOR", "EDGE_TYPE_STYLE",
+    "EDGE_TYPE_HARD",
+    "EDGE_TYPE_SOFT",
+    "EDGE_TYPE_CONDITIONAL",
+    "EDGE_TYPE_RETRY",
+    "DEFAULT_EDGE_TYPE",
+    "EDGE_TYPE_CSS",
+    "EDGE_TYPE_COLOR",
+    "EDGE_TYPE_STYLE",
     "VALID_EDGE_TYPES",
-    "STATUS_TEXT", "STATUS_COLOR", "STATUS_BORDER", "STATUS_ICONS",
-    "NODE_TEXT_COLORS", "NODE_COLORS", "NODE_STYLES",
-    "NODE_STATUS_COLORS", "NODE_STATUS_BORDERS", "NODE_STATUS_ICONS",
-    "NODE_STATUS_CODE_MAP", "NODE_OPERABLE_STATES", "NODE_ACTION_CONFIG",
-    "EDGE_STYLES", "DEFAULT_EDGE_STYLE", "EDGE_DASH_MAP",
-    "STATE_COLORS", "STATE_LABELS", "HINT_TEMPLATES",
-    "VALID_INTENT_CATEGORIES", "VALID_INTENT_COMPLEXITIES",
-    "MOCK_RESPONSE_PREFIX", "USER_VISIBLE_NODE_FIELDS",
-    "HISTORY_LABEL_MAX_LEN", "VALID_PORT_RANGE",
-    "SUPPORTED_EXPORT_FORMATS", "FONT_FACE",
+    "STATUS_TEXT",
+    "STATUS_COLOR",
+    "STATUS_BORDER",
+    "STATUS_ICONS",
+    "NODE_TEXT_COLORS",
+    "NODE_COLORS",
+    "NODE_STYLES",
+    "NODE_STATUS_COLORS",
+    "NODE_STATUS_BORDERS",
+    "NODE_STATUS_ICONS",
+    "NODE_STATUS_CODE_MAP",
+    "NODE_OPERABLE_STATES",
+    "NODE_ACTION_CONFIG",
+    "EDGE_STYLES",
+    "DEFAULT_EDGE_STYLE",
+    "EDGE_DASH_MAP",
+    "STATE_COLORS",
+    "STATE_LABELS",
+    "HINT_TEMPLATES",
+    "VALID_INTENT_CATEGORIES",
+    "VALID_INTENT_COMPLEXITIES",
+    "MOCK_RESPONSE_PREFIX",
+    "USER_VISIBLE_NODE_FIELDS",
+    "HISTORY_LABEL_MAX_LEN",
+    "VALID_PORT_RANGE",
+    "SUPPORTED_EXPORT_FORMATS",
+    "FONT_FACE",
 }
 
 REGEX_VARS: set[str] = {
-    "THINK_RE", "UNREPLACED_PATTERN", "SKIP_PLANNING_PATTERNS",
-    "SENSITIVE_PATTERNS", "SENSITIVE_PATTERNS_CONFIG",
+    "THINK_RE",
+    "UNREPLACED_PATTERN",
+    "SKIP_PLANNING_PATTERNS",
+    "SENSITIVE_PATTERNS",
+    "SENSITIVE_PATTERNS_CONFIG",
 }
 
 PROMPT_VARS: set[str] = {
-    "INTENT_PROMPT", "PLANNER_PROMPT", "NODE_REFINE_PROMPT", "EXECUTE_NODE_PROMPT",
+    "INTENT_PROMPT",
+    "PLANNER_PROMPT",
+    "NODE_REFINE_PROMPT",
+    "EXECUTE_NODE_PROMPT",
 }
 
 UI_STYLE_VARS: set[str] = {
-    "BASE_BTN_STYLE", "BUTTON_STYLE_PRIMARY", "BUTTON_STYLE_DANGER", "BUTTON_STYLE_SECONDARY",
-    "SECTION_HEADER_STYLE", "ZOOM_TOOLBAR_STYLE",
-    "BAR_DONE", "BAR_ERROR", "BAR_LOADING",
-    "EMPTY_DAG", "EMPTY_STATES", "EMPTY_BAR_STYLE", "EMPTY_BAR_MINI_STYLE",
-    "MARKDOWN_PRE_STYLE", "HINT_BASE_STYLE", "HINT_STYLES",
+    "BASE_BTN_STYLE",
+    "BUTTON_STYLE_PRIMARY",
+    "BUTTON_STYLE_DANGER",
+    "BUTTON_STYLE_SECONDARY",
+    "SECTION_HEADER_STYLE",
+    "ZOOM_TOOLBAR_STYLE",
+    "BAR_DONE",
+    "BAR_ERROR",
+    "BAR_LOADING",
+    "EMPTY_DAG",
+    "EMPTY_STATES",
+    "EMPTY_BAR_STYLE",
+    "EMPTY_BAR_MINI_STYLE",
+    "MARKDOWN_PRE_STYLE",
+    "HINT_BASE_STYLE",
+    "HINT_STYLES",
 }
 
 ASSET_STYLE_VARS: set[str] = {"CYTO_STYLESHEET"}
 
 ASSET_JS_VARS: set[str] = {
     "GRAPH_CONFIGS",
-    "FIT_JS_TEMPLATE", "ZOOM_BTN_JS_TEMPLATE", "ZOOM_SLIDER_JS_TEMPLATE",
+    "FIT_JS_TEMPLATE",
+    "ZOOM_BTN_JS_TEMPLATE",
+    "ZOOM_SLIDER_JS_TEMPLATE",
 }
 
 # 有意删除的反模式（旧 config 里有但不应迁移）
 IGNORE_NAMES = {"PULSE_CSS", "PROGRESS_CSS", "WERKZEUG_RUN_MAIN"}
 
-_ALL_KNOWN = (RUNTIME_VARS | CONSTANT_VARS | REGEX_VARS | PROMPT_VARS
-              | UI_STYLE_VARS | ASSET_STYLE_VARS | ASSET_JS_VARS)
+_ALL_KNOWN = (
+    RUNTIME_VARS
+    | CONSTANT_VARS
+    | REGEX_VARS
+    | PROMPT_VARS
+    | UI_STYLE_VARS
+    | ASSET_STYLE_VARS
+    | ASSET_JS_VARS
+)
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -212,9 +294,7 @@ def rewrite_names(source: str, runtime_names: set[str]) -> str:
         if line.lstrip().startswith("#"):
             continue
         try:
-            line_tokens = list(
-                tokenize.generate_tokens(io.StringIO(line).readline)
-            )
+            line_tokens = list(tokenize.generate_tokens(io.StringIO(line).readline))
         except tokenize.TokenizeError:
             continue
 
@@ -230,9 +310,7 @@ def rewrite_names(source: str, runtime_names: set[str]) -> str:
         new_line = line
         for start_col, end_col in reversed(spans):
             name = new_line[start_col:end_col]
-            new_line = (
-                new_line[:start_col] + f"_hub.dev.{name}" + new_line[end_col:]
-            )
+            new_line = new_line[:start_col] + f"_hub.dev.{name}" + new_line[end_col:]
         lines[i - 1] = new_line
 
     return "\n".join(lines)
@@ -303,8 +381,8 @@ def transform(source: str, mode: str) -> tuple[str, dict, set[str]]:
     unknown: set[str] = set()
 
     all_names: set[str] = set()
-    alias_map: dict[str, str] = {}       # real -> alias
-    runtime_alias: dict[str, str] = {}   # alias -> real
+    alias_map: dict[str, str] = {}  # real -> alias
+    runtime_alias: dict[str, str] = {}  # alias -> real
 
     import_edits: list[tuple[int, int, str]] = []  # (start_idx, end_idx, replacement)
 
@@ -356,29 +434,39 @@ def transform(source: str, mode: str) -> tuple[str, dict, set[str]]:
 # 7. 文件遍历
 # ═══════════════════════════════════════════════════════════════════════
 _SKIP_DIRS = {
-    "__pycache__", ".git", ".venv", "venv", "env",
-    ".idea", ".vscode", "node_modules", "abandon",
-    ".mypy_cache", ".pytest_cache", "dist", "build",
+    "__pycache__",
+    ".git",
+    ".venv",
+    "venv",
+    "env",
+    ".idea",
+    ".vscode",
+    "node_modules",
+    "abandon",
+    ".mypy_cache",
+    ".pytest_cache",
+    "dist",
+    "build",
 }
 
 
 def find_py_files(root: Path) -> list[Path]:
-    return sorted(
-        p for p in root.rglob("*.py")
-        if not any(part in _SKIP_DIRS for part in p.parts)
-    )
+    return sorted(p for p in root.rglob("*.py") if not any(part in _SKIP_DIRS for part in p.parts))
 
 
 def show_diff(path: Path, old: str, new: str) -> None:
     if old == new:
         return
     import difflib
+
     print(f"\n── {path} ──")
     for line in difflib.unified_diff(
-        old.split("\n"), new.split("\n"),
+        old.split("\n"),
+        new.split("\n"),
         fromfile=f"{path} (old)",
         tofile=f"{path} (new)",
-        lineterm="", n=2,
+        lineterm="",
+        n=2,
     ):
         print(line)
 
@@ -391,16 +479,18 @@ def main() -> int:
         description="迁移旧 config 引用到 cog 新体系",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    ap.add_argument("--root", type=Path, default=Path("src"),
-                    help="递归根目录（默认 src）")
-    ap.add_argument("--mode", choices=["alias", "direct"], default="alias",
-                    help="alias=保留模块级变量（推荐）；direct=全走 _hub.dev.XXX")
-    ap.add_argument("--apply", action="store_true",
-                    help="真正写入（默认 dry-run）")
-    ap.add_argument("--dry-run", action="store_true",
-                    help="仅显示 diff（默认行为，显式给出便于 CI）")
-    ap.add_argument("--backup", action="store_true",
-                    help="写入前生成 .bak")
+    ap.add_argument("--root", type=Path, default=Path("src"), help="递归根目录（默认 src）")
+    ap.add_argument(
+        "--mode",
+        choices=["alias", "direct"],
+        default="alias",
+        help="alias=保留模块级变量（推荐）；direct=全走 _hub.dev.XXX",
+    )
+    ap.add_argument("--apply", action="store_true", help="真正写入（默认 dry-run）")
+    ap.add_argument(
+        "--dry-run", action="store_true", help="仅显示 diff（默认行为，显式给出便于 CI）"
+    )
+    ap.add_argument("--backup", action="store_true", help="写入前生成 .bak")
     args = ap.parse_args()
 
     if args.apply and args.dry_run:
@@ -413,8 +503,9 @@ def main() -> int:
 
     dry_run = not args.apply
     files = find_py_files(args.root)
-    print(f"扫描 {len(files)} 个 .py 文件 (mode={args.mode}, "
-          f"{'dry-run' if dry_run else 'apply'})……")
+    print(
+        f"扫描 {len(files)} 个 .py 文件 (mode={args.mode}, {'dry-run' if dry_run else 'apply'})……"
+    )
 
     changed_files = 0
     unknown_total: set[str] = set()
@@ -441,9 +532,7 @@ def main() -> int:
 
         if args.apply:
             if args.backup:
-                path.with_suffix(path.suffix + ".bak").write_text(
-                    old, encoding="utf-8"
-                )
+                path.with_suffix(path.suffix + ".bak").write_text(old, encoding="utf-8")
             path.write_text(new, encoding="utf-8")
             print(f"{path}")
         else:

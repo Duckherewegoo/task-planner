@@ -41,8 +41,8 @@ EXCLUDE_PATHS: set[str] = {
 # ── v2（KISS 加固，不影响功能）──
 # 使用 U+2500（BOX DRAWINGS LIGHT HORIZONTAL）——项目里就是这个字符
 VERSION_RE = re.compile(
-    r'^[ \t]*──[ \t]*(v\d+(?:\.\d+)?'
-    r'(?:[ \t]*[（(][^）)\n]*[）)])?)[ \t]*──[ \t]*$',
+    r"^[ \t]*──[ \t]*(v\d+(?:\.\d+)?"
+    r"(?:[ \t]*[（(][^）)\n]*[）)])?)[ \t]*──[ \t]*$",
     re.MULTILINE,
 )
 
@@ -61,7 +61,7 @@ def _version_key(header: str) -> tuple[int, int]:
     ── v6 ──              → (6, 0)
     ── v6.0（vs v5.0）──  → (6, 0)  # 只取第一个 v
     """
-    m = re.search(r'v(\d+)(?:\.(\d+))?', header)
+    m = re.search(r"v(\d+)(?:\.(\d+))?", header)
     if not m:
         return (0, 0)
     major = int(m.group(1))
@@ -104,7 +104,7 @@ def extract_sections(body: str) -> tuple[str, list[tuple[str, str]]]:
     prefix = body[:first_line_start]
 
     # 去掉 prefix 尾部的 "Changelog:" 标题行（保留它上面模块说明）
-    cl = re.search(r'^[ \t]*Changelog:[ \t]*$', prefix, re.MULTILINE)
+    cl = re.search(r"^[ \t]*Changelog:[ \t]*$", prefix, re.MULTILINE)
     if cl:
         prefix = prefix[: cl.start()].rstrip() + "\n"
 
@@ -126,7 +126,7 @@ def extract_sections(body: str) -> tuple[str, list[tuple[str, str]]]:
 
 def _clean_prefix(prefix: str) -> str:
     """去掉 prefix 尾部空行；压缩 3+ 连续空行为 2。"""
-    prefix = re.sub(r'\n{3,}', '\n\n', prefix)
+    prefix = re.sub(r"\n{3,}", "\n\n", prefix)
     return prefix.rstrip()
 
 
@@ -140,7 +140,7 @@ def _clean_rest(rest: str) -> str:
         return rest
     if not rest.startswith("\n"):
         rest = "\n" + rest
-    rest = re.sub(r'^\n{3,}', '\n\n', rest)
+    rest = re.sub(r"^\n{3,}", "\n\n", rest)
     return rest
 
 
@@ -173,9 +173,7 @@ def process_one(path: Path, cwd: Path) -> dict | None:
         return None  # 只有 0 或 1 段——没有可迁的
 
     # 按版本号倒序（主版本 + 次版本）
-    sections_sorted = sorted(
-        sections, key=lambda x: _version_key(x[0]), reverse=True
-    )
+    sections_sorted = sorted(sections, key=lambda x: _version_key(x[0]), reverse=True)
     latest_header, latest_text = sections_sorted[0]
     older = sections_sorted[1:]
 
@@ -233,7 +231,9 @@ def main() -> int:
     ap = argparse.ArgumentParser(
         description="Changelog 迁移脚本——把模块 docstring 里的旧版本段迁至 CHANGELOG.md",
     )
-    ap.add_argument("--root", default="src/task_planner", help="扫描根目录（默认 src/task_planner）")
+    ap.add_argument(
+        "--root", default="src/task_planner", help="扫描根目录（默认 src/task_planner）"
+    )
     ap.add_argument("--apply", action="store_true", help="实际写入（默认 dry-run）")
     ap.add_argument("--changelog", default="CHANGELOG.md", help="CHANGELOG.md 路径")
     ap.add_argument("--force", action="store_true", help="覆盖已存在的 CHANGELOG.md")

@@ -16,6 +16,7 @@ v3 Changelog:
   因此不能依赖 importlib 的运行时机制（__package__ 需要模块已加载），
   相对导入解析必须自己实现。这不是"重复造轮子"，是场景要求。
 """
+
 from __future__ import annotations
 
 import argparse
@@ -49,10 +50,22 @@ class ModuleInfo(NamedTuple):
 # 路径工具
 # ═══════════════════════════════════════════════════════════════════
 _SKIP_DIRS = {
-    "__pycache__", ".git", ".venv", "venv", "env",
-    ".idea", ".vscode", "node_modules", "abandon",
-    ".mypy_cache", ".pytest_cache", "dist", "build", ".eggs",
-    ".compat_removal_backup", "task_planner.egg-info",
+    "__pycache__",
+    ".git",
+    ".venv",
+    "venv",
+    "env",
+    ".idea",
+    ".vscode",
+    "node_modules",
+    "abandon",
+    ".mypy_cache",
+    ".pytest_cache",
+    "dist",
+    "build",
+    ".eggs",
+    ".compat_removal_backup",
+    "task_planner.egg-info",
 }
 
 
@@ -120,6 +133,7 @@ def is_task_planner_module(target: str) -> bool:
 #
 # ═══════════════════════════════════════════════════════════════════
 
+
 def package_of(module_name: str, is_package: bool) -> str:
     """推 __package__：包用自身名，模块用父级"""
     if is_package:
@@ -167,13 +181,14 @@ def collect_dunder_all(tree: ast.Module) -> set[str]:
 
     for node in tree.body:
         if isinstance(node, ast.Assign):
-            if any(isinstance(t, ast.Name) and t.id == "__all__"
-                   for t in node.targets):
+            if any(isinstance(t, ast.Name) and t.id == "__all__" for t in node.targets):
                 _extract(node.value)
         elif isinstance(node, ast.AnnAssign):
-            if (isinstance(node.target, ast.Name)
-                    and node.target.id == "__all__"
-                    and node.value is not None):
+            if (
+                isinstance(node.target, ast.Name)
+                and node.target.id == "__all__"
+                and node.value is not None
+            ):
                 _extract(node.value)
     return names
 
@@ -214,8 +229,11 @@ def main() -> int:
             print(f"[WARN] 跳过 {path}: {e}", file=sys.stderr)
             continue
         modules[mod_name] = ModuleInfo(
-            name=mod_name, file=path, is_package=is_package,
-            tree=tree, all_names=collect_dunder_all(tree),
+            name=mod_name,
+            file=path,
+            is_package=is_package,
+            tree=tree,
+            all_names=collect_dunder_all(tree),
         )
 
     # ── 收集 tests/（仅 A 类用）──
@@ -234,15 +252,29 @@ def main() -> int:
     for mod_name, m in modules.items():
         for name in m.all_names:
             if is_private(name):
-                a_findings.append(Finding(
-                    "all_private", str(m.file), 0, mod_name, name, None,
-                ))
+                a_findings.append(
+                    Finding(
+                        "all_private",
+                        str(m.file),
+                        0,
+                        mod_name,
+                        name,
+                        None,
+                    )
+                )
     for path, all_names in test_all:
         for name in all_names:
             if is_private(name):
-                a_findings.append(Finding(
-                    "all_private", str(path), 0, f"tests::{path.name}", name, None,
-                ))
+                a_findings.append(
+                    Finding(
+                        "all_private",
+                        str(path),
+                        0,
+                        f"tests::{path.name}",
+                        name,
+                        None,
+                    )
+                )
 
     # ── B 类 ──
     b_findings: list[Finding] = []
@@ -252,7 +284,10 @@ def main() -> int:
                 continue
             if node.level > 0:
                 target = resolve_relative_import(
-                    mod_name, m.is_package, node.level, node.module,
+                    mod_name,
+                    m.is_package,
+                    node.level,
+                    node.module,
                 )
             else:
                 target = node.module
@@ -261,16 +296,21 @@ def main() -> int:
             for alias in node.names:
                 if alias.name == "*" or not is_private(alias.name):
                     continue
-                b_findings.append(Finding(
-                    "cross_private", str(m.file), node.lineno,
-                    target, alias.name, alias.asname,
-                ))
+                b_findings.append(
+                    Finding(
+                        "cross_private",
+                        str(m.file),
+                        node.lineno,
+                        target,
+                        alias.name,
+                        alias.asname,
+                    )
+                )
 
     # ── 报告 ──
     sep = "═" * 78
     print(f"\n{sep}")
-    print(f"私有名审计报告  (src={src_root}"
-          + ("，含 tests" if args.also_tests else "") + ")")
+    print(f"私有名审计报告  (src={src_root}" + ("，含 tests" if args.also_tests else "") + ")")
     print(sep)
 
     print(f"\n【A】__all__ 里包含私有名 —— {len(a_findings)} 处")

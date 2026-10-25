@@ -86,13 +86,17 @@ def _resolve_target_index(
             if isinstance(nd, dict) and nd.get("id") == retry_id:
                 logger.info(
                     "[Graph] retry_node_index=%r 按 node['id'] 匹配到 index=%d (req=%s)",
-                    retry_id, i, rid,
+                    retry_id,
+                    i,
+                    rid,
                 )
                 return i
         logger.warning(
             "[Graph] retry_node_index=%r 既不是有效 index 也不匹配任何 node['id']，"
             "降级 current_node_index=%d (req=%s)",
-            retry_id, current_idx, rid,
+            retry_id,
+            current_idx,
+            rid,
         )
         return current_idx
 
@@ -101,9 +105,11 @@ def _resolve_target_index(
         if isinstance(resume_idx, int) and not isinstance(resume_idx, bool) and 0 <= resume_idx < n:
             return resume_idx
         logger.warning(
-            "[Graph] resume_from_node_index=%r 越界 (0..%d)，"
-            "降级 current_node_index=%d (req=%s)",
-            resume_idx, n - 1, current_idx, rid,
+            "[Graph] resume_from_node_index=%r 越界 (0..%d)，降级 current_node_index=%d (req=%s)",
+            resume_idx,
+            n - 1,
+            current_idx,
+            rid,
         )
         return current_idx
 
@@ -133,7 +139,9 @@ async def execute_node(state: TaskState, config: RunnableConfig) -> dict[str, An
     if idx >= len(nodes):
         logger.warning(
             "[Graph] execute_node: idx=%d 越界 (total=%d), 标记全部完成 (req=%s)",
-            idx, len(nodes), rid,
+            idx,
+            len(nodes),
+            rid,
         )
         return {
             "user_action": None,
@@ -171,7 +179,7 @@ async def execute_node(state: TaskState, config: RunnableConfig) -> dict[str, An
         return {
             "cancel_requested": True,
             "status_text": "⏹️ 已取消",
-            "user_action": None,               # 显式清空，避免残留上一轮 action
+            "user_action": None,  # 显式清空，避免残留上一轮 action
             # P1：指针已被消费，取消路径同样需要清空
             "retry_node_index": None,
             "resume_from_node_index": None,
@@ -221,7 +229,8 @@ async def execute_node(state: TaskState, config: RunnableConfig) -> dict[str, An
     if not isinstance(feedback, dict):
         logger.warning(
             "[Graph] execute_node: 非法 feedback 类型 %r，回退 CONTINUE (req=%s)",
-            type(feedback).__name__, rid,
+            type(feedback).__name__,
+            rid,
         )
         action = UserAction.CONTINUE
         modified_input = None
@@ -232,7 +241,8 @@ async def execute_node(state: TaskState, config: RunnableConfig) -> dict[str, An
         except ValueError:
             logger.warning(
                 "[Graph] execute_node: 非法 user_action=%r，回退 CONTINUE (req=%s)",
-                raw_action, rid,
+                raw_action,
+                rid,
             )
             action = UserAction.CONTINUE
         modified_input = feedback.get("modified_input", None)
@@ -253,7 +263,9 @@ async def execute_node(state: TaskState, config: RunnableConfig) -> dict[str, An
         updates["current_node_index"] = idx
         logger.info(
             "[Graph] execute_node: user_action=RETRY_NODE，"
-            "保持 current_node_index=%d 重试 (req=%s)", idx, rid,
+            "保持 current_node_index=%d 重试 (req=%s)",
+            idx,
+            rid,
         )
     else:
         updates["current_node_index"] = idx + 1
@@ -270,42 +282,43 @@ async def execute_node(state: TaskState, config: RunnableConfig) -> dict[str, An
             )
 
         cleaned = sanitize_input(modified_input)
-        updates.update({
-            # 用户输入
-            "user_input": cleaned,
-            # 规划产物全部清空，重新开始
-            "current_node_index": 0,
-            "node_results": [],
-            "nodes": [],
-            "edges": [],
-            "refined_nodes": [],
-            "plan": {},
-            "intent": {},
-            # P0-4：与 create_initial_state 一致——默认走 intent，
-            # 让 intent 节点重新判断。若设为 False，_route_start 会直接
-            # 跳 direct_answer，用户改的需求不被识别就被回答。
-            "needs_planning": True,
-            "task_id": "",
-            # 步骤日志重置（覆盖语义，直接给单元素列表）
-            "steps": [
-                f"需求已修改，重新规划: {cleaned[:50]}"
-                + ("..." if len(cleaned) > 50 else "")
-            ],
-            # 渲染 / 回答产物清空
-            "direct_response": "",
-            "svg": "",
-            "flowchart_html": "",
-            # 状态控制
-            "error": "",
-            "status_text": "🔄 重新规划中",
-            "cancel_requested": False,
-            # 用户指令 / 断点续传指针全部清空
-            # 与 state.py 声明的优先级 retry > resume > current 保持一致
-            "user_action": None,
-            "modified_input": None,
-            "retry_node_index": None,
-            "resume_from_node_index": None,
-        })
+        updates.update(
+            {
+                # 用户输入
+                "user_input": cleaned,
+                # 规划产物全部清空，重新开始
+                "current_node_index": 0,
+                "node_results": [],
+                "nodes": [],
+                "edges": [],
+                "refined_nodes": [],
+                "plan": {},
+                "intent": {},
+                # P0-4：与 create_initial_state 一致——默认走 intent，
+                # 让 intent 节点重新判断。若设为 False，_route_start 会直接
+                # 跳 direct_answer，用户改的需求不被识别就被回答。
+                "needs_planning": True,
+                "task_id": "",
+                # 步骤日志重置（覆盖语义，直接给单元素列表）
+                "steps": [
+                    f"需求已修改，重新规划: {cleaned[:50]}" + ("..." if len(cleaned) > 50 else "")
+                ],
+                # 渲染 / 回答产物清空
+                "direct_response": "",
+                "svg": "",
+                "flowchart_html": "",
+                # 状态控制
+                "error": "",
+                "status_text": "🔄 重新规划中",
+                "cancel_requested": False,
+                # 用户指令 / 断点续传指针全部清空
+                # 与 state.py 声明的优先级 retry > resume > current 保持一致
+                "user_action": None,
+                "modified_input": None,
+                "retry_node_index": None,
+                "resume_from_node_index": None,
+            }
+        )
     elif action == UserAction.MODIFY:
         # MODIFY 但无有效输入：降级为 CONTINUE，避免状态机进入矛盾态
         logger.warning(

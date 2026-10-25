@@ -11,12 +11,14 @@ logger = get_logger("task_planner.core.db.schema")
 _STATUS_NAMES: dict[int, str] = {v: k for k, v in TASK_STATUS.items()}
 
 # 终态集合：进入这些状态后不可再被"成功"覆盖
-TERMINAL_STATUSES = frozenset({
-    TASK_STATUS["SUCCESS"],   # 2
-    TASK_STATUS["FAILED"],    # 3
-    TASK_STATUS["TIMEOUT"],   # 4
-    TASK_STATUS["SKIPPED"],   # 5
-})
+TERMINAL_STATUSES = frozenset(
+    {
+        TASK_STATUS["SUCCESS"],  # 2
+        TASK_STATUS["FAILED"],  # 3
+        TASK_STATUS["TIMEOUT"],  # 4
+        TASK_STATUS["SKIPPED"],  # 5
+    }
+)
 
 
 def status_name(code: int) -> str:
@@ -26,7 +28,7 @@ def status_name(code: int) -> str:
 def safe_int(val: Any, default: int) -> int:
     try:
         return int(val)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return default
 
 
@@ -41,12 +43,14 @@ def validate_plan(plan_data: dict[str, Any]) -> dict[str, Any]:
 
     clean_nodes = []
     for i, n in enumerate(nodes_raw, 1):
-        clean_nodes.append({
-            "id": safe_int(n.get("id"), default=i),
-            "name": str(n.get("name", f"步骤{i}")),
-            "details": str(n.get("details", "") or n.get("detail", "")),
-            "status": safe_int(n.get("status"), default=0),
-        })
+        clean_nodes.append(
+            {
+                "id": safe_int(n.get("id"), default=i),
+                "name": str(n.get("name", f"步骤{i}")),
+                "details": str(n.get("details", "") or n.get("detail", "")),
+                "status": safe_int(n.get("status"), default=0),
+            }
+        )
 
     id_set = {n["id"] for n in clean_nodes}
     clean_edges = []
@@ -64,16 +68,20 @@ def validate_plan(plan_data: dict[str, Any]) -> dict[str, Any]:
             logger.warning("[DB] 丢弃自环边: %s→%s", f, t)
             continue
 
-        clean_edges.append({
-            "from": f,
-            "to": t,
-            "label": str(e.get("label", "")),
-        })
+        clean_edges.append(
+            {
+                "from": f,
+                "to": t,
+                "label": str(e.get("label", "")),
+            }
+        )
 
     logger.debug(
         "[DB] Plan 清洗完成: nodes=%d(原始%d), edges=%d(原始%d, 丢弃%d)",
-        len(clean_nodes), len(nodes_raw),
-        len(clean_edges), len(edges_raw),
+        len(clean_nodes),
+        len(nodes_raw),
+        len(clean_edges),
+        len(edges_raw),
         len(edges_raw) - len(clean_edges),
     )
 

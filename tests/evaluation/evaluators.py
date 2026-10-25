@@ -25,10 +25,7 @@ LATENCY_ACCEPTANCE_THRESHOLD = _hub.dev.LATENCY_ACCEPTANCE_THRESHOLD
 
 
 # ── 模块级常量：标点集合（中英文） ──
-_PUNCT_CHARS = set(
-    string.punctuation
-    + "，。！？；：、""''（）【】《》〈〉「」『』〔〕·—…"
-)
+_PUNCT_CHARS = set(string.punctuation + "，。！？；：、''（）【】《》〈〉「」『』〔〕·—…")
 
 
 def _tokenize(text: str) -> set[str]:
@@ -48,14 +45,14 @@ def _tokenize(text: str) -> set[str]:
     """
     tokens: set[str] = set()
     # 按"中文字符连续段"或"英文/数字连续段"切分
-    for chunk in re.findall(r'[\u4e00-\u9fff]+|[a-zA-Z0-9]+', text.lower()):
-        if re.match(r'[\u4e00-\u9fff]', chunk):
+    for chunk in re.findall(r"[\u4e00-\u9fff]+|[a-zA-Z0-9]+", text.lower()):
+        if re.match(r"[\u4e00-\u9fff]", chunk):
             # 中文：bigram（单字单独处理）
             if len(chunk) == 1:
                 tokens.add(chunk)
             else:
                 for i in range(len(chunk) - 1):
-                    tokens.add(chunk[i:i + 2])
+                    tokens.add(chunk[i : i + 2])
         else:
             # 英文/数字：整词
             tokens.add(chunk)
@@ -103,6 +100,7 @@ class Evaluators:
           "Hello World" == "hello, world!"  → True
           "西红柿炒蛋。" == "西红柿炒蛋"    → True
         """
+
         def normalize(s: str) -> str:
             s = (s or "").strip().lower()
             return "".join(ch for ch in s if ch not in _PUNCT_CHARS)

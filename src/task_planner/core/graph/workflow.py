@@ -44,6 +44,7 @@ workflow.py — LangGraph 工作流定义（异步优化版）
 
 ⚠️ 完整变更历史见 CHANGELOG.md。
 """
+
 import asyncio
 import atexit
 import os
@@ -152,9 +153,7 @@ def _build_checkpointer():
 
         conn_str = os.getenv("CHECKPOINT_POSTGRES_URL", "")
         if not conn_str:
-            raise ValueError(
-                "CHECKPOINTER_TYPE=postgres 但未设置 CHECKPOINT_POSTGRES_URL"
-            )
+            raise ValueError("CHECKPOINTER_TYPE=postgres 但未设置 CHECKPOINT_POSTGRES_URL")
 
         try:
             cm_or_saver = PostgresSaver.from_conn_string(conn_str)
@@ -289,18 +288,19 @@ class _LazyGraphProxy:
     """
 
     # 只拦本模块的私有成员，避免 graph._graph_instance 之类误触真图
-    _DENY_ATTRS = frozenset({
-        "_graph_instance",
-        "_graph_lock",
-        "_build_graph",
-        "_force_rebuild_graph",
-    })
+    _DENY_ATTRS = frozenset(
+        {
+            "_graph_instance",
+            "_graph_lock",
+            "_build_graph",
+            "_force_rebuild_graph",
+        }
+    )
 
     def __getattr__(self, name: str):
         if name in self._DENY_ATTRS:
             raise AttributeError(
-                f"_LazyGraphProxy 不允许访问 {name!r}；"
-                f"请直接调用 get_graph() 获取真实实例"
+                f"_LazyGraphProxy 不允许访问 {name!r}；请直接调用 get_graph() 获取真实实例"
             )
         return getattr(get_graph(), name)
 
@@ -390,7 +390,9 @@ async def resume_graph_async(
 
     logger.info(
         "[Workflow] resume_graph_async: thread=%s, action=%s, as_node=%s",
-        thread_id, action, as_node or "<auto>",
+        thread_id,
+        action,
+        as_node or "<auto>",
     )
 
     # Patch F：键名与 TaskState 字段对齐
@@ -467,8 +469,7 @@ def _run_sync(
         return asyncio.run(coro_factory())
 
     raise RuntimeError(
-        f"{sync_api_name}() 被在运行中的 event loop 内调用。"
-        f"请改用 `await {async_api_name}(...)`。"
+        f"{sync_api_name}() 被在运行中的 event loop 内调用。请改用 `await {async_api_name}(...)`。"
     )
 
 

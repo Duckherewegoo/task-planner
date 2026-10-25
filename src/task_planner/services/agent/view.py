@@ -8,7 +8,7 @@ from task_planner.services.view_model import FRONTEND_FIELDS
 
 def extract_snapshot(
     event: dict[str, Any],
-    session: Any,   # TaskSession（避免循环 import）
+    session: Any,  # TaskSession（避免循环 import）
     mode: str = "values",
 ) -> dict[str, Any] | None:
     """从 graph event 中提取前端需要的快照"""
@@ -19,13 +19,15 @@ def extract_snapshot(
     # 注册时创建的时间——语义不同（agent 启动 vs stream 注册）
     elapsed = time.time() - session.start_time
     view = {k: event.get(k) for k in FRONTEND_FIELDS}
-    view.update({
-        "type": "progress",
-        "task_id": event.get("task_id", ""),
-        "elapsed": round(elapsed, 1),
-        "nodes": event.get("nodes") or [],
-        "edges": event.get("edges") or [],
-    })
+    view.update(
+        {
+            "type": "progress",
+            "task_id": event.get("task_id", ""),
+            "elapsed": round(elapsed, 1),
+            "nodes": event.get("nodes") or [],
+            "edges": event.get("edges") or [],
+        }
+    )
     return view
 
 

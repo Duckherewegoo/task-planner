@@ -19,6 +19,7 @@ Changelog:
   P2-3：init_db 加 serverSelectionTimeoutMS
   P2-4：新增 close_db()
 """
+
 import asyncio
 import time
 from datetime import datetime, timezone
@@ -43,12 +44,14 @@ logger = get_logger("task_planner.db")
 _STATUS_NAMES: dict[int, str] = {v: k for k, v in TASK_STATUS.items()}
 
 # P0-1 修复：明确的终态集合
-_TERMINAL_STATUSES = frozenset({
-    TASK_STATUS["SUCCESS"],   # 2
-    TASK_STATUS["FAILED"],    # 3
-    TASK_STATUS["TIMEOUT"],   # 4
-    TASK_STATUS["SKIPPED"],   # 5
-})
+_TERMINAL_STATUSES = frozenset(
+    {
+        TASK_STATUS["SUCCESS"],  # 2
+        TASK_STATUS["FAILED"],  # 3
+        TASK_STATUS["TIMEOUT"],  # 4
+        TASK_STATUS["SKIPPED"],  # 5
+    }
+)
 
 
 def _status_name(code: int) -> str:
@@ -65,6 +68,7 @@ _initialized = False
 # ══════════════════════════════════════════════════
 #  连接生命周期
 # ══════════════════════════════════════════════════
+
 
 async def init_db() -> None:
     """异步初始化 MongoDB 连接，创建索引"""
@@ -96,7 +100,9 @@ async def init_db() -> None:
             _initialized = True
             logger.info(
                 "[DB] MongoDB 异步连接成功 (%s:%d/%s)",
-                MONGO_HOST, MONGO_PORT, MONGO_DB,
+                MONGO_HOST,
+                MONGO_PORT,
+                MONGO_DB,
             )
         except Exception as e:
             # P0-2 修复：失败时清理半成品
@@ -112,16 +118,20 @@ async def init_db() -> None:
 async def _create_indexes_on(db: AsyncIOMotorDatabase) -> None:
     """在指定 db 上创建索引"""
     tasks = db["tasks"]
-    await tasks.create_indexes([
-        IndexModel([("task_id", ASCENDING)], unique=True),
-        IndexModel([("created_at", DESCENDING)]),
-        IndexModel([("status", ASCENDING)]),
-    ])
+    await tasks.create_indexes(
+        [
+            IndexModel([("task_id", ASCENDING)], unique=True),
+            IndexModel([("created_at", DESCENDING)]),
+            IndexModel([("status", ASCENDING)]),
+        ]
+    )
     plans = db["plans"]
-    await plans.create_indexes([
-        IndexModel([("plan_id", ASCENDING)], unique=True),
-        IndexModel([("created_at", DESCENDING)]),
-    ])
+    await plans.create_indexes(
+        [
+            IndexModel([("plan_id", ASCENDING)], unique=True),
+            IndexModel([("created_at", DESCENDING)]),
+        ]
+    )
 
 
 async def get_db() -> AsyncIOMotorDatabase:
@@ -152,10 +162,11 @@ async def close_db() -> None:
 #  辅助函数
 # ══════════════════════════════════════════════════
 
+
 def _safe_int(val: Any, default: int) -> int:
     try:
         return int(val)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return default
 
 
@@ -171,12 +182,14 @@ def _validate_plan(plan_data: dict[str, Any]) -> dict[str, Any]:
 
     clean_nodes = []
     for i, n in enumerate(nodes_raw, 1):
-        clean_nodes.append({
-            "id": _safe_int(n.get("id"), default=i),
-            "name": str(n.get("name", f"步骤{i}")),
-            "details": str(n.get("details", "") or n.get("detail", "")),
-            "status": _safe_int(n.get("status"), default=0),
-        })
+        clean_nodes.append(
+            {
+                "id": _safe_int(n.get("id"), default=i),
+                "name": str(n.get("name", f"步骤{i}")),
+                "details": str(n.get("details", "") or n.get("detail", "")),
+                "status": _safe_int(n.get("status"), default=0),
+            }
+        )
 
     id_set = {n["id"] for n in clean_nodes}
     clean_edges = []
@@ -194,16 +207,20 @@ def _validate_plan(plan_data: dict[str, Any]) -> dict[str, Any]:
             logger.warning("[DB] 丢弃自环边: %s→%s", f, t)
             continue
 
-        clean_edges.append({
-            "from": f,
-            "to": t,
-            "label": str(e.get("label", "")),
-        })
+        clean_edges.append(
+            {
+                "from": f,
+                "to": t,
+                "label": str(e.get("label", "")),
+            }
+        )
 
     logger.debug(
         "[DB] Plan 清洗完成: nodes=%d(原始%d), edges=%d(原始%d, 丢弃%d)",
-        len(clean_nodes), len(nodes_raw),
-        len(clean_edges), len(edges_raw),
+        len(clean_nodes),
+        len(nodes_raw),
+        len(clean_edges),
+        len(edges_raw),
         len(edges_raw) - len(clean_edges),
     )
 
@@ -220,6 +237,7 @@ def _validate_plan(plan_data: dict[str, Any]) -> dict[str, Any]:
 # ══════════════════════════════════════════════════
 #  公开 API（全部异步）
 # ══════════════════════════════════════════════════
+
 
 async def create_task_with_plan(
     raw_query: str,
@@ -274,7 +292,11 @@ async def create_task_with_plan(
         await db["tasks"].insert_one(task_doc)
         logger.info(
             "[DB] 创建 Task=%s / Plan=%s (nodes=%d, edges=%d, req=%s)",
-            task_id, plan_id, len(plan_doc["nodes"]), len(plan_doc["edges"]), rid,
+            task_id,
+            plan_id,
+            len(plan_doc["nodes"]),
+            len(plan_doc["edges"]),
+            rid,
         )
         return task_doc, plan_doc
     except DuplicateKeyError as e:
@@ -402,15 +424,17 @@ async def list_tasks(limit: int = 50) -> list[dict[str, Any]]:
         else:
             created_str = ""
 
-        results.append({
-            "task_id": t["task_id"],
-            "title": f"{prefix} {title}",
-            "status": t.get("status", 0),
-            "valid": t.get("valid", True),
-            "retry": f"{t.get('retry_count', 0)}/{t.get('max_retries', 3)}",
-            "has_plan": has_plan,
-            "created": created_str,
-        })
+        results.append(
+            {
+                "task_id": t["task_id"],
+                "title": f"{prefix} {title}",
+                "status": t.get("status", 0),
+                "valid": t.get("valid", True),
+                "retry": f"{t.get('retry_count', 0)}/{t.get('max_retries', 3)}",
+                "has_plan": has_plan,
+                "created": created_str,
+            }
+        )
     return results
 
 
@@ -467,7 +491,9 @@ async def update_node_status(
         return False
     logger.info(
         "[DB] 节点状态更新 %s#%d → %s",
-        task_id, node_id, _status_name(new_status),
+        task_id,
+        node_id,
+        _status_name(new_status),
     )
     return True
 
@@ -477,10 +503,12 @@ async def mark_task_success(task_id: str) -> None:
     db = await get_db()
     result = await db["tasks"].update_one(
         {"task_id": task_id, "status": {"$nin": list(_TERMINAL_STATUSES)}},
-        {"$set": {
-            "status": TASK_STATUS["SUCCESS"],
-            "updated_at": datetime.now(timezone.utc),
-        }},
+        {
+            "$set": {
+                "status": TASK_STATUS["SUCCESS"],
+                "updated_at": datetime.now(timezone.utc),
+            }
+        },
     )
     if result.modified_count == 0:
         logger.warning("[DB] mark_task_success: 任务 %s 已是终态或不存在", task_id)
@@ -490,11 +518,13 @@ async def mark_task_failed(task_id: str, error: str = "") -> None:
     db = await get_db()
     await db["tasks"].update_one(
         {"task_id": task_id},
-        {"$set": {
-            "status": TASK_STATUS["FAILED"],
-            "error_msg": error,
-            "updated_at": datetime.now(timezone.utc),
-        }},
+        {
+            "$set": {
+                "status": TASK_STATUS["FAILED"],
+                "error_msg": error,
+                "updated_at": datetime.now(timezone.utc),
+            }
+        },
     )
 
 
@@ -502,11 +532,13 @@ async def mark_task_timeout(task_id: str) -> None:
     db = await get_db()
     await db["tasks"].update_one(
         {"task_id": task_id},
-        {"$set": {
-            "status": TASK_STATUS["TIMEOUT"],
-            "error_msg": "超过总时限",
-            "updated_at": datetime.now(timezone.utc),
-        }},
+        {
+            "$set": {
+                "status": TASK_STATUS["TIMEOUT"],
+                "error_msg": "超过总时限",
+                "updated_at": datetime.now(timezone.utc),
+            }
+        },
     )
 
 
@@ -514,10 +546,12 @@ async def mark_task_running(task_id: str) -> None:
     db = await get_db()
     await db["tasks"].update_one(
         {"task_id": task_id},
-        {"$set": {
-            "status": TASK_STATUS["RUNNING"],
-            "updated_at": datetime.now(timezone.utc),
-        }},
+        {
+            "$set": {
+                "status": TASK_STATUS["RUNNING"],
+                "updated_at": datetime.now(timezone.utc),
+            }
+        },
     )
 
 
@@ -615,9 +649,12 @@ async def get_node_status(task_id: str, node_id: int) -> Optional[int]:
 #  兼容 DBManager 类
 # ══════════════════════════════════════════════════
 
+
 class DBManager:
     async def get_recent_tasks(
-        self, limit: int = 50, rid_tag: str = "query",
+        self,
+        limit: int = 50,
+        rid_tag: str = "query",
     ) -> list[str]:
         return await get_recent_tasks(limit, rid_tag)
 

@@ -1,4 +1,5 @@
 """refine.py 的冒烟测试——重点验证 Semaphore 跨 loop 与配置解析健壮化。"""
+
 import asyncio
 from unittest.mock import AsyncMock
 
@@ -10,6 +11,7 @@ from task_planner.core.graph.nodes.refine import (
 )
 
 # ── Semaphore 跨 loop 回归（本轮修复的关键 bug）──
+
 
 def test_semaphore_does_not_bind_across_event_loops(monkeypatch):
     """
@@ -48,6 +50,7 @@ def test_semaphore_does_not_bind_across_event_loops(monkeypatch):
 
 # ── 配置解析健壮化 ──
 
+
 def test_parse_concurrency_valid(monkeypatch):
     monkeypatch.setenv("REFINE_CONCURRENCY", "5")
     assert _parse_concurrency() == 5
@@ -75,6 +78,7 @@ def test_parse_concurrency_missing_uses_default(monkeypatch):
 
 
 # ── 基本行为 ──
+
 
 async def test_refine_returns_independent_copies(monkeypatch):
     """nodes 与 refined_nodes 应是独立 list，修改一个不影响另一个。"""
@@ -105,6 +109,7 @@ async def test_refine_returns_independent_copies(monkeypatch):
 
 async def test_refine_single_node_failure_does_not_block_others(monkeypatch):
     """单节点失败降级为 fallback，不影响其他节点。"""
+
     async def _fake_refine(n, *a, **kw):
         if n.get("id") == 1:
             raise RuntimeError("节点1失败")
@@ -192,18 +197,12 @@ async def test_refine_cancel_mid_loop_marks_remaining_unsubmitted(monkeypatch):
     assert len(result["refined_nodes"]) == 20
 
     # 至少有一个"未提交"——证明主循环在迭代中途 break 了
-    unsubmitted = [
-        n for n in result["refined_nodes"]
-        if "未提交" in n.get("details", "")
-    ]
+    unsubmitted = [n for n in result["refined_nodes"] if "未提交" in n.get("details", "")]
     assert len(unsubmitted) > 0, (
         "预期存在未提交节点（主循环中途 break），实际全部已提交或全部未提交。"
         "可能是 sleep(0) 让出点被移除，或后台任务的 sleep 次数需要调。"
     )
 
     # 且应该有一部分是已提交的（前几轮迭代已完成）
-    submitted = [
-        n for n in result["refined_nodes"]
-        if "未提交" not in n.get("details", "")
-    ]
+    submitted = [n for n in result["refined_nodes"] if "未提交" not in n.get("details", "")]
     assert len(submitted) > 0, "预期存在已提交节点（前面几轮迭代）"

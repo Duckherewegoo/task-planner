@@ -17,7 +17,6 @@ from typing import Any
 
 
 class Reporters:
-
     @staticmethod
     def markdown_report(
         summary: dict[str, Any],
@@ -32,13 +31,13 @@ class Reporters:
         def pct(v: Any) -> str:
             try:
                 return f"{float(v or 0):.2%}"
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 return "N/A"
 
         def sec(v: Any) -> str:
             try:
                 return f"{float(v or 0):.2f}s"
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 return "N/A"
 
         lines = [
@@ -59,7 +58,7 @@ class Reporters:
 
         for cat, data in summary.get("by_category", {}).items():
             metrics = data.get("metrics", {}) or {}
-            count = data.get("count", 0)   # P1-2 修复：用 .get
+            count = data.get("count", 0)  # P1-2 修复：用 .get
             lines.append(
                 f"- **{cat}** ({count} cases): "
                 f"accuracy={pct(metrics.get('accuracy'))}, "
@@ -75,8 +74,7 @@ class Reporters:
                 metrics = data.get("metrics", {}) or {}
                 count = data.get("count", 0)
                 lines.append(
-                    f"- **{comp}** ({count} cases): "
-                    f"accuracy={pct(metrics.get('accuracy'))}"
+                    f"- **{comp}** ({count} cases): accuracy={pct(metrics.get('accuracy'))}"
                 )
 
         lines.append("")

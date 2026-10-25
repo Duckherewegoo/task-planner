@@ -83,6 +83,7 @@ class TaskSession:
         """
         return {"configurable": {"thread_id": self.thread_id}}
 
+
 # ═══════════════════════════════════════════════════════════════════
 # 会话池（全局单例）
 # ═══════════════════════════════════════════════════════════════════
@@ -164,6 +165,7 @@ async def acquire_session(
         session = TaskSession(thread_id)
         await _session_store.set(thread_id, session)
         return session
+
 
 __all__ = [
     "TaskSession",

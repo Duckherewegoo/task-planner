@@ -1,4 +1,5 @@
 """_executor.py 的类型归一与截断行为。"""
+
 import types
 from unittest.mock import AsyncMock
 
@@ -13,18 +14,22 @@ from task_planner.core.graph.nodes._executor import (
 
 # ── _coerce_node_id ──
 
-@pytest.mark.parametrize("raw, expected", [
-    (5, 5),
-    (0, 0),
-    (-1, -1),
-    ("abc", "abc"),
-    ("", ""),
-    (True, "True"),    # bool 防御：True 不应被当成 int 5
-    (False, "False"),
-    (None, "None"),    # 已知行为，非理想但一致
-    (3.14, "3.14"),
-    ([1, 2], "[1, 2]"),
-])
+
+@pytest.mark.parametrize(
+    "raw, expected",
+    [
+        (5, 5),
+        (0, 0),
+        (-1, -1),
+        ("abc", "abc"),
+        ("", ""),
+        (True, "True"),  # bool 防御：True 不应被当成 int 5
+        (False, "False"),
+        (None, "None"),  # 已知行为，非理想但一致
+        (3.14, "3.14"),
+        ([1, 2], "[1, 2]"),
+    ],
+)
 def test_coerce_node_id(raw, expected):
     assert _coerce_node_id(raw) == expected
 
@@ -38,15 +43,19 @@ def test_coerce_node_id_bool_is_not_int():
 
 # ── _coerce_text ──
 
-@pytest.mark.parametrize("raw, expected", [
-    ("abc", "abc"),
-    ("", ""),
-    (None, ""),         # 关键：None → ""，不是 "None"
-    (123, "123"),
-    (True, "True"),
-    (0, "0"),
-    ([], "[]"),
-])
+
+@pytest.mark.parametrize(
+    "raw, expected",
+    [
+        ("abc", "abc"),
+        ("", ""),
+        (None, ""),  # 关键：None → ""，不是 "None"
+        (123, "123"),
+        (True, "True"),
+        (0, "0"),
+        ([], "[]"),
+    ],
+)
 def test_coerce_text(raw, expected):
     assert _coerce_text(raw) == expected
 
@@ -58,6 +67,7 @@ def test_coerce_text_none_does_not_produce_literal_none_string():
 
 
 # ── 整句截断 ──
+
 
 async def test_unknown_exception_detail_truncated_whole_sentence(monkeypatch):
     """

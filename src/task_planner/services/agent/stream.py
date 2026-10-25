@@ -28,9 +28,7 @@ async def run_task_stream(
     调用方应使用 `async for event in run_task_stream(...):` 消费。
     """
     if not isinstance(thread_id, str):
-        raise TypeError(
-            f"thread_id must be str, got {type(thread_id).__name__}: {thread_id!r}"
-        )
+        raise TypeError(f"thread_id must be str, got {type(thread_id).__name__}: {thread_id!r}")
 
     rid = set_req_id()
     logger.info("[Agent] 启动任务 | thread=%s req=%s", thread_id, rid)
@@ -53,9 +51,7 @@ async def run_task_stream(
             )
         else:
             initial_state = make_initial_state(user_input, thread_id)
-            logger.info(
-                "[Agent] initial_state keys: %s", list(initial_state.keys())
-            )
+            logger.info("[Agent] initial_state keys: %s", list(initial_state.keys()))
             stream_iter = graph.astream(
                 initial_state,
                 session.config,
@@ -67,9 +63,7 @@ async def run_task_stream(
 
             if isinstance(event, tuple):
                 mode, data = event
-                logger.info(
-                    "[Agent] event #%d [%s] received", event_count, mode
-                )
+                logger.info("[Agent] event #%d [%s] received", event_count, mode)
             else:
                 mode, data = "values", event
                 logger.info("[Agent] event #%d received", event_count)

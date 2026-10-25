@@ -5,6 +5,7 @@ generator.py — 用 LLM 合成黄金标准数据集。
     合成数据生成流水线，将工具执行建模为 DAG，复杂度可控。
     不依赖人工标注，用程序化规则验证结构有效性。
 """
+
 import asyncio
 import hashlib
 import json
@@ -20,8 +21,8 @@ from .validator import validate_golden_plan
 logger = get_logger("task_planner.eval_suite.golden")
 
 # 防御常量
-_MAX_INPUT_LEN = 500           # user_input 截断长度
-_RETRY_BACKOFF_SEC = 1.5       # 重试指数退避基数
+_MAX_INPUT_LEN = 500  # user_input 截断长度
+_RETRY_BACKOFF_SEC = 1.5  # 重试指数退避基数
 
 # ── 生成提示模板（按难度）──
 _GEN_PROMPT = """你是任务规划专家。请为以下用户需求生成一个参考 DAG 规划。
@@ -74,10 +75,10 @@ async def generate_golden_case(
     if len(user_input) > _MAX_INPUT_LEN:
         logger.warning(
             "[Golden] user_input 超长 (%d > %d)，已截断",
-            len(user_input), _MAX_INPUT_LEN,
+            len(user_input),
+            _MAX_INPUT_LEN,
         )
         user_input = user_input[:_MAX_INPUT_LEN]
-
 
     prompt = _GEN_PROMPT.format(
         user_input=user_input,
@@ -87,7 +88,8 @@ async def generate_golden_case(
     for attempt in range(1, max_retries + 1):
         try:
             raw = await async_call_llm(
-                model=model, prompt=prompt,
+                model=model,
+                prompt=prompt,
                 enable_thinking=False,
                 req_id=f"golden_gen_{attempt}",
             )
@@ -118,7 +120,8 @@ async def generate_golden_case(
             if is_valid:
                 logger.info(
                     "[Golden] %s 生成成功 (nodes=%d, edges=%d)",
-                    case_id, len(case.expected_plan["nodes"]),
+                    case_id,
+                    len(case.expected_plan["nodes"]),
                     len(case.expected_plan["edges"]),
                 )
                 return GoldenCase(
@@ -133,7 +136,9 @@ async def generate_golden_case(
                 )
             else:
                 logger.warning(
-                    "[Golden] 第 %d 次生成结构无效: %s", attempt, reason,
+                    "[Golden] 第 %d 次生成结构无效: %s",
+                    attempt,
+                    reason,
                 )
         except Exception as e:
             logger.error("[Golden] 第 %d 次生成异常: %s", attempt, e)
@@ -174,22 +179,28 @@ async def generate_dataset(
             cases.append(case)
             path = output_dir / f"{case.case_id}.json"
             path.write_text(
-                json.dumps({
-                    "case_id": case.case_id,
-                    "user_input": case.user_input,
-                    "expected_plan": case.expected_plan,
-                    "expected_intent": case.expected_intent,
-                    "tags": list(case.tags),
-                    "difficulty": case.difficulty.value,
-                    "generated_by": case.generated_by,
-                }, ensure_ascii=False, indent=2),
+                json.dumps(
+                    {
+                        "case_id": case.case_id,
+                        "user_input": case.user_input,
+                        "expected_plan": case.expected_plan,
+                        "expected_intent": case.expected_intent,
+                        "tags": list(case.tags),
+                        "difficulty": case.difficulty.value,
+                        "generated_by": case.generated_by,
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
                 encoding="utf-8",
             )
 
     if len(cases) < len(specs):
         logger.warning(
             "[Golden] 数据集生成完成: %d/%d 成功，失败 %d 条",
-            len(cases), len(specs), len(specs) - len(cases),
+            len(cases),
+            len(specs),
+            len(specs) - len(cases),
         )
     else:
         logger.info("[Golden] 数据集生成完成: %d/%d 全部成功", len(cases), len(specs))

@@ -85,7 +85,8 @@ class HITLReviewer:
 
         logger.info(
             "[HITL] Flagged %d / %d cases for review",
-            len(flagged), len(results),
+            len(flagged),
+            len(results),
         )
 
         if dry_run:
@@ -113,9 +114,7 @@ class HITLReviewer:
         full_path = (self.review_dir / safe_name).resolve()
         base = self.review_dir.resolve()
         if not str(full_path).startswith(str(base)):
-            raise ValueError(
-                f"[HITL] 非法路径: {filename} 解析后不在 {base} 内"
-            )
+            raise ValueError(f"[HITL] 非法路径: {filename} 解析后不在 {base} 内")
         return full_path
 
     def save_review_requests(self, flagged: list[dict[str, Any]]) -> str:
@@ -156,8 +155,7 @@ class HITLReviewer:
         with open(file_path, "w", encoding="utf-8") as f:
             json.dump(payload, f, indent=2, ensure_ascii=False, default=str)
 
-        logger.info("[HITL] Review results saved to %s (%d items)",
-                    file_path, len(reviewed))
+        logger.info("[HITL] Review results saved to %s (%d items)", file_path, len(reviewed))
         return str(file_path)
 
     def load_review_results(self, file_path: str) -> list[dict[str, Any]]:
@@ -191,13 +189,15 @@ class HITLReviewer:
             items = raw
         else:
             logger.error(
-                "[HITL] Review file 结构无法识别: type=%s", type(raw).__name__,
+                "[HITL] Review file 结构无法识别: type=%s",
+                type(raw).__name__,
             )
             return []
 
         if not isinstance(items, list):
             logger.error(
-                "[HITL] Review items 不是 list: type=%s", type(items).__name__,
+                "[HITL] Review items 不是 list: type=%s",
+                type(items).__name__,
             )
             return []
 
@@ -266,7 +266,7 @@ class HITLReviewer:
                 try:
                     elapsed = float(item.get("elapsed", 0))
                     print(f"  Elapsed:  {elapsed:.2f}s")
-                except (TypeError, ValueError):
+                except TypeError, ValueError:
                     print("  Elapsed:  N/A")
                 print(f"  Metrics:  {item.get('metrics', {})}")
                 if item.get("_flag_reasons"):
@@ -294,12 +294,14 @@ class HITLReviewer:
                 # ── 评论 ──
                 comment = input("  Comment (回车跳过): ").strip()
 
-                reviewed.append({
-                    **item,
-                    "human_score": score,
-                    "human_comment": comment,
-                    "reviewed_at": datetime.now(UTC).isoformat(),
-                })
+                reviewed.append(
+                    {
+                        **item,
+                        "human_score": score,
+                        "human_comment": comment,
+                        "reviewed_at": datetime.now(UTC).isoformat(),
+                    }
+                )
 
                 # ── 自动落盘 ──
                 if autosave_every > 0 and len(reviewed) % autosave_every == 0:
@@ -308,7 +310,7 @@ class HITLReviewer:
                     except Exception as e:
                         logger.warning("[HITL] autosave 失败: %s", e)
 
-        except (KeyboardInterrupt, EOFError):
+        except KeyboardInterrupt, EOFError:
             interrupted = True
             print("\n\n⚠️  审查被中断，正在保存已完成的部分...")
 
@@ -317,9 +319,7 @@ class HITLReviewer:
             final_path = self.save_review_results(reviewed)
             print(f"\n已审查 {len(reviewed)} 条，结果保存至: {final_path}")
             if interrupted and len(reviewed) < len(flagged):
-                print(
-                    f"⚠️  中断退出：剩余 {len(flagged) - len(reviewed)} 条未审查"
-                )
+                print(f"⚠️  中断退出：剩余 {len(flagged) - len(reviewed)} 条未审查")
 
         return reviewed
 
@@ -333,11 +333,7 @@ class HITLReviewer:
 
         P1-3 修复：增加中位数、分数分布、无评分占比。
         """
-        scores = [
-            r.get("human_score")
-            for r in reviewed
-            if r.get("human_score") is not None
-        ]
+        scores = [r.get("human_score") for r in reviewed if r.get("human_score") is not None]
 
         # 分数分布 {1: n, 2: n, ...}
         score_dist: dict[int, int] = dict.fromkeys(range(_SCORE_MIN, _SCORE_MAX + 1), 0)
@@ -364,9 +360,5 @@ class HITLReviewer:
             "median_human_score": median,
             "score_distribution": score_dist,
             "scores": scores,
-            "comments": [
-                r.get("human_comment")
-                for r in reviewed
-                if r.get("human_comment")
-            ],
+            "comments": [r.get("human_comment") for r in reviewed if r.get("human_comment")],
         }

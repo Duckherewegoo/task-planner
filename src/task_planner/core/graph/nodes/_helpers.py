@@ -2,6 +2,7 @@ from task_planner.infrastructure.logger_setup import get_logger
 
 logger = get_logger(__name__)
 
+
 def validate_node_elements(nodes: list, rid: str) -> None:
     """
     校验每个 node 是 dict 且有 id 字段。
@@ -15,7 +16,10 @@ def validate_node_elements(nodes: list, rid: str) -> None:
         if not isinstance(n, dict):
             logger.error(
                 "[Graph] plan_node: nodes[%d] 非 dict! type=%s raw=%s (req=%s)",
-                i, type(n).__name__, str(n)[:200], rid,
+                i,
+                type(n).__name__,
+                str(n)[:200],
+                rid,
             )
             raise ValueError(
                 f"规划失败：nodes[{i}] 应为 dict，实际为 {type(n).__name__} (req={rid})"
@@ -23,11 +27,11 @@ def validate_node_elements(nodes: list, rid: str) -> None:
         if n.get("id") is None:
             logger.error(
                 "[Graph] plan_node: nodes[%d] 缺少 id 字段! raw=%s (req=%s)",
-                i, str(n)[:200], rid,
+                i,
+                str(n)[:200],
+                rid,
             )
-            raise ValueError(
-                f"规划失败：nodes[{i}] 缺少 id 字段 (req={rid})"
-            )
+            raise ValueError(f"规划失败：nodes[{i}] 缺少 id 字段 (req={rid})")
 
 
 def validate_edge_elements(edges: list, rid: str) -> None:
@@ -41,7 +45,10 @@ def validate_edge_elements(edges: list, rid: str) -> None:
         if not isinstance(e, dict):
             logger.error(
                 "[Graph] plan_node: edges[%d] 非 dict! type=%s raw=%s (req=%s)",
-                i, type(e).__name__, str(e)[:200], rid,
+                i,
+                type(e).__name__,
+                str(e)[:200],
+                rid,
             )
             raise ValueError(
                 f"规划失败：edges[{i}] 应为 dict，实际为 {type(e).__name__} (req={rid})"
@@ -49,10 +56,11 @@ def validate_edge_elements(edges: list, rid: str) -> None:
         if "from" not in e or "to" not in e:
             logger.error(
                 "[Graph] plan_node: edges[%d] 缺少 from/to! raw=%s (req=%s)",
-                i, str(e)[:200], rid,
+                i,
+                str(e)[:200],
+                rid,
             )
-            raise ValueError(
-                f"规划失败：edges[{i}] 缺少 from/to 字段 (req={rid})"
-            )
+            raise ValueError(f"规划失败：edges[{i}] 缺少 from/to 字段 (req={rid})")
 
-__all__ = ["validate_node_elements","validate_edge_elements"]
+
+__all__ = ["validate_node_elements", "validate_edge_elements"]

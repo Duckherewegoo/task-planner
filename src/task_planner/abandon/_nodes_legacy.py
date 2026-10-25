@@ -1,6 +1,7 @@
 """
 nodes.py — LangGraph 异步节点函数（完全异步化）
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -11,22 +12,27 @@ from typing import Any, Optional, TypedDict, cast
 
 from langchain_core.runnables import RunnableConfig
 
-from task_planner.core.database import (create_direct_answer_task,
-                                        create_task_with_plan,
-                                        mark_task_failed, mark_task_running,
-                                        update_node_status)
+from task_planner.core.database import (
+    create_direct_answer_task,
+    create_task_with_plan,
+    mark_task_failed,
+    mark_task_running,
+    update_node_status,
+)
 from task_planner.infrastructure.cog import hub as _hub
 from task_planner.infrastructure.constants import USER_VISIBLE_NODE_FIELDS
-from task_planner.infrastructure.llm_client import (LLMCancelledError,
-                                                    LLMTimeoutError)
-from task_planner.infrastructure.llm_client import \
-    _extract_json as _parse_json  # 修复 P0-1：补上缺失的三个符号
-from task_planner.infrastructure.llm_client import (_render_template,
-                                                    direct_chat,
-                                                    execute_node_llm,
-                                                    generate_plan,
-                                                    recognize_intent,
-                                                    refine_node)
+from task_planner.infrastructure.llm_client import LLMCancelledError, LLMTimeoutError
+from task_planner.infrastructure.llm_client import (
+    _extract_json as _parse_json,
+)  # 修复 P0-1：补上缺失的三个符号
+from task_planner.infrastructure.llm_client import (
+    _render_template,
+    direct_chat,
+    execute_node_llm,
+    generate_plan,
+    recognize_intent,
+    refine_node,
+)
 from task_planner.infrastructure.logger_setup import get_logger, set_req_id
 from task_planner.infrastructure.prompts.loader import EXECUTE_NODE_PROMPT
 from task_planner.infrastructure.regexes import SENSITIVE_PATTERNS
@@ -43,6 +49,7 @@ _SENSITIVE_PATTERNS = SENSITIVE_PATTERNS
 
 class SafeNodeView(TypedDict, total=False):
     """面向前端的节点视图"""
+
     id: int
     name: str
     details: str
@@ -97,6 +104,7 @@ def _get_cancel_event(config: RunnableConfig | None = None) -> asyncio.Event | N
 #  异步节点函数
 # ══════════════════════════════════════════════════
 
+
 async def intent_node(state: TaskState, config: RunnableConfig) -> dict[str, Any]:
     """意图识别节点（异步）"""
     rid = set_req_id()
@@ -122,8 +130,10 @@ async def plan_node(state: TaskState, config: RunnableConfig) -> dict[str, Any]:
 
     cancel_event = _get_cancel_event(config)
     plan = await generate_plan(
-        state["user_input"], state["intent"],
-        req_id=rid, cancel_event=cancel_event,
+        state["user_input"],
+        state["intent"],
+        req_id=rid,
+        cancel_event=cancel_event,
     )
 
     nodes_raw = list(plan.get("nodes", []))
@@ -132,7 +142,8 @@ async def plan_node(state: TaskState, config: RunnableConfig) -> dict[str, Any]:
     if not nodes_raw:
         logger.error(
             "[Graph] plan_node 产出空计划! raw_plan=%s (req=%s)",
-            str(plan)[:500], rid,
+            str(plan)[:500],
+            rid,
         )
         raise ValueError(
             f"规划失败：LLM 未返回有效节点。请检查 planner prompt 或模型输出格式。(req={rid})"
@@ -140,14 +151,17 @@ async def plan_node(state: TaskState, config: RunnableConfig) -> dict[str, Any]:
 
     logger.info(
         "[Graph] plan_node: %d nodes, %d edges (req=%s)",
-        len(nodes_raw), len(edges_raw), rid,
+        len(nodes_raw),
+        len(edges_raw),
+        rid,
     )
 
     return {
         "plan": plan,
         "nodes": nodes_raw,
         "edges": edges_raw,
-        "steps": state.get("steps", []) + [f"规划完成: {len(nodes_raw)}个节点, {len(edges_raw)}条边"],
+        "steps": state.get("steps", [])
+        + [f"规划完成: {len(nodes_raw)}个节点, {len(edges_raw)}条边"],
     }
 
 
@@ -186,7 +200,9 @@ async def refine_node_fn(state: TaskState, config: RunnableConfig) -> dict[str, 
         if cancel_event and cancel_event.is_set():
             logger.info(
                 "[Graph] refine 提前终止，已提交 %d/%d (req=%s)",
-                len(tasks), len(nodes_raw), rid,
+                len(tasks),
+                len(nodes_raw),
+                rid,
             )
             break
         tasks.append(_refine_one(dict(n)))
@@ -250,13 +266,15 @@ async def save_node(state: TaskState, config: RunnableConfig) -> dict[str, Any]:
         fallback_id = f"local-{uuid.uuid4().hex[:12]}"
         logger.warning(
             "[Graph] save_node DB 写入失败，降级为本地 ID: %s | err=%s",
-            fallback_id, e,
+            fallback_id,
+            e,
         )
         return {
             "task_id": fallback_id,
             "steps": state.get("steps", []) + [f"⚠️ 未入库(降级): {fallback_id}"],
-            "error": "",   # 不污染 error 字段，图继续执行
+            "error": "",  # 不污染 error 字段，图继续执行
         }
+
 
 async def render_node(state: TaskState, config: RunnableConfig) -> dict[str, Any]:
     """渲染流程图（CPU 密集，仍用 to_thread）"""
@@ -431,6 +449,7 @@ async def cancel_node(state: TaskState, config: RunnableConfig) -> dict[str, Any
 #  路由函数（同步，纯计算）
 # ══════════════════════════════════════════════════
 
+
 def route_after_intent(state: TaskState) -> str:
     if state.get("cancel_requested"):
         return "cancel"
@@ -461,6 +480,7 @@ def route_after_render(state: TaskState) -> str:
 #  辅助异步函数
 # ══════════════════════════════════════════════════
 
+
 async def _execute_single_node(
     node: dict[str, Any],
     user_input: str,
@@ -487,7 +507,8 @@ async def _execute_single_node(
 
     # ── 1. Prompt 构建 ───────────────────────────────────────────
     prompt = _render_template(
-        EXECUTE_NODE_PROMPT, rid,
+        EXECUTE_NODE_PROMPT,
+        rid,
         user_input=user_input,
         category=str(intent.get("category", "other")),
         name=name,
@@ -510,7 +531,11 @@ async def _execute_single_node(
         status = "success" if success else "failed"
         logger.info(
             "[Node] %s 节点%s [%s] 执行%s (req=%s)",
-            "✅" if success else "❌", nid, name, status, rid,
+            "✅" if success else "❌",
+            nid,
+            name,
+            status,
+            rid,
         )
 
         return {

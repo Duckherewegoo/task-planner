@@ -31,6 +31,7 @@
    本文件的"按 loop 缓存"策略能缓解 LLM 客户端这一侧——
    但 init_db 内部的 asyncio 对象仍需 app.py 侧修复（见跨文件待办）。
 """
+
 import asyncio
 import atexit
 import sys
@@ -125,8 +126,7 @@ async def get_llm_client() -> AsyncOpenAI | None:
 
         try:
             base_url = (
-                _hub.dev.DASHSCOPE_BASE_URL
-                or "https://dashscope.aliyuncs.com/compatible-mode/v1"
+                _hub.dev.DASHSCOPE_BASE_URL or "https://dashscope.aliyuncs.com/compatible-mode/v1"
             )
             # 函数内 import httpx——只在真实调用时才需要它，
             # 不在模块级强依赖（与 openai 的 import 时机对齐）。
@@ -135,9 +135,7 @@ async def get_llm_client() -> AsyncOpenAI | None:
             timeout = httpx.Timeout(_hub.dev.LLM_TIMEOUT, connect=5.0)
             http_client = httpx.AsyncClient(
                 timeout=timeout,
-                limits=httpx.Limits(
-                    max_connections=_hub.dev.LLM_MAX_CONCURRENT * 2
-                ),
+                limits=httpx.Limits(max_connections=_hub.dev.LLM_MAX_CONCURRENT * 2),
             )
             _client = AsyncOpenAI(
                 api_key=_hub.dev.DASHSCOPE_API_KEY,
@@ -206,9 +204,7 @@ def _atexit_close() -> None:
     try:
         asyncio.run(aclose_llm_client())
     except Exception as e:
-        logger.warning(
-            "[LLMClient] atexit 关闭失败（loop 已死或不可用）: %s", e
-        )
+        logger.warning("[LLMClient] atexit 关闭失败（loop 已死或不可用）: %s", e)
 
 
 # 挂 sys 抗 importlib.reload——与 workflow.py 同策略

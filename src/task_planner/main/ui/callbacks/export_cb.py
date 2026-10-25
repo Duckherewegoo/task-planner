@@ -71,7 +71,8 @@ def register() -> None:
                 )
                 logger.info(
                     "[Export] SVG 导出成功 (%.1f KB, task=%s)",
-                    len(svg_bytes) / 1024, task_id_str,
+                    len(svg_bytes) / 1024,
+                    task_id_str,
                 )
                 return dcc.send_bytes(
                     svg_bytes,
@@ -84,7 +85,8 @@ def register() -> None:
                 )
                 logger.info(
                     "[Export] PNG 导出成功 (%.1f KB, task=%s)",
-                    len(png_bytes) / 1024, task_id_str,
+                    len(png_bytes) / 1024,
+                    task_id_str,
                 )
                 return dcc.send_bytes(
                     png_bytes,
@@ -94,6 +96,8 @@ def register() -> None:
         except Exception as e:
             logger.error(
                 "[Export] %s 图片渲染失败: %s",
-                image_format.upper(), e, exc_info=True,
+                image_format.upper(),
+                e,
+                exc_info=True,
             )
             return None

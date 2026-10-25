@@ -23,6 +23,7 @@ class HistorySelectResult:
     on_history_select 回调返回容器。
     to_tuple() 顺序必须与 @callback 装饰器 Output 顺序一致。
     """
+
     elements: Any = None
     detail: Any = None
     pan: Any = None
@@ -85,9 +86,7 @@ def _stable_fingerprint(
 ) -> tuple[str, int]:
     try:
         node_ids = tuple(sorted(str(n.get("id", i)) for i, n in enumerate(nodes)))
-        edge_keys = tuple(
-            sorted((str(e["from"]), str(e["to"]), e.get("label", "")) for e in edges)
-        )
+        edge_keys = tuple(sorted((str(e["from"]), str(e["to"]), e.get("label", "")) for e in edges))
         topo_part = f"{len(nodes)}|{len(edges)}|{node_ids}|{edge_keys}"
         state_part = json.dumps(node_states, sort_keys=True, ensure_ascii=False)
         raw = f"{topo_part}||{state_part}"
@@ -109,10 +108,7 @@ def cytoscape_cached(
     if raw_size > _MAX_CACHE_INPUT_BYTES:
         return dag_to_cytoscape(nodes, edges, node_states)
     with _cyto_lock:
-        if (
-            fingerprint == _cyto_cache["hash"]
-            and _cyto_cache["elements"] is not None
-        ):
+        if fingerprint == _cyto_cache["hash"] and _cyto_cache["elements"] is not None:
             return _cyto_cache["elements"]
         elements = dag_to_cytoscape(nodes, edges, node_states)
         _cyto_cache["hash"] = fingerprint

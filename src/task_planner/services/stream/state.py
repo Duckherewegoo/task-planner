@@ -63,8 +63,7 @@ class TaskStreamState:
         """推入新快照，并同步节点状态"""
         async with self._lock:
             # 关键字段状态继承，防止中间快照清空
-            for key in ("nodes", "edges", "direct_response",
-                        "flowchart_html", "task_id"):
+            for key in ("nodes", "edges", "direct_response", "flowchart_html", "task_id"):
                 if not snapshot.get(key) and self.latest.get(key):
                     snapshot[key] = self.latest[key]
 

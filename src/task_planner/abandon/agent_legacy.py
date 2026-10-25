@@ -9,6 +9,7 @@ agent.py — 异步 Agent 主入口（LangGraph 异步驱动版）
 所有 I/O 操作均异步，取消信号通过 asyncio.Event 传递。
 会话管理使用 SessionStore + asyncio.Lock，保证协程安全。
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -30,8 +31,7 @@ from task_planner.utils.context import cancel_event_var
 
 SESSION_TTL = _hub.dev.SESSION_TTL
 # P0-2 修复：同时导入 Protocol 和实现
-from task_planner.infrastructure.session_store import (InMemorySessionStore,
-                                                       SessionStore)
+from task_planner.infrastructure.session_store import InMemorySessionStore, SessionStore
 
 logger = get_logger(__name__)
 _SESSION_TTL = SESSION_TTL
@@ -45,12 +45,13 @@ _SKIP_PLANNING_PATTERNS = SKIP_PLANNING_PATTERNS
 #    之前的 _acquire_session 写 _active_sessions、而 get_session 读 _session_store，
 #    两套机制数据永不交叉 → 取消失败 + 会话泄漏。
 _session_store: SessionStore = InMemorySessionStore()
-_sessions_lock = asyncio.Lock()   # 用于 _acquire_session 的原子性
+_sessions_lock = asyncio.Lock()  # 用于 _acquire_session 的原子性
 
 
 # ================================================================
 #  会话类
 # ================================================================
+
 
 class TaskSession:
     """单个任务会话 - 完全异步化"""
@@ -91,6 +92,7 @@ class TaskSession:
 # P0-3 修复：从 TaskSession 类内部移出，改为模块级
 # ================================================================
 
+
 async def get_session(thread_id: str) -> Optional[TaskSession]:
     """异步获取会话"""
     return await _session_store.get(thread_id)
@@ -104,6 +106,7 @@ async def cleanup_stale_sessions() -> int:
 # ================================================================
 #  初始状态构建
 # ================================================================
+
 
 def _should_skip_planning(user_input: str) -> bool:
     """显式拒绝规划的正则拦截（同步，纯计算）"""
@@ -154,6 +157,7 @@ def _make_initial_state(user_input: str, thread_id: str) -> dict[str, Any]:
 #  获取或创建 session（resume 场景复用 cancel_event）
 # ================================================================
 
+
 async def _acquire_session(
     thread_id: str,
     user_input: str,
@@ -179,6 +183,7 @@ async def _acquire_session(
 #  核心异步流式执行
 # ================================================================
 
+
 async def run_task_stream(
     user_input: str,
     thread_id: str,
@@ -190,9 +195,7 @@ async def run_task_stream(
     调用方应使用 `async for event in run_task_stream(...):` 消费。
     """
     if not isinstance(thread_id, str):
-        raise TypeError(
-            f"thread_id must be str, got {type(thread_id).__name__}: {thread_id!r}"
-        )
+        raise TypeError(f"thread_id must be str, got {type(thread_id).__name__}: {thread_id!r}")
 
     rid = set_req_id()
     logger.info("[Agent] 启动任务 | thread=%s req=%s", thread_id, rid)
@@ -271,6 +274,7 @@ async def run_task_stream(
 #  异步命令操作（取消 / 修改 / 继续 / 重试）
 # ================================================================
 
+
 async def cancel_task(thread_id: str) -> bool:
     """取消任务（异步）"""
     session = await get_session(thread_id)
@@ -311,10 +315,13 @@ async def modify_task(thread_id: str, new_input: str) -> bool:
         logger.warning("[Agent] 修改输入校验失败: %s", e)
         return False
 
-    await _resume_with_command(session, {
-        "action": UserAction.MODIFY,
-        "user_input": cleaned,
-    })
+    await _resume_with_command(
+        session,
+        {
+            "action": UserAction.MODIFY,
+            "user_input": cleaned,
+        },
+    )
     return True
 
 
@@ -324,9 +331,12 @@ async def resume_task(thread_id: str) -> bool:
     if not session:
         return False
 
-    await _resume_with_command(session, {
-        "action": UserAction.CONTINUE,
-    })
+    await _resume_with_command(
+        session,
+        {
+            "action": UserAction.CONTINUE,
+        },
+    )
     return True
 
 
@@ -336,16 +346,20 @@ async def retry_node_cmd(thread_id: str, node_id: int) -> bool:
     if not session:
         return False
 
-    await _resume_with_command(session, {
-        "action": UserAction.RETRY_NODE,
-        "node_id": node_id,
-    })
+    await _resume_with_command(
+        session,
+        {
+            "action": UserAction.RETRY_NODE,
+            "node_id": node_id,
+        },
+    )
     return True
 
 
 # ================================================================
 #  内部工具（同步，无 I/O）
 # ================================================================
+
 
 def _extract_snapshot(
     event: dict[str, Any],
@@ -358,13 +372,15 @@ def _extract_snapshot(
 
     elapsed = time.time() - session.start_time
     view = {k: event.get(k) for k in FRONTEND_FIELDS}
-    view.update({
-        "type": "progress",
-        "task_id": event.get("task_id", ""),
-        "elapsed": round(elapsed, 1),
-        "nodes": event.get("nodes") or [],
-        "edges": event.get("edges") or [],
-    })
+    view.update(
+        {
+            "type": "progress",
+            "task_id": event.get("task_id", ""),
+            "elapsed": round(elapsed, 1),
+            "nodes": event.get("nodes") or [],
+            "edges": event.get("edges") or [],
+        }
+    )
     return view
 
 

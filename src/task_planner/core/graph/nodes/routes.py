@@ -29,6 +29,7 @@
      这个元组等价于 str，会让任意字符串（如 "foobar"）通过，导致下面
      三个 if 全不命中、静默走 idx 分支——正是要防的"静默走错分支"。
 """
+
 from typing import Literal
 
 from task_planner.core.graph.state import TaskState, UserAction, validate_user_action

@@ -102,6 +102,7 @@ async def cancel_task(thread_id: str) -> bool:
         return True
     return False
 
+
 async def modify_task(thread_id: str, new_input: str) -> bool:
     """
     修改任务需求（异步）。
@@ -135,16 +136,20 @@ async def modify_task(thread_id: str, new_input: str) -> bool:
     if not cleaned:
         logger.warning(
             "[Agent] 修改输入为空或全被脱敏，拒绝 | thread=%s | raw_type=%s",
-            thread_id, type(new_input).__name__,
+            thread_id,
+            type(new_input).__name__,
         )
         return False
 
-    await _resume_with_command(session, {
-        # 键名对齐 execute.execute_node 的 feedback.get("user_action")
-        "user_action": UserAction.MODIFY,
-        # 键名对齐 execute.execute_node 的 feedback.get("modified_input")
-        "modified_input": cleaned,
-    })
+    await _resume_with_command(
+        session,
+        {
+            # 键名对齐 execute.execute_node 的 feedback.get("user_action")
+            "user_action": UserAction.MODIFY,
+            # 键名对齐 execute.execute_node 的 feedback.get("modified_input")
+            "modified_input": cleaned,
+        },
+    )
     return True
 
 
@@ -167,10 +172,13 @@ async def resume_task(thread_id: str) -> bool:
     if not session:
         return False
 
-    await _resume_with_command(session, {
-        # 键名对齐 execute.execute_node 的 feedback.get("user_action")
-        "user_action": UserAction.CONTINUE,
-    })
+    await _resume_with_command(
+        session,
+        {
+            # 键名对齐 execute.execute_node 的 feedback.get("user_action")
+            "user_action": UserAction.CONTINUE,
+        },
+    )
     return True
 
 
@@ -205,13 +213,16 @@ async def retry_node_cmd(thread_id: str, node_index: int) -> bool:
     if not session:
         return False
 
-    await _resume_with_command(session, {
-        # 键名对齐 execute.execute_node 的 feedback.get("user_action")
-        "user_action": UserAction.RETRY_NODE,
-        # 键名对齐 state.TaskState 的 retry_node_index 字段
-        # （原写法 "node_index" 永远读不到——execute 读的是 retry_node_index）
-        "retry_node_index": node_index,
-    })
+    await _resume_with_command(
+        session,
+        {
+            # 键名对齐 execute.execute_node 的 feedback.get("user_action")
+            "user_action": UserAction.RETRY_NODE,
+            # 键名对齐 state.TaskState 的 retry_node_index 字段
+            # （原写法 "node_index" 永远读不到——execute 读的是 retry_node_index）
+            "retry_node_index": node_index,
+        },
+    )
     return True
 
 

@@ -14,6 +14,7 @@ _executor.py — 单节点执行器（nodes 包内部使用）。
 
 ⚠️ 完整变更历史见 CHANGELOG.md。
 """
+
 import asyncio
 import json
 from typing import Any, Literal
@@ -90,7 +91,7 @@ class NodeExecResult(BaseModel):
     """
 
     model_config = ConfigDict(
-        frozen=True,     # 不可变——内部构造的"数据类"
+        frozen=True,  # 不可变——内部构造的"数据类"
         extra="forbid",  # 多字段报错——提醒改了字段结构要同步消费方
     )
 
@@ -175,10 +176,12 @@ async def execute_single_node(
     if not isinstance(node, dict):
         logger.warning(
             "[Node] execute_single_node received non-dict node: %r (req=%s)",
-            type(node).__name__, rid,
+            type(node).__name__,
+            rid,
         )
         return _make_result(
-            "?", "?",
+            "?",
+            "?",
             status="failed",
             detail=f"💥 非法节点结构: {type(node).__name__}",
             retryable=False,  # 结构问题重试无意义
@@ -200,7 +203,8 @@ async def execute_single_node(
     if raw_meta is not None and not isinstance(raw_meta, dict):
         logger.warning(
             "[Node] node[meta] expected dict, got %s; ignored (req=%s)",
-            type(raw_meta).__name__, rid,
+            type(raw_meta).__name__,
+            rid,
         )
 
     try:
@@ -208,7 +212,8 @@ async def execute_single_node(
         # 放在 try 内是刻意的：这里失败也要降级为节点 failed，
         # 而不是穿透到 LangGraph 主循环。
         prompt = render_template(
-            EXECUTE_NODE_PROMPT, rid,
+            EXECUTE_NODE_PROMPT,
+            rid,
             user_input=user_input,
             # P4-4：category 同用 _coerce_text——
             # 原写法 str(intent.get("category", "other")) 在
@@ -242,7 +247,8 @@ async def execute_single_node(
     except LLMTimeoutError as e:
         logger.warning("[Node] ⏰ 节点%s [%s] 最终超时: %s (req=%s)", nid, name, e, rid)
         return _make_result(
-            nid, name,
+            nid,
+            name,
             status="timeout",
             detail="⏰ 执行超时，请稍后重试",
             retryable=True,
@@ -254,14 +260,13 @@ async def execute_single_node(
         # 让前端不显示"重试"按钮，避免用户点了还是失败。
         logger.exception("[Node] 🔥 节点%s [%s] 未知异常 (req=%s)", nid, name, rid)
         return _make_result(
-            nid, name,
+            nid,
+            name,
             status="failed",
             # P4-2：整句截断——前缀 + 类型名 + 消息合计不超过 _DETAIL_MAX_LEN。
             # 原写法 str(e)[:_DETAIL_MAX_LEN] 只截消息，
             # 前缀不计入，实际最多约 230 字符，与 docstring 承诺不符。
-            detail=(
-                f"💥 未知异常: {type(e).__name__}: {e!s}"
-            )[:_DETAIL_MAX_LEN],
+            detail=(f"💥 未知异常: {type(e).__name__}: {e!s}")[:_DETAIL_MAX_LEN],
             retryable=False,
         )
 
@@ -271,10 +276,15 @@ async def execute_single_node(
     status: Literal["success", "failed"] = "success" if success else "failed"
     logger.info(
         "[Node] %s 节点%s [%s] 执行%s (req=%s)",
-        "✅" if success else "❌", nid, name, status, rid,
+        "✅" if success else "❌",
+        nid,
+        name,
+        status,
+        rid,
     )
     return _make_result(
-        nid, name,
+        nid,
+        name,
         status=status,
         detail=detail,
         retryable=not success,

@@ -3,6 +3,7 @@ dash_app.py — 完整 Dash UI + 交互式任务执行（异步回调版）
 包含：新建任务流式执行 + 历史记录 + 节点交互确认 + 导出 + 图操作优化 + 循环边支持
 图片导出方案：PyVis 后端渲染 -> pydot (生成 DOT/SVG) → cairosvg (SVG 转 PNG) → io.BytesIO (内存缓冲) -> dcc.sendbytes 直接传输字节流 -> PNG 下载
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -18,47 +19,69 @@ from typing import Any, Dict, List, Tuple
 
 import dash
 import dash_cytoscape as cyto
-from dash import (Input, Output, State, callback, clientside_callback, ctx,
-                  dcc, html, no_update)
+from dash import Input, Output, State, callback, clientside_callback, ctx, dcc, html, no_update
 
-from task_planner.core.database import (batch_delete_tasks, init_db,
-                                        list_tasks, load_task_with_plan,
-                                        reset_node_status)
+from task_planner.core.database import (
+    batch_delete_tasks,
+    init_db,
+    list_tasks,
+    load_task_with_plan,
+    reset_node_status,
+)
 from task_planner.core.graph.nodes import sanitize_node_for_user
 from task_planner.infrastructure.assets.cytoscape_js import (
-    FIT_JS_TEMPLATE, GRAPH_CONFIGS, ZOOM_BTN_JS_TEMPLATE,
-    ZOOM_SLIDER_JS_TEMPLATE)
+    FIT_JS_TEMPLATE,
+    GRAPH_CONFIGS,
+    ZOOM_BTN_JS_TEMPLATE,
+    ZOOM_SLIDER_JS_TEMPLATE,
+)
 from task_planner.infrastructure.assets.cytoscape_styles import CYTO_STYLESHEET
 from task_planner.infrastructure.cog import hub as _hub
-from task_planner.infrastructure.constants import (EDGE_TYPE_HARD,
-                                                   NODE_ACTION_CONFIG,
-                                                   NODE_OPERABLE_STATES,
-                                                   NODE_STATUS_CODE_MAP,
-                                                   STATE_COLORS, STATE_LABELS,
-                                                   VALID_PORT_RANGE)
-from task_planner.infrastructure.ui_styles import (BAR_DONE, BAR_ERROR,
-                                                   BAR_LOADING, BASE_BTN_STYLE,
-                                                   BUTTON_STYLE_DANGER,
-                                                   BUTTON_STYLE_PRIMARY,
-                                                   BUTTON_STYLE_SECONDARY,
-                                                   EMPTY_BAR_MINI_STYLE,
-                                                   EMPTY_BAR_STYLE,
-                                                   MARKDOWN_PRE_STYLE,
-                                                   SECTION_HEADER_STYLE,
-                                                   ZOOM_TOOLBAR_STYLE)
+from task_planner.infrastructure.constants import (
+    EDGE_TYPE_HARD,
+    NODE_ACTION_CONFIG,
+    NODE_OPERABLE_STATES,
+    NODE_STATUS_CODE_MAP,
+    STATE_COLORS,
+    STATE_LABELS,
+    VALID_PORT_RANGE,
+)
+from task_planner.infrastructure.ui_styles import (
+    BAR_DONE,
+    BAR_ERROR,
+    BAR_LOADING,
+    BASE_BTN_STYLE,
+    BUTTON_STYLE_DANGER,
+    BUTTON_STYLE_PRIMARY,
+    BUTTON_STYLE_SECONDARY,
+    EMPTY_BAR_MINI_STYLE,
+    EMPTY_BAR_STYLE,
+    MARKDOWN_PRE_STYLE,
+    SECTION_HEADER_STYLE,
+    ZOOM_TOOLBAR_STYLE,
+)
 from task_planner.services.agent import run_task_stream
-from task_planner.services.stream_manager import (cancel_stream, complete_node,
-                                                  fail_node, get_ready_nodes,
-                                                  get_stream_state, skip_node,
-                                                  start_stream)
+from task_planner.services.stream_manager import (
+    cancel_stream,
+    complete_node,
+    fail_node,
+    get_ready_nodes,
+    get_stream_state,
+    skip_node,
+    start_stream,
+)
 from task_planner.utils.cytoscape_adapter import (
-    _get_edge_type, build_detail_markdown, build_history_detail_markdown,
-    dag_to_cytoscape)
+    _get_edge_type,
+    build_detail_markdown,
+    build_history_detail_markdown,
+    dag_to_cytoscape,
+)
 from task_planner.utils.good_addons import boost
 from task_planner.utils.presentation_utils import (
-    build_history_dropdown_options, extract_first_task_id)
-from task_planner.utils.pyvis_export import (export_dag_to_png,
-                                             export_dag_to_svg)
+    build_history_dropdown_options,
+    extract_first_task_id,
+)
+from task_planner.utils.pyvis_export import export_dag_to_png, export_dag_to_svg
 
 DASH_DISABLE_VERSION_CHECK = _hub.dev.DASH_DISABLE_VERSION_CHECK
 DASH_HOST = _hub.dev.DASH_HOST
@@ -78,6 +101,7 @@ cyto.load_extra_layouts()
 def _bootstrap_db() -> None:
     """模块导入时执行一次 DB 初始化。"""
     from task_planner.core.database import init_db
+
     try:
         asyncio.run(init_db())
         logger.info("[Dash] 数据库初始化完成")
@@ -90,6 +114,7 @@ _bootstrap_db()
 # ══════════════════════════════════════════════════
 #  历史回调的结果容器（P0-5 修复：原代码引用了未定义的类）
 # ══════════════════════════════════════════════════
+
 
 @dataclass
 class HistorySelectResult:
@@ -111,6 +136,7 @@ class HistorySelectResult:
       11. history-dag-store.data
       12. history-node-states-store.data
     """
+
     elements: Any = None
     detail: Any = None
     pan: Any = None
@@ -153,6 +179,7 @@ class HistoryTapNodeResult:
       4. history-node-skip-btn.disabled
       5. history-node-fail-btn.disabled
     """
+
     detail: Any = None
     selected_node: Any = None
     done_disabled: bool = True
@@ -168,6 +195,7 @@ class HistoryTapNodeResult:
             self.fail_disabled,
         )
 
+
 app = dash.Dash(
     __name__,
     title="🧠 通用任务规划助手",
@@ -181,6 +209,7 @@ os.environ["DASH_DISABLE_VERSION_CHECK"] = str(DASH_DISABLE_VERSION_CHECK)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #  TOOLS
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 
 async def _resolve_dag_data(
     history_task_ids,
@@ -201,11 +230,7 @@ async def _resolve_dag_data(
 
     task_id = None
     if history_task_ids:
-        task_id = (
-            history_task_ids[0]
-            if isinstance(history_task_ids, list)
-            else history_task_ids
-        )
+        task_id = history_task_ids[0] if isinstance(history_task_ids, list) else history_task_ids
 
     if task_id:
         try:
@@ -214,7 +239,9 @@ async def _resolve_dag_data(
         except Exception as e:
             logger.error(
                 "[Export] 加载历史任务失败 task=%s: %s",
-                task_id, e, exc_info=True,
+                task_id,
+                e,
+                exc_info=True,
             )
             data = None
 
@@ -234,6 +261,7 @@ async def _resolve_dag_data(
     edges = (dag_store or {}).get("edges") or []
     return nodes, edges, node_states_store, "current"
 
+
 def _make_filename(content_type: str, task_id_str: str, ext: str) -> str:
     timestamp = time.strftime("%Y%m%d_%H%M%S")
     return f"{content_type}_{task_id_str}_{timestamp}.{ext}"
@@ -245,7 +273,7 @@ def _safe_elapsed(task_start_time, now):
         if start <= 0:
             return 0.0
         return round(now - start, 1)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return 0.0
 
 
@@ -272,7 +300,9 @@ def update_node_and_render(dag: dict, node_states: dict, nid: str, target_status
 
     # 多维统计
     total = len(nodes)
-    counts = {s: sum(1 for v in new_states.values() if v == s) for s in ("done", "skipped", "failed")}
+    counts = {
+        s: sum(1 for v in new_states.values() if v == s) for s in ("done", "skipped", "failed")
+    }
     processed = counts["done"] + counts["skipped"]
 
     status_msg = (
@@ -303,7 +333,10 @@ async def _load_and_fill_query(task_ids, action_label: str) -> tuple:
     except Exception as e:
         logger.error(
             "[HistoryAction] %s 加载失败 task=%s: %s",
-            action_label, task_id, e, exc_info=True,
+            action_label,
+            task_id,
+            e,
+            exc_info=True,
         )
         return "❌ 任务数据加载失败，请稍后重试", no_update, no_update
 
@@ -321,9 +354,12 @@ async def _load_and_fill_query(task_ids, action_label: str) -> tuple:
 
     logger.info(
         "[HistoryAction] %s 回填成功 task=%s query_len=%d",
-        action_label, task_id, len(raw_query),
+        action_label,
+        task_id,
+        len(raw_query),
     )
     return msg, "tab-new", raw_query
+
 
 def _auto_unlock_downstream(dag, node_states, changed_nid, new_state, allowed_edge_types=None):
     """
@@ -349,10 +385,7 @@ def _auto_unlock_downstream(dag, node_states, changed_nid, new_state, allowed_ed
         current_state = new_states.get(tgt, "pending")
         if current_state not in ("pending", "blocked"):
             continue
-        all_satisfied = all(
-            new_states.get(str(e["from"])) == "done"
-            for e in relevant_in_edges
-        )
+        all_satisfied = all(new_states.get(str(e["from"])) == "done" for e in relevant_in_edges)
         if all_satisfied:
             new_states[tgt] = "running"
 
@@ -361,6 +394,7 @@ def _auto_unlock_downstream(dag, node_states, changed_nid, new_state, allowed_ed
 
 def _generate_html_export(nodes, edges, task_id):
     import textwrap
+
     elements_list = []
     for i, n in enumerate(nodes):
         nid = str(n.get("id", i))
@@ -369,14 +403,16 @@ def _generate_html_export(nodes, edges, task_id):
         elements_list.append({"data": {"id": nid, "label": label, "detail": detail}})
 
     for i, e in enumerate(edges):
-        elements_list.append({
-            "data": {
-                "id": f"e{i}",
-                "source": str(e["from"]),
-                "target": str(e["to"]),
-                "label": e.get("label", ""),
+        elements_list.append(
+            {
+                "data": {
+                    "id": f"e{i}",
+                    "source": str(e["from"]),
+                    "target": str(e["to"]),
+                    "label": e.get("label", ""),
+                }
             }
-        })
+        )
 
     safe_json = json.dumps(elements_list, ensure_ascii=False).replace("</", r"<\/")
 
@@ -434,386 +470,790 @@ def _generate_html_export(nodes, edges, task_id):
 
 # ── 布局 ──
 def build_layout() -> html.Div:
-    return html.Div([ 
-        dcc.Interval(id="stream-interval", interval=500, disabled=True, n_intervals=0),
-        dcc.Store(id="thread-id-store", data=""),
-        dcc.Store(id="stream-active", data=False),
-        dcc.Store(id="node-states-store", data={}),
-        dcc.Store(id="dag-store", data={"nodes": [], "edges": []}),
-        dcc.Store(id="selected-node-store", data=""),
-        dcc.Store(id="task-start-time", data=None),
-        dcc.Store(id="history-replan-trigger", data=0),
-        dcc.Download(id="export-download"),
-        html.Div([
-            html.Div([
-                html.Span("📤 导出图像：", style={
-                    "fontSize": "12px", "fontWeight": "bold",
-                    "marginRight": "6px", "whiteSpace": "nowrap",
-                }),
-                dcc.RadioItems(
-                    id="image-format",
-                    options=[
-                        {"label": "PNG", "value": "png"},
-                        {"label": "SVG", "value": "svg"},
-                    ],
-                    value="svg",
-                    inline=True,
-                    style={"fontSize": "12px", "display": "inline-block", "marginRight": "10px"},
-                ),
-                html.Button("⬇️ 导出图片", id="export-image-btn", n_clicks=0, style={
-                    "padding": "4px 12px", "backgroundColor": "#1a73e8", "color": "white",
-                    "border": "none", "borderRadius": "4px", "cursor": "pointer",
-                    "fontSize": "12px", "marginRight": "20px",
-                }),
-            ], style={"display": "inline-block", "marginRight": "15px", "marginBottom": "5px"}),
-            html.Div([
-                html.Span("📤 导出数据：", style={
-                    "fontSize": "12px", "fontWeight": "bold",
-                    "marginRight": "6px", "whiteSpace": "nowrap",
-                }),
-                dcc.RadioItems(
-                    id="data-format",
-                    options=[
-                        {"label": "JSON", "value": "json"},
-                        {"label": "DOT", "value": "dot"},
-                        {"label": "HTML", "value": "html"},
-                    ],
-                    value="json",
-                    inline=True,
-                    style={"fontSize": "12px", "display": "inline-block", "marginRight": "10px"},
-                ),
-                html.Button("⬇️ 导出数据", id="export-data-btn", n_clicks=0, style={
-                    "padding": "4px 12px", "backgroundColor": "#10b981", "color": "white",
-                    "border": "none", "borderRadius": "4px", "cursor": "pointer",
-                    "fontSize": "12px",
-                }),
-            ], style={"display": "inline-block", "marginBottom": "5px"}),
-        ], style={
-            "textAlign": "right", "backgroundColor": "white",
-            "padding": "8px 15px", "borderRadius": "8px",
-            "boxShadow": "0 2px 8px rgba(0,0,0,0.1)",
-            "marginBottom": "15px", "flexWrap": "wrap",
-        }),
-        html.H1("🧠 通用任务规划助手", style={
-            "textAlign": "center", "marginBottom": "5px", "color": "#1e293b",
-        }),
-        html.P("输入任务需求，AI 自动分解为 DAG 流程图，逐步确认执行", style={
-            "textAlign": "center", "color": "#64748b", "marginBottom": "10px",
-        }),
-        html.Div(id="global-status", children="👋 就绪，等待操作", style={
-            "marginBottom": "8px", "fontWeight": "bold", "fontSize": "14px",
-            "color": "#1e293b", "textAlign": "center",
-        }),
-        html.Div([
-            html.Div(id="progress-bar-fill", style={
-                "width": "0%", "height": "100%",
-                "background": "linear-gradient(90deg, #10b981, #34d399)",
-                "borderRadius": "6px", "transition": "width 0.5s ease",
-            }),
-        ], style={
-            "width": "60%", "height": "8px", "backgroundColor": "#e2e8f0",
-            "borderRadius": "6px", "margin": "0 auto 15px auto", "overflow": "hidden",
-        }),
-        dcc.Tabs(id="main-tabs", value="tab-new", children=[
-            dcc.Tab(label="🚀 新建任务", value="tab-new", children=[
-                html.Div([
-                    html.Div([
-                        dcc.Textarea(
-                            id="user-input",
-                            placeholder="输入任务需求，例如：教我做甜口西红柿炒鸡蛋（最多 2000 字符）",
-                            style={
-                                "width": "100%", "height": "90px", "fontSize": "14px",
-                                "padding": "10px", "borderRadius": "8px",
-                                "border": "1px solid #d1d5db",
-                            },
-                        ),
-                        dcc.Checklist(
-                            id="enable-refine",
-                            options=[{"label": "🔧 节点细化", "value": "refine"}],
-                            value=["refine"],
-                            style={"marginTop": "10px"},
-                        ),
-                    ], style={"marginBottom": "15px"}),
-                    html.Div([
-                        html.Div("📋 任务控制", style=SECTION_HEADER_STYLE),
-                        html.Div([
-                            html.Button("🚀 开始规划", id="submit-btn", n_clicks=0,
-                                       style=BUTTON_STYLE_PRIMARY),
-                            html.Button("⏹️ 停止", id="stop-btn", n_clicks=0, disabled=True,
-                                       style=BUTTON_STYLE_DANGER),
-                            html.Button("▶️ 继续", id="resume-btn", n_clicks=0, disabled=True,
-                                       style=BUTTON_STYLE_SECONDARY),
-                        ]),
-                    ], style={
-                        "padding": "14px 18px", "backgroundColor": "#eff6ff",
-                        "border": "1px solid #bfdbfe", "borderRadius": "10px",
-                        "marginBottom": "12px",
-                    }),
-                    html.Div([
-                        html.Div("🎯 节点操作（先点击流程图中的节点，再选择操作）",
-                                style=SECTION_HEADER_STYLE),
-                        html.Div([
-                            html.Button("▶️ 开始执行选中节点", id="start-exec-btn",
-                                       n_clicks=0, disabled=True, style={
-                                "backgroundColor": "#10b981", "color": "white",
-                                "border": "none", "padding": "12px 20px",
-                                "borderRadius": "8px", "cursor": "pointer",
-                                "fontSize": "14px", "fontWeight": "bold",
-                                "marginRight": "10px",
-                            }),
-                            html.Button("⏭️ 跳过选中节点", id="skip-btn",
-                                       n_clicks=0, disabled=True, style={
-                                "backgroundColor": "#6366f1", "color": "white",
-                                "border": "none", "padding": "12px 20px",
-                                "borderRadius": "8px", "cursor": "pointer",
-                                "fontSize": "14px", "fontWeight": "bold",
-                                "marginRight": "10px",
-                            }),
-                            html.Button("❌ 做不到", id="fail-btn",
-                                       n_clicks=0, disabled=True, style={
-                                "backgroundColor": "#ef4444", "color": "white",
-                                "border": "none", "padding": "12px 20px",
-                                "borderRadius": "8px", "cursor": "pointer",
-                                "fontSize": "14px", "fontWeight": "bold",
-                            }),
-                        ]),
-                        html.Div(id="node-action-hint",
-                                children="👆 请先在流程图中点击一个高亮（蓝色）节点",
+    return html.Div(
+        [
+            dcc.Interval(id="stream-interval", interval=500, disabled=True, n_intervals=0),
+            dcc.Store(id="thread-id-store", data=""),
+            dcc.Store(id="stream-active", data=False),
+            dcc.Store(id="node-states-store", data={}),
+            dcc.Store(id="dag-store", data={"nodes": [], "edges": []}),
+            dcc.Store(id="selected-node-store", data=""),
+            dcc.Store(id="task-start-time", data=None),
+            dcc.Store(id="history-replan-trigger", data=0),
+            dcc.Download(id="export-download"),
+            html.Div(
+                [
+                    html.Div(
+                        [
+                            html.Span(
+                                "📤 导出图像：",
                                 style={
-                                    "fontSize": "13px", "color": "#94a3b8",
-                                    "marginTop": "8px", "fontStyle": "italic",
-                                }),
-                    ], style={
-                        "padding": "14px 18px", "backgroundColor": "#f0fdf4",
-                        "border": "1px solid #bbf7d0", "borderRadius": "10px",
-                        "marginBottom": "15px",
-                    }),
-                    html.Div([
-                        html.Button("⊡ 适应窗口", id="fit-btn", n_clicks=0,
-                                   style={**ZOOM_TOOLBAR_STYLE, "marginRight": "8px"}),
-                        html.Button("＋ 放大", id="zoom-in-btn", n_clicks=0,
-                                   style={**ZOOM_TOOLBAR_STYLE, "marginRight": "4px"}),
-                        html.Button("－ 缩小", id="zoom-out-btn", n_clicks=0,
-                                   style={**ZOOM_TOOLBAR_STYLE, "marginRight": "8px"}),
-                        html.Div(
-                            dcc.Slider(
-                                id="zoom-slider", min=0.2, max=4.0, step=0.1, value=0.6,
-                                marks={0.2: "20%", 0.6: "60%", 1: "100%", 2: "200%", 4: "400%"},
-                                tooltip={"placement": "bottom", "always_visible": True},
+                                    "fontSize": "12px",
+                                    "fontWeight": "bold",
+                                    "marginRight": "6px",
+                                    "whiteSpace": "nowrap",
+                                },
                             ),
-                            style={"width": "200px", "display": "inline-block",
-                                   "verticalAlign": "middle"},
-                        ),
-                    ], style={"marginBottom": "10px"}),
-                    cyto.Cytoscape(
-                        id="flowchart",
-                        elements=[],
-                        layout={
-                            "name": "dagre", "rankDir": "TB",
-                            "nodeSep": 300, "rankSep": 450, "edgeSep": 80,
-                            "fit": True, "padding": 80,
-                        },
+                            dcc.RadioItems(
+                                id="image-format",
+                                options=[
+                                    {"label": "PNG", "value": "png"},
+                                    {"label": "SVG", "value": "svg"},
+                                ],
+                                value="svg",
+                                inline=True,
+                                style={
+                                    "fontSize": "12px",
+                                    "display": "inline-block",
+                                    "marginRight": "10px",
+                                },
+                            ),
+                            html.Button(
+                                "⬇️ 导出图片",
+                                id="export-image-btn",
+                                n_clicks=0,
+                                style={
+                                    "padding": "4px 12px",
+                                    "backgroundColor": "#1a73e8",
+                                    "color": "white",
+                                    "border": "none",
+                                    "borderRadius": "4px",
+                                    "cursor": "pointer",
+                                    "fontSize": "12px",
+                                    "marginRight": "20px",
+                                },
+                            ),
+                        ],
                         style={
-                            "width": "100%", "height": "700px",
-                            "border": "1px solid #e2e8f0", "borderRadius": "12px",
+                            "display": "inline-block",
+                            "marginRight": "15px",
+                            "marginBottom": "5px",
                         },
-                        stylesheet=CYTO_STYLESHEET,
-                        userZoomingEnabled=True,
-                        userPanningEnabled=True,
-                        boxSelectionEnabled=False,
-                        autoungrabify=False,
-                        minZoom=0.2, maxZoom=4.0, zoom=0.6,
                     ),
-                    html.Div(id="node-detail-panel", children=[
-                        dcc.Markdown("👆 **点击流程图中的节点查看详情并操作**",
-                                    style={"fontSize": "14px", "color": "#94a3b8"})
-                    ], style={
-                        "marginTop": "15px", "padding": "18px",
-                        "border": "1px solid #e2e8f0", "borderRadius": "12px",
-                        "backgroundColor": "#f8fafc", "minHeight": "160px",
-                        "fontSize": "14px", "lineHeight": "1.8",
-                    }),
-                ], style={"padding": "25px", "maxWidth": "1400px", "margin": "0 auto"}),
-            ]),
-            dcc.Tab(label="📜 历史记录", value="tab-history", children=[
-                html.Div([
-                    html.Div([
-                        html.H3("📋 任务列表", style={"marginTop": "0"}),
-                        html.Button("🔄 刷新列表", id="refresh-btn", n_clicks=0, style={
-                            "width": "100%", "padding": "10px", "backgroundColor": "#f1f5f9",
-                            "border": "1px solid #d1d5db", "borderRadius": "6px",
-                            "cursor": "pointer", "marginBottom": "12px",
-                        }),
-                        dcc.Dropdown(
-                            id="history-dropdown",
-                            options=[],
-                            placeholder="选择历史任务（可多选删除）",
-                            multi=True,
-                            style={"marginBottom": "12px"},
-                        ),
-                        html.Button("🗑️ 删除选中", id="delete-btn", n_clicks=0, style={
-                            "width": "100%", "padding": "10px", "backgroundColor": "#ef4444",
-                            "color": "white", "border": "none", "borderRadius": "6px",
-                            "cursor": "pointer", "marginBottom": "10px",
-                        }),
-                        html.Div(id="delete-status", style={"fontSize": "13px", "color": "#059669"}),
-                    ], style={
-                        "width": "28%", "display": "inline-block", "verticalAlign": "top",
-                        "padding": "20px", "borderRight": "1px solid #e2e8f0",
-                    }),
-                    html.Div([
-                        html.Div([
-                            html.Div("🎮 任务控制（基于历史任务）", style=SECTION_HEADER_STYLE),
-                            html.Div([
-                                html.Button("🔄 重新规划", id="history-replan-btn",
-                                           n_clicks=0, disabled=True, style={
-                                    "backgroundColor": "#1a73e8", "color": "white",
-                                    "border": "none", "padding": "10px 18px",
-                                    "borderRadius": "6px", "cursor": "pointer",
-                                    "fontSize": "13px", "fontWeight": "bold",
-                                    "marginRight": "8px",
-                                }),
-                                html.Button("✏️ 修改规划", id="history-edit-plan-btn",
-                                           n_clicks=0, disabled=True, style={
-                                    "backgroundColor": "#8b5cf6", "color": "white",
-                                    "border": "none", "padding": "10px 18px",
-                                    "borderRadius": "6px", "cursor": "pointer",
-                                    "fontSize": "13px", "fontWeight": "bold",
-                                    "marginRight": "8px",
-                                }),
-                                html.Button("▶️ 继续执行", id="history-resume-btn",
-                                           n_clicks=0, disabled=True, style={
-                                    "backgroundColor": "#10b981", "color": "white",
-                                    "border": "none", "padding": "10px 18px",
-                                    "borderRadius": "6px", "cursor": "pointer",
-                                    "fontSize": "13px", "fontWeight": "bold",
-                                    "marginRight": "8px",
-                                }),
-                                html.Button("🔁 重试失败节点", id="history-retry-btn",
-                                           n_clicks=0, disabled=True, style={
-                                    "backgroundColor": "#f59e0b", "color": "white",
-                                    "border": "none", "padding": "10px 18px",
-                                    "borderRadius": "6px", "cursor": "pointer",
-                                    "fontSize": "13px", "fontWeight": "bold",
-                                }),
-                            ]),
-                            html.Div(id="history-action-status",
-                                    children="👆 请先从左侧列表选择一个历史任务",
-                                    style={
-                                        "fontSize": "12px", "color": "#94a3b8",
-                                        "marginTop": "8px", "fontStyle": "italic",
-                                    }),
-                        ], style={
-                            "padding": "14px 18px", "backgroundColor": "#eff6ff",
-                            "border": "1px solid #bfdbfe", "borderRadius": "10px",
-                            "marginBottom": "15px",
-                        }),
-                        html.Div([
-                            html.Div("🎯 节点操作（先点击历史流程图中的节点）",
-                                    style=SECTION_HEADER_STYLE),
-                            html.Div([
-                                html.Button("标记完成", id="history-node-done-btn",
-                                           n_clicks=0, disabled=True, style={
-                                    "backgroundColor": "#10b981", "color": "white",
-                                    "border": "none", "padding": "10px 18px",
-                                    "borderRadius": "6px", "cursor": "pointer",
-                                    "fontSize": "13px", "fontWeight": "bold",
-                                    "marginRight": "8px",
-                                }),
-                                html.Button("⏭️ 跳过", id="history-node-skip-btn",
-                                           n_clicks=0, disabled=True, style={
-                                    "backgroundColor": "#6366f1", "color": "white",
-                                    "border": "none", "padding": "10px 18px",
-                                    "borderRadius": "6px", "cursor": "pointer",
-                                    "fontSize": "13px", "fontWeight": "bold",
-                                    "marginRight": "8px",
-                                }),
-                                html.Button("❌ 标记失败", id="history-node-fail-btn",
-                                           n_clicks=0, disabled=True, style={
-                                    "backgroundColor": "#ef4444", "color": "white",
-                                    "border": "none", "padding": "10px 18px",
-                                    "borderRadius": "6px", "cursor": "pointer",
-                                    "fontSize": "13px", "fontWeight": "bold",
-                                }),
-                            ]),
-                            dcc.Store(id="history-selected-node-store", data=""),
-                            dcc.Store(id="history-dag-store", data={"nodes": [], "edges": []}),
-                            dcc.Store(id="history-node-states-store"),
-                        ]),
-                        html.Div([
-                            html.H3("🗺️ 流程图", style={"marginTop": "0"}),
-                            html.Div([
-                                html.Button("⊡ 适应窗口", id="history-fit-btn",
-                                           n_clicks=0, style={
-                                    **ZOOM_TOOLBAR_STYLE, "marginRight": "8px"
-                                }),
-                                html.Button("＋ 放大", id="history-zoom-in-btn",
-                                           n_clicks=0, style={
-                                    **ZOOM_TOOLBAR_STYLE, "marginRight": "4px"
-                                }),
-                                html.Button("－ 缩小", id="history-zoom-out-btn",
-                                           n_clicks=0, style={
-                                    **ZOOM_TOOLBAR_STYLE, "marginRight": "8px"
-                                }),
-                                html.Div(
-                                    dcc.Slider(
-                                        id="history-zoom-slider",
-                                        min=0.2, max=4.0, step=0.1, value=0.6,
-                                        marks={0.2: "20%", 0.6: "60%", 1: "100%",
-                                               2: "200%", 4: "400%"},
-                                        tooltip={"placement": "bottom", "always_visible": True},
-                                    ),
-                                    style={
-                                        "width": "200px", "display": "inline-block",
-                                        "verticalAlign": "middle",
-                                    },
-                                ),
-                            ], style={"marginBottom": "10px"}),
-                            cyto.Cytoscape(
-                                id="history-flowchart",
-                                elements=[],
-                                layout={
-                                    "name": "dagre", "rankDir": "TB",
-                                    "nodeSep": 250, "rankSep": 380, "edgeSep": 60,
-                                    "fit": True, "padding": 60,
-                                },
+                    html.Div(
+                        [
+                            html.Span(
+                                "📤 导出数据：",
                                 style={
-                                    "width": "100%", "height": "450px",
-                                    "border": "1px solid #e2e8f0", "borderRadius": "12px",
-                                    "marginBottom": "15px",
+                                    "fontSize": "12px",
+                                    "fontWeight": "bold",
+                                    "marginRight": "6px",
+                                    "whiteSpace": "nowrap",
                                 },
-                                stylesheet=CYTO_STYLESHEET,
-                                minZoom=0.2, maxZoom=4.0, zoom=0.6,
-                                userZoomingEnabled=True,
-                                userPanningEnabled=True,
                             ),
-                            html.Div([
-                                html.H4("🎯 节点详情", style={"margin": "0 0 8px", "fontSize": "14px"}),
-                                html.Div(id="history-node-detail", children=[
-                                    dcc.Markdown("**点击流程图中的节点查看详情**")
-                                ], style={
-                                    "padding": "10px", "border": "1px solid #e2e8f0",
-                                    "borderRadius": "8px", "backgroundColor": "#f8fafc",
-                                    "minHeight": "80px", "fontSize": "13px",
-                                    "marginBottom": "10px",
-                                }),
-                            ], style={"marginBottom": "15px"}),
-                            html.H3("📝 任务详情"),
-                            html.Div(id="history-detail", style={
-                                "whiteSpace": "pre-wrap", "padding": "15px",
-                                "border": "1px solid #e2e8f0", "borderRadius": "8px",
-                                "backgroundColor": "#f8fafc", "fontSize": "14px",
-                                "lineHeight": "1.8",
-                            }),
-                        ], style={
-                            "width": "68%", "display": "inline-block",
-                            "padding": "20px", "verticalAlign": "top",
-                        }),
-                    ]),
-                ]),
-            ]),
-        ]),
-    ])
+                            dcc.RadioItems(
+                                id="data-format",
+                                options=[
+                                    {"label": "JSON", "value": "json"},
+                                    {"label": "DOT", "value": "dot"},
+                                    {"label": "HTML", "value": "html"},
+                                ],
+                                value="json",
+                                inline=True,
+                                style={
+                                    "fontSize": "12px",
+                                    "display": "inline-block",
+                                    "marginRight": "10px",
+                                },
+                            ),
+                            html.Button(
+                                "⬇️ 导出数据",
+                                id="export-data-btn",
+                                n_clicks=0,
+                                style={
+                                    "padding": "4px 12px",
+                                    "backgroundColor": "#10b981",
+                                    "color": "white",
+                                    "border": "none",
+                                    "borderRadius": "4px",
+                                    "cursor": "pointer",
+                                    "fontSize": "12px",
+                                },
+                            ),
+                        ],
+                        style={"display": "inline-block", "marginBottom": "5px"},
+                    ),
+                ],
+                style={
+                    "textAlign": "right",
+                    "backgroundColor": "white",
+                    "padding": "8px 15px",
+                    "borderRadius": "8px",
+                    "boxShadow": "0 2px 8px rgba(0,0,0,0.1)",
+                    "marginBottom": "15px",
+                    "flexWrap": "wrap",
+                },
+            ),
+            html.H1(
+                "🧠 通用任务规划助手",
+                style={
+                    "textAlign": "center",
+                    "marginBottom": "5px",
+                    "color": "#1e293b",
+                },
+            ),
+            html.P(
+                "输入任务需求，AI 自动分解为 DAG 流程图，逐步确认执行",
+                style={
+                    "textAlign": "center",
+                    "color": "#64748b",
+                    "marginBottom": "10px",
+                },
+            ),
+            html.Div(
+                id="global-status",
+                children="👋 就绪，等待操作",
+                style={
+                    "marginBottom": "8px",
+                    "fontWeight": "bold",
+                    "fontSize": "14px",
+                    "color": "#1e293b",
+                    "textAlign": "center",
+                },
+            ),
+            html.Div(
+                [
+                    html.Div(
+                        id="progress-bar-fill",
+                        style={
+                            "width": "0%",
+                            "height": "100%",
+                            "background": "linear-gradient(90deg, #10b981, #34d399)",
+                            "borderRadius": "6px",
+                            "transition": "width 0.5s ease",
+                        },
+                    ),
+                ],
+                style={
+                    "width": "60%",
+                    "height": "8px",
+                    "backgroundColor": "#e2e8f0",
+                    "borderRadius": "6px",
+                    "margin": "0 auto 15px auto",
+                    "overflow": "hidden",
+                },
+            ),
+            dcc.Tabs(
+                id="main-tabs",
+                value="tab-new",
+                children=[
+                    dcc.Tab(
+                        label="🚀 新建任务",
+                        value="tab-new",
+                        children=[
+                            html.Div(
+                                [
+                                    html.Div(
+                                        [
+                                            dcc.Textarea(
+                                                id="user-input",
+                                                placeholder="输入任务需求，例如：教我做甜口西红柿炒鸡蛋（最多 2000 字符）",
+                                                style={
+                                                    "width": "100%",
+                                                    "height": "90px",
+                                                    "fontSize": "14px",
+                                                    "padding": "10px",
+                                                    "borderRadius": "8px",
+                                                    "border": "1px solid #d1d5db",
+                                                },
+                                            ),
+                                            dcc.Checklist(
+                                                id="enable-refine",
+                                                options=[
+                                                    {"label": "🔧 节点细化", "value": "refine"}
+                                                ],
+                                                value=["refine"],
+                                                style={"marginTop": "10px"},
+                                            ),
+                                        ],
+                                        style={"marginBottom": "15px"},
+                                    ),
+                                    html.Div(
+                                        [
+                                            html.Div("📋 任务控制", style=SECTION_HEADER_STYLE),
+                                            html.Div(
+                                                [
+                                                    html.Button(
+                                                        "🚀 开始规划",
+                                                        id="submit-btn",
+                                                        n_clicks=0,
+                                                        style=BUTTON_STYLE_PRIMARY,
+                                                    ),
+                                                    html.Button(
+                                                        "⏹️ 停止",
+                                                        id="stop-btn",
+                                                        n_clicks=0,
+                                                        disabled=True,
+                                                        style=BUTTON_STYLE_DANGER,
+                                                    ),
+                                                    html.Button(
+                                                        "▶️ 继续",
+                                                        id="resume-btn",
+                                                        n_clicks=0,
+                                                        disabled=True,
+                                                        style=BUTTON_STYLE_SECONDARY,
+                                                    ),
+                                                ]
+                                            ),
+                                        ],
+                                        style={
+                                            "padding": "14px 18px",
+                                            "backgroundColor": "#eff6ff",
+                                            "border": "1px solid #bfdbfe",
+                                            "borderRadius": "10px",
+                                            "marginBottom": "12px",
+                                        },
+                                    ),
+                                    html.Div(
+                                        [
+                                            html.Div(
+                                                "🎯 节点操作（先点击流程图中的节点，再选择操作）",
+                                                style=SECTION_HEADER_STYLE,
+                                            ),
+                                            html.Div(
+                                                [
+                                                    html.Button(
+                                                        "▶️ 开始执行选中节点",
+                                                        id="start-exec-btn",
+                                                        n_clicks=0,
+                                                        disabled=True,
+                                                        style={
+                                                            "backgroundColor": "#10b981",
+                                                            "color": "white",
+                                                            "border": "none",
+                                                            "padding": "12px 20px",
+                                                            "borderRadius": "8px",
+                                                            "cursor": "pointer",
+                                                            "fontSize": "14px",
+                                                            "fontWeight": "bold",
+                                                            "marginRight": "10px",
+                                                        },
+                                                    ),
+                                                    html.Button(
+                                                        "⏭️ 跳过选中节点",
+                                                        id="skip-btn",
+                                                        n_clicks=0,
+                                                        disabled=True,
+                                                        style={
+                                                            "backgroundColor": "#6366f1",
+                                                            "color": "white",
+                                                            "border": "none",
+                                                            "padding": "12px 20px",
+                                                            "borderRadius": "8px",
+                                                            "cursor": "pointer",
+                                                            "fontSize": "14px",
+                                                            "fontWeight": "bold",
+                                                            "marginRight": "10px",
+                                                        },
+                                                    ),
+                                                    html.Button(
+                                                        "❌ 做不到",
+                                                        id="fail-btn",
+                                                        n_clicks=0,
+                                                        disabled=True,
+                                                        style={
+                                                            "backgroundColor": "#ef4444",
+                                                            "color": "white",
+                                                            "border": "none",
+                                                            "padding": "12px 20px",
+                                                            "borderRadius": "8px",
+                                                            "cursor": "pointer",
+                                                            "fontSize": "14px",
+                                                            "fontWeight": "bold",
+                                                        },
+                                                    ),
+                                                ]
+                                            ),
+                                            html.Div(
+                                                id="node-action-hint",
+                                                children="👆 请先在流程图中点击一个高亮（蓝色）节点",
+                                                style={
+                                                    "fontSize": "13px",
+                                                    "color": "#94a3b8",
+                                                    "marginTop": "8px",
+                                                    "fontStyle": "italic",
+                                                },
+                                            ),
+                                        ],
+                                        style={
+                                            "padding": "14px 18px",
+                                            "backgroundColor": "#f0fdf4",
+                                            "border": "1px solid #bbf7d0",
+                                            "borderRadius": "10px",
+                                            "marginBottom": "15px",
+                                        },
+                                    ),
+                                    html.Div(
+                                        [
+                                            html.Button(
+                                                "⊡ 适应窗口",
+                                                id="fit-btn",
+                                                n_clicks=0,
+                                                style={**ZOOM_TOOLBAR_STYLE, "marginRight": "8px"},
+                                            ),
+                                            html.Button(
+                                                "＋ 放大",
+                                                id="zoom-in-btn",
+                                                n_clicks=0,
+                                                style={**ZOOM_TOOLBAR_STYLE, "marginRight": "4px"},
+                                            ),
+                                            html.Button(
+                                                "－ 缩小",
+                                                id="zoom-out-btn",
+                                                n_clicks=0,
+                                                style={**ZOOM_TOOLBAR_STYLE, "marginRight": "8px"},
+                                            ),
+                                            html.Div(
+                                                dcc.Slider(
+                                                    id="zoom-slider",
+                                                    min=0.2,
+                                                    max=4.0,
+                                                    step=0.1,
+                                                    value=0.6,
+                                                    marks={
+                                                        0.2: "20%",
+                                                        0.6: "60%",
+                                                        1: "100%",
+                                                        2: "200%",
+                                                        4: "400%",
+                                                    },
+                                                    tooltip={
+                                                        "placement": "bottom",
+                                                        "always_visible": True,
+                                                    },
+                                                ),
+                                                style={
+                                                    "width": "200px",
+                                                    "display": "inline-block",
+                                                    "verticalAlign": "middle",
+                                                },
+                                            ),
+                                        ],
+                                        style={"marginBottom": "10px"},
+                                    ),
+                                    cyto.Cytoscape(
+                                        id="flowchart",
+                                        elements=[],
+                                        layout={
+                                            "name": "dagre",
+                                            "rankDir": "TB",
+                                            "nodeSep": 300,
+                                            "rankSep": 450,
+                                            "edgeSep": 80,
+                                            "fit": True,
+                                            "padding": 80,
+                                        },
+                                        style={
+                                            "width": "100%",
+                                            "height": "700px",
+                                            "border": "1px solid #e2e8f0",
+                                            "borderRadius": "12px",
+                                        },
+                                        stylesheet=CYTO_STYLESHEET,
+                                        userZoomingEnabled=True,
+                                        userPanningEnabled=True,
+                                        boxSelectionEnabled=False,
+                                        autoungrabify=False,
+                                        minZoom=0.2,
+                                        maxZoom=4.0,
+                                        zoom=0.6,
+                                    ),
+                                    html.Div(
+                                        id="node-detail-panel",
+                                        children=[
+                                            dcc.Markdown(
+                                                "👆 **点击流程图中的节点查看详情并操作**",
+                                                style={"fontSize": "14px", "color": "#94a3b8"},
+                                            )
+                                        ],
+                                        style={
+                                            "marginTop": "15px",
+                                            "padding": "18px",
+                                            "border": "1px solid #e2e8f0",
+                                            "borderRadius": "12px",
+                                            "backgroundColor": "#f8fafc",
+                                            "minHeight": "160px",
+                                            "fontSize": "14px",
+                                            "lineHeight": "1.8",
+                                        },
+                                    ),
+                                ],
+                                style={"padding": "25px", "maxWidth": "1400px", "margin": "0 auto"},
+                            ),
+                        ],
+                    ),
+                    dcc.Tab(
+                        label="📜 历史记录",
+                        value="tab-history",
+                        children=[
+                            html.Div(
+                                [
+                                    html.Div(
+                                        [
+                                            html.H3("📋 任务列表", style={"marginTop": "0"}),
+                                            html.Button(
+                                                "🔄 刷新列表",
+                                                id="refresh-btn",
+                                                n_clicks=0,
+                                                style={
+                                                    "width": "100%",
+                                                    "padding": "10px",
+                                                    "backgroundColor": "#f1f5f9",
+                                                    "border": "1px solid #d1d5db",
+                                                    "borderRadius": "6px",
+                                                    "cursor": "pointer",
+                                                    "marginBottom": "12px",
+                                                },
+                                            ),
+                                            dcc.Dropdown(
+                                                id="history-dropdown",
+                                                options=[],
+                                                placeholder="选择历史任务（可多选删除）",
+                                                multi=True,
+                                                style={"marginBottom": "12px"},
+                                            ),
+                                            html.Button(
+                                                "🗑️ 删除选中",
+                                                id="delete-btn",
+                                                n_clicks=0,
+                                                style={
+                                                    "width": "100%",
+                                                    "padding": "10px",
+                                                    "backgroundColor": "#ef4444",
+                                                    "color": "white",
+                                                    "border": "none",
+                                                    "borderRadius": "6px",
+                                                    "cursor": "pointer",
+                                                    "marginBottom": "10px",
+                                                },
+                                            ),
+                                            html.Div(
+                                                id="delete-status",
+                                                style={"fontSize": "13px", "color": "#059669"},
+                                            ),
+                                        ],
+                                        style={
+                                            "width": "28%",
+                                            "display": "inline-block",
+                                            "verticalAlign": "top",
+                                            "padding": "20px",
+                                            "borderRight": "1px solid #e2e8f0",
+                                        },
+                                    ),
+                                    html.Div(
+                                        [
+                                            html.Div(
+                                                [
+                                                    html.Div(
+                                                        "🎮 任务控制（基于历史任务）",
+                                                        style=SECTION_HEADER_STYLE,
+                                                    ),
+                                                    html.Div(
+                                                        [
+                                                            html.Button(
+                                                                "🔄 重新规划",
+                                                                id="history-replan-btn",
+                                                                n_clicks=0,
+                                                                disabled=True,
+                                                                style={
+                                                                    "backgroundColor": "#1a73e8",
+                                                                    "color": "white",
+                                                                    "border": "none",
+                                                                    "padding": "10px 18px",
+                                                                    "borderRadius": "6px",
+                                                                    "cursor": "pointer",
+                                                                    "fontSize": "13px",
+                                                                    "fontWeight": "bold",
+                                                                    "marginRight": "8px",
+                                                                },
+                                                            ),
+                                                            html.Button(
+                                                                "✏️ 修改规划",
+                                                                id="history-edit-plan-btn",
+                                                                n_clicks=0,
+                                                                disabled=True,
+                                                                style={
+                                                                    "backgroundColor": "#8b5cf6",
+                                                                    "color": "white",
+                                                                    "border": "none",
+                                                                    "padding": "10px 18px",
+                                                                    "borderRadius": "6px",
+                                                                    "cursor": "pointer",
+                                                                    "fontSize": "13px",
+                                                                    "fontWeight": "bold",
+                                                                    "marginRight": "8px",
+                                                                },
+                                                            ),
+                                                            html.Button(
+                                                                "▶️ 继续执行",
+                                                                id="history-resume-btn",
+                                                                n_clicks=0,
+                                                                disabled=True,
+                                                                style={
+                                                                    "backgroundColor": "#10b981",
+                                                                    "color": "white",
+                                                                    "border": "none",
+                                                                    "padding": "10px 18px",
+                                                                    "borderRadius": "6px",
+                                                                    "cursor": "pointer",
+                                                                    "fontSize": "13px",
+                                                                    "fontWeight": "bold",
+                                                                    "marginRight": "8px",
+                                                                },
+                                                            ),
+                                                            html.Button(
+                                                                "🔁 重试失败节点",
+                                                                id="history-retry-btn",
+                                                                n_clicks=0,
+                                                                disabled=True,
+                                                                style={
+                                                                    "backgroundColor": "#f59e0b",
+                                                                    "color": "white",
+                                                                    "border": "none",
+                                                                    "padding": "10px 18px",
+                                                                    "borderRadius": "6px",
+                                                                    "cursor": "pointer",
+                                                                    "fontSize": "13px",
+                                                                    "fontWeight": "bold",
+                                                                },
+                                                            ),
+                                                        ]
+                                                    ),
+                                                    html.Div(
+                                                        id="history-action-status",
+                                                        children="👆 请先从左侧列表选择一个历史任务",
+                                                        style={
+                                                            "fontSize": "12px",
+                                                            "color": "#94a3b8",
+                                                            "marginTop": "8px",
+                                                            "fontStyle": "italic",
+                                                        },
+                                                    ),
+                                                ],
+                                                style={
+                                                    "padding": "14px 18px",
+                                                    "backgroundColor": "#eff6ff",
+                                                    "border": "1px solid #bfdbfe",
+                                                    "borderRadius": "10px",
+                                                    "marginBottom": "15px",
+                                                },
+                                            ),
+                                            html.Div(
+                                                [
+                                                    html.Div(
+                                                        "🎯 节点操作（先点击历史流程图中的节点）",
+                                                        style=SECTION_HEADER_STYLE,
+                                                    ),
+                                                    html.Div(
+                                                        [
+                                                            html.Button(
+                                                                "标记完成",
+                                                                id="history-node-done-btn",
+                                                                n_clicks=0,
+                                                                disabled=True,
+                                                                style={
+                                                                    "backgroundColor": "#10b981",
+                                                                    "color": "white",
+                                                                    "border": "none",
+                                                                    "padding": "10px 18px",
+                                                                    "borderRadius": "6px",
+                                                                    "cursor": "pointer",
+                                                                    "fontSize": "13px",
+                                                                    "fontWeight": "bold",
+                                                                    "marginRight": "8px",
+                                                                },
+                                                            ),
+                                                            html.Button(
+                                                                "⏭️ 跳过",
+                                                                id="history-node-skip-btn",
+                                                                n_clicks=0,
+                                                                disabled=True,
+                                                                style={
+                                                                    "backgroundColor": "#6366f1",
+                                                                    "color": "white",
+                                                                    "border": "none",
+                                                                    "padding": "10px 18px",
+                                                                    "borderRadius": "6px",
+                                                                    "cursor": "pointer",
+                                                                    "fontSize": "13px",
+                                                                    "fontWeight": "bold",
+                                                                    "marginRight": "8px",
+                                                                },
+                                                            ),
+                                                            html.Button(
+                                                                "❌ 标记失败",
+                                                                id="history-node-fail-btn",
+                                                                n_clicks=0,
+                                                                disabled=True,
+                                                                style={
+                                                                    "backgroundColor": "#ef4444",
+                                                                    "color": "white",
+                                                                    "border": "none",
+                                                                    "padding": "10px 18px",
+                                                                    "borderRadius": "6px",
+                                                                    "cursor": "pointer",
+                                                                    "fontSize": "13px",
+                                                                    "fontWeight": "bold",
+                                                                },
+                                                            ),
+                                                        ]
+                                                    ),
+                                                    dcc.Store(
+                                                        id="history-selected-node-store", data=""
+                                                    ),
+                                                    dcc.Store(
+                                                        id="history-dag-store",
+                                                        data={"nodes": [], "edges": []},
+                                                    ),
+                                                    dcc.Store(id="history-node-states-store"),
+                                                ]
+                                            ),
+                                            html.Div(
+                                                [
+                                                    html.H3("🗺️ 流程图", style={"marginTop": "0"}),
+                                                    html.Div(
+                                                        [
+                                                            html.Button(
+                                                                "⊡ 适应窗口",
+                                                                id="history-fit-btn",
+                                                                n_clicks=0,
+                                                                style={
+                                                                    **ZOOM_TOOLBAR_STYLE,
+                                                                    "marginRight": "8px",
+                                                                },
+                                                            ),
+                                                            html.Button(
+                                                                "＋ 放大",
+                                                                id="history-zoom-in-btn",
+                                                                n_clicks=0,
+                                                                style={
+                                                                    **ZOOM_TOOLBAR_STYLE,
+                                                                    "marginRight": "4px",
+                                                                },
+                                                            ),
+                                                            html.Button(
+                                                                "－ 缩小",
+                                                                id="history-zoom-out-btn",
+                                                                n_clicks=0,
+                                                                style={
+                                                                    **ZOOM_TOOLBAR_STYLE,
+                                                                    "marginRight": "8px",
+                                                                },
+                                                            ),
+                                                            html.Div(
+                                                                dcc.Slider(
+                                                                    id="history-zoom-slider",
+                                                                    min=0.2,
+                                                                    max=4.0,
+                                                                    step=0.1,
+                                                                    value=0.6,
+                                                                    marks={
+                                                                        0.2: "20%",
+                                                                        0.6: "60%",
+                                                                        1: "100%",
+                                                                        2: "200%",
+                                                                        4: "400%",
+                                                                    },
+                                                                    tooltip={
+                                                                        "placement": "bottom",
+                                                                        "always_visible": True,
+                                                                    },
+                                                                ),
+                                                                style={
+                                                                    "width": "200px",
+                                                                    "display": "inline-block",
+                                                                    "verticalAlign": "middle",
+                                                                },
+                                                            ),
+                                                        ],
+                                                        style={"marginBottom": "10px"},
+                                                    ),
+                                                    cyto.Cytoscape(
+                                                        id="history-flowchart",
+                                                        elements=[],
+                                                        layout={
+                                                            "name": "dagre",
+                                                            "rankDir": "TB",
+                                                            "nodeSep": 250,
+                                                            "rankSep": 380,
+                                                            "edgeSep": 60,
+                                                            "fit": True,
+                                                            "padding": 60,
+                                                        },
+                                                        style={
+                                                            "width": "100%",
+                                                            "height": "450px",
+                                                            "border": "1px solid #e2e8f0",
+                                                            "borderRadius": "12px",
+                                                            "marginBottom": "15px",
+                                                        },
+                                                        stylesheet=CYTO_STYLESHEET,
+                                                        minZoom=0.2,
+                                                        maxZoom=4.0,
+                                                        zoom=0.6,
+                                                        userZoomingEnabled=True,
+                                                        userPanningEnabled=True,
+                                                    ),
+                                                    html.Div(
+                                                        [
+                                                            html.H4(
+                                                                "🎯 节点详情",
+                                                                style={
+                                                                    "margin": "0 0 8px",
+                                                                    "fontSize": "14px",
+                                                                },
+                                                            ),
+                                                            html.Div(
+                                                                id="history-node-detail",
+                                                                children=[
+                                                                    dcc.Markdown(
+                                                                        "**点击流程图中的节点查看详情**"
+                                                                    )
+                                                                ],
+                                                                style={
+                                                                    "padding": "10px",
+                                                                    "border": "1px solid #e2e8f0",
+                                                                    "borderRadius": "8px",
+                                                                    "backgroundColor": "#f8fafc",
+                                                                    "minHeight": "80px",
+                                                                    "fontSize": "13px",
+                                                                    "marginBottom": "10px",
+                                                                },
+                                                            ),
+                                                        ],
+                                                        style={"marginBottom": "15px"},
+                                                    ),
+                                                    html.H3("📝 任务详情"),
+                                                    html.Div(
+                                                        id="history-detail",
+                                                        style={
+                                                            "whiteSpace": "pre-wrap",
+                                                            "padding": "15px",
+                                                            "border": "1px solid #e2e8f0",
+                                                            "borderRadius": "8px",
+                                                            "backgroundColor": "#f8fafc",
+                                                            "fontSize": "14px",
+                                                            "lineHeight": "1.8",
+                                                        },
+                                                    ),
+                                                ],
+                                                style={
+                                                    "width": "68%",
+                                                    "display": "inline-block",
+                                                    "padding": "20px",
+                                                    "verticalAlign": "top",
+                                                },
+                                            ),
+                                        ]
+                                    ),
+                                ]
+                            ),
+                        ],
+                    ),
+                ],
+            ),
+        ]
+    )
 
 
 app.layout = build_layout()
@@ -834,9 +1274,7 @@ def _stable_fingerprint(
 ) -> Tuple[str, int]:
     try:
         node_ids = tuple(sorted(str(n.get("id", i)) for i, n in enumerate(nodes)))
-        edge_keys = tuple(
-            sorted((str(e["from"]), str(e["to"]), e.get("label", "")) for e in edges)
-        )
+        edge_keys = tuple(sorted((str(e["from"]), str(e["to"]), e.get("label", "")) for e in edges))
         topo_part = f"{len(nodes)}|{len(edges)}|{node_ids}|{edge_keys}"
         state_part = json.dumps(node_states, sort_keys=True, ensure_ascii=False)
         raw = f"{topo_part}||{state_part}"
@@ -858,10 +1296,7 @@ def _cytoscape_cached(
     if raw_size > MAX_CACHE_INPUT_BYTES:
         return dag_to_cytoscape(nodes, edges, node_states)
     with _cyto_lock:
-        if (
-            fingerprint == _cyto_cache["hash"]
-            and _cyto_cache["elements"] is not None
-        ):
+        if fingerprint == _cyto_cache["hash"] and _cyto_cache["elements"] is not None:
             return _cyto_cache["elements"]
         elements = dag_to_cytoscape(nodes, edges, node_states)
         _cyto_cache["hash"] = fingerprint
@@ -872,6 +1307,7 @@ def _cytoscape_cached(
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #  同步回调（纯前端状态，无 I/O）
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 
 @callback(
     Output("node-action-hint", "children"),
@@ -884,6 +1320,7 @@ def on_node_hint(node_data, node_states, dag):
     from task_planner.core.graph.state import NodeStatus
     from task_planner.infrastructure.constants import HINT_TEMPLATES
     from task_planner.infrastructure.ui_styles import HINT_STYLES
+
     _STYLES = HINT_STYLES
     if not dag or not dag.get("nodes"):
         return (
@@ -896,7 +1333,7 @@ def on_node_hint(node_data, node_states, dag):
     raw_st = node_states.get(nid, NodeStatus.PENDING)
     try:
         status = NodeStatus(raw_st)
-    except (ValueError, KeyError):
+    except ValueError, KeyError:
         status = NodeStatus.PENDING
     template_key = status.value
     text = HINT_TEMPLATES.get(template_key, HINT_TEMPLATES["pending"]).format(nid=nid)
@@ -926,8 +1363,10 @@ def on_node_hover(over_data, out_data):
 )
 def on_tap_node(node_data, dag, node_states):
     if not node_data or not node_data.get("id"):
-        return dcc.Markdown("👆 **点击流程图中的节点查看详情并操作**",
-                            style={"fontSize": "14px", "color": "#94a3b8"}), no_update
+        return dcc.Markdown(
+            "👆 **点击流程图中的节点查看详情并操作**",
+            style={"fontSize": "14px", "color": "#94a3b8"},
+        ), no_update
     nid = str(node_data["id"])
     node_states = node_states or {}
     st = str(node_states.get(nid, "pending"))
@@ -936,7 +1375,7 @@ def on_tap_node(node_data, dag, node_states):
 
     def make_btn(label, btn_id, state_key):
         bg, color = STATE_COLORS.get(state_key, ("#e2e8f0", "#475569"))
-        is_active = (st == state_key)
+        is_active = st == state_key
         style = {
             **BASE_BTN_STYLE,
             "backgroundColor": bg if is_active else "#e2e8f0",
@@ -949,13 +1388,23 @@ def on_tap_node(node_data, dag, node_states):
         make_btn("完成", "complete-btn", "done"),
         make_btn("⏭️ 跳过", "skip-btn-panel", "skipped"),
         make_btn("❌ 失败", "fail-btn-panel", "failed"),
-        html.Button("🔄 重置", id="reset-btn-panel", n_clicks=0,
-                    style={**BASE_BTN_STYLE, "backgroundColor": "#e2e8f0", "color": "#475569"}),
+        html.Button(
+            "🔄 重置",
+            id="reset-btn-panel",
+            n_clicks=0,
+            style={**BASE_BTN_STYLE, "backgroundColor": "#e2e8f0", "color": "#475569"},
+        ),
     ]
     panel_children = [
-        html.Div(f"当前状态: {current_label}", style={
-            "fontSize": "13px", "color": "#64748b", "marginBottom": "8px", "fontWeight": "bold",
-        }),
+        html.Div(
+            f"当前状态: {current_label}",
+            style={
+                "fontSize": "13px",
+                "color": "#64748b",
+                "marginBottom": "8px",
+                "fontWeight": "bold",
+            },
+        ),
         dcc.Markdown(md_text, style={"fontSize": "14px", "lineHeight": "1.8"}),
         html.Div(buttons, style={"marginTop": "12px"}),
     ]
@@ -966,30 +1415,62 @@ def on_tap_node(node_data, dag, node_states):
 #  异步回调（涉及后端 I/O）
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+
 @callback(
-    Output("thread-id-store", "data"), Output("stream-interval", "disabled"),
-    Output("stream-active", "data"), Output("global-status", "children"),
-    Output("flowchart", "elements"), Output("submit-btn", "disabled"),
-    Output("stop-btn", "disabled"), Output("start-exec-btn", "disabled"),
-    Output("dag-store", "data"), Output("node-states-store", "data"),
-    Output("progress-bar-fill", "style"), Output("task-start-time", "data"),
+    Output("thread-id-store", "data"),
+    Output("stream-interval", "disabled"),
+    Output("stream-active", "data"),
+    Output("global-status", "children"),
+    Output("flowchart", "elements"),
+    Output("submit-btn", "disabled"),
+    Output("stop-btn", "disabled"),
+    Output("start-exec-btn", "disabled"),
+    Output("dag-store", "data"),
+    Output("node-states-store", "data"),
+    Output("progress-bar-fill", "style"),
+    Output("task-start-time", "data"),
     Input("submit-btn", "n_clicks"),
-    State("user-input", "value"), State("enable-refine", "value"),
+    State("user-input", "value"),
+    State("enable-refine", "value"),
     prevent_initial_call=True,
 )
 async def on_submit(n_clicks, user_input, refine_value):
     from task_planner.infrastructure.cog import hub as _hub
-    from task_planner.infrastructure.ui_styles import (EMPTY_BAR_STYLE,
-                                                       EMPTY_DAG, EMPTY_STATES)
+    from task_planner.infrastructure.ui_styles import EMPTY_BAR_STYLE, EMPTY_DAG, EMPTY_STATES
+
     MAX_INPUT_LENGTH = _hub.dev.MAX_INPUT_LENGTH
     if not user_input or not user_input.strip():
-        return ("", True, False, "⚠️ 请输入任务需求", [], False, True, True,
-                EMPTY_DAG, EMPTY_STATES, EMPTY_BAR_STYLE, 0.0)
+        return (
+            "",
+            True,
+            False,
+            "⚠️ 请输入任务需求",
+            [],
+            False,
+            True,
+            True,
+            EMPTY_DAG,
+            EMPTY_STATES,
+            EMPTY_BAR_STYLE,
+            0.0,
+        )
 
     cleaned = user_input.strip()
     if len(cleaned) > MAX_INPUT_LENGTH:
-        return ("", True, False, f"⚠️ 输入过长（{len(cleaned)}字），请精简至 {MAX_INPUT_LENGTH} 字以内",
-                [], False, True, True, EMPTY_DAG, EMPTY_STATES, EMPTY_BAR_STYLE, 0.0)
+        return (
+            "",
+            True,
+            False,
+            f"⚠️ 输入过长（{len(cleaned)}字），请精简至 {MAX_INPUT_LENGTH} 字以内",
+            [],
+            False,
+            True,
+            True,
+            EMPTY_DAG,
+            EMPTY_STATES,
+            EMPTY_BAR_STYLE,
+            0.0,
+        )
 
     thread_id = str(uuid.uuid4())
     enable_refine = isinstance(refine_value, list) and "refine" in refine_value
@@ -1003,8 +1484,20 @@ async def on_submit(n_clicks, user_input, refine_value):
         )
     except Exception as e:
         logger.exception("start_stream 失败")
-        return ("", True, False, f"❌ 任务启动失败: {e}", [], False, True, True,
-                EMPTY_DAG, EMPTY_STATES, EMPTY_BAR_STYLE, 0.0)
+        return (
+            "",
+            True,
+            False,
+            f"❌ 任务启动失败: {e}",
+            [],
+            False,
+            True,
+            True,
+            EMPTY_DAG,
+            EMPTY_STATES,
+            EMPTY_BAR_STYLE,
+            0.0,
+        )
 
     return (
         thread_id,
@@ -1042,21 +1535,35 @@ async def poll_stream_progress(n_intervals, thread_id, stream_active, task_start
     elapsed = _safe_elapsed(task_start_time, now)
 
     if not stream_active or not thread_id:
-        return (no_update, no_update, True, False, True, True,
-                no_update, EMPTY_BAR_MINI_STYLE)
+        return (no_update, no_update, True, False, True, True, no_update, EMPTY_BAR_MINI_STYLE)
 
     state = await get_stream_state(thread_id)
     if not state:
-        return (no_update, f"⚠️ 任务状态丢失 (⏱️ {elapsed}s)", True, False, True, True,
-                no_update, EMPTY_BAR_MINI_STYLE)
+        return (
+            no_update,
+            f"⚠️ 任务状态丢失 (⏱️ {elapsed}s)",
+            True,
+            False,
+            True,
+            True,
+            no_update,
+            EMPTY_BAR_MINI_STYLE,
+        )
 
     latest = await state.get_latest()
     direct_response = latest.get("direct_response", "")
     if direct_response:
         msg = f"💬 {direct_response}\n\n⏱️ 总耗时 {elapsed}s"
-        return ([], dcc.Markdown(msg, style=MARKDOWN_PRE_STYLE),
-                True, False, True, True, no_update,
-                EMPTY_BAR_STYLE)
+        return (
+            [],
+            dcc.Markdown(msg, style=MARKDOWN_PRE_STYLE),
+            True,
+            False,
+            True,
+            True,
+            no_update,
+            EMPTY_BAR_STYLE,
+        )
 
     nodes = latest.get("nodes") or []
     edges = latest.get("edges") or []
@@ -1075,18 +1582,25 @@ async def poll_stream_progress(n_intervals, thread_id, stream_active, task_start
             return (
                 elements,
                 f"❌ 任务失败: {state.error} (⏱️ {elapsed}s)",
-                True, False, True, True, dag,
+                True,
+                False,
+                True,
+                True,
+                dag,
                 BAR_ERROR,
             )
         return (
             elements,
             "流程图渲染完成！请先在图中点击一个高亮（黄色）节点，再选择操作",
-            True, False, True, False, dag,
+            True,
+            False,
+            True,
+            False,
+            dag,
             BAR_DONE,
         )
 
-    return (elements, status_text, False, True, False, True, dag,
-            BAR_LOADING)
+    return (elements, status_text, False, True, False, True, dag, BAR_LOADING)
 
 
 @callback(
@@ -1235,7 +1749,9 @@ async def on_skip_node(n1, n2, selected_nid, dag, node_states):
     processed = done_count + skipped_count
     pct = int(processed / total * 100) if total > 0 else 0
 
-    status_msg = f"⏭️ 已跳过 {selected_nid}（下游已按规则解锁）| ✅{done_count} ⏭️{skipped_count} / {total}"
+    status_msg = (
+        f"⏭️ 已跳过 {selected_nid}（下游已按规则解锁）| ✅{done_count} ⏭️{skipped_count} / {total}"
+    )
     bar_style = {
         "width": f"{pct}%",
         "height": "100%",
@@ -1272,8 +1788,7 @@ async def on_fail_node(n1, n2, selected_nid, dag, node_states):
     new_states = dict(node_states or {})
     new_states[selected_nid] = "failed"
     new_states = _auto_unlock_downstream(
-        dag, new_states, selected_nid, "failed",
-        allowed_edge_types=("soft", "optional")
+        dag, new_states, selected_nid, "failed", allowed_edge_types=("soft", "optional")
     )
     elements = _cytoscape_cached(nodes, edges, new_states)
 
@@ -1318,7 +1833,7 @@ async def on_reset_node(n_clicks, selected_nid, dag, node_states, task_id):
 
     try:
         nid_int = int(selected_nid)
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return no_update, no_update, f"⚠️ 无效节点ID: {selected_nid}", no_update, no_update
 
     nodes = dag.get("nodes", [])
@@ -1329,10 +1844,12 @@ async def on_reset_node(n_clicks, selected_nid, dag, node_states, task_id):
     has_task = bool(task_id)
     if has_task:
         try:
-            db_ok = await reset_node_status(task_id, nid_int)  
+            db_ok = await reset_node_status(task_id, nid_int)
 
         except Exception as e:
-            logger.error("[Reset] DB 重置失败 task=%s node=%s: %s", task_id, nid_int, e, exc_info=True)
+            logger.error(
+                "[Reset] DB 重置失败 task=%s node=%s: %s", task_id, nid_int, e, exc_info=True
+            )
 
     new_states = dict(old_states)
     frontend_reset = False
@@ -1376,6 +1893,7 @@ async def on_reset_node(n_clicks, selected_nid, dag, node_states, task_id):
 #  历史记录 Callbacks（异步）
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+
 @callback(
     Output("history-dropdown", "options"),
     Output("history-dropdown", "placeholder"),
@@ -1396,16 +1914,18 @@ async def load_history_list(n_clicks, tab_value):
     if not tasks:
         return [], "暂无历史记录"
 
-    sorted_tasks = sorted(tasks, key=lambda t: t.get("created", ""), reverse=True)    
+    sorted_tasks = sorted(tasks, key=lambda t: t.get("created", ""), reverse=True)
     options = []
     for t in sorted_tasks:
         raw_title = t.get("title") or ""
         safe_title = str(raw_title)[:30] if raw_title else "(无标题)"
         tid_suffix = str(t.get("task_id", ""))[-8:]
-        options.append({
-            "label": f"{safe_title} | {tid_suffix}",
-            "value": t["task_id"],
-        })
+        options.append(
+            {
+                "label": f"{safe_title} | {tid_suffix}",
+                "value": t["task_id"],
+            }
+        )
     return options, "请选择历史任务"
 
 
@@ -1468,8 +1988,7 @@ async def on_history_select(task_ids):
     edges = plan_data.get("edges", [])
 
     node_states = {
-        str(n.get("id", "")): NODE_STATUS_CODE_MAP.get(n.get("status", 0), "pending")
-        for n in nodes
+        str(n.get("id", "")): NODE_STATUS_CODE_MAP.get(n.get("status", 0), "pending") for n in nodes
     }
 
     elements = _cytoscape_cached(nodes, edges, node_states)
@@ -1683,6 +2202,7 @@ async def on_history_resume(n_clicks, task_ids):
 #  数据导出（JSON / DOT / HTML）
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+
 def _escape_dot_label(text: str) -> str:
     if not text:
         return ""
@@ -1692,14 +2212,16 @@ def _escape_dot_label(text: str) -> str:
 def _export_json(nodes, edges, task_id_str):
     content = json.dumps({"nodes": nodes, "edges": edges}, ensure_ascii=False, indent=2)
     return dcc.send_string(
-        content,
-        filename=_make_filename("dag", task_id_str, "json"),
-        type="application/json"
+        content, filename=_make_filename("dag", task_id_str, "json"), type="application/json"
     )
 
 
 def _export_dot(nodes, edges, task_id_str):
-    lines = ["digraph G {", '  rankdir=TB;', '  node [shape=box, style="rounded,filled", fillcolor="#E8F4FD"];']
+    lines = [
+        "digraph G {",
+        "  rankdir=TB;",
+        '  node [shape=box, style="rounded,filled", fillcolor="#E8F4FD"];',
+    ]
     for n in nodes:
         node_id = _escape_dot_label(n.get("id", ""))
         label = _escape_dot_label(n.get("name") or n.get("node_name", ""))
@@ -1714,22 +2236,20 @@ def _export_dot(nodes, edges, task_id_str):
     return dcc.send_string(
         "\n".join(lines),
         filename=_make_filename("dag", task_id_str, "dot"),
-        type="text/vnd.graphviz"
+        type="text/vnd.graphviz",
     )
 
 
 def _export_html(nodes, edges, task_id_str):
     html_content = _generate_html_export(nodes, edges, task_id_str)
     return dcc.send_string(
-        html_content,
-        filename=_make_filename("dag", task_id_str, "html"),
-        type="text/html"
+        html_content, filename=_make_filename("dag", task_id_str, "html"), type="text/html"
     )
 
 
 _DATA_EXPORT_STRATEGIES = {
     "json": _export_json,
-    "dot":  _export_dot,
+    "dot": _export_dot,
     "html": _export_html,
 }
 
@@ -1770,6 +2290,7 @@ async def on_export_data(n_clicks, history_task_ids, dag_store, fmt):
 #  图片导出（PNG / SVG）—— 异步 + to_thread
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+
 @callback(
     Output("export-download", "data", allow_duplicate=True),
     Input("export-image-btn", "n_clicks"),
@@ -1794,38 +2315,45 @@ async def on_export_image(n_clicks, history_task_ids, dag_store, node_states, im
         if image_format == "svg":
             svg_bytes = await asyncio.to_thread(
                 export_dag_to_svg,
-                nodes=nodes, edges=edges,
+                nodes=nodes,
+                edges=edges,
                 output_path=None,
                 node_states=node_states,
-                title=title, dpi=200,
+                title=title,
+                dpi=200,
             )
-            logger.info("[Export] SVG 导出成功 (%.1f KB, task=%s)",
-                       len(svg_bytes) / 1024, task_id_str)
+            logger.info(
+                "[Export] SVG 导出成功 (%.1f KB, task=%s)", len(svg_bytes) / 1024, task_id_str
+            )
             return dcc.send_bytes(
                 svg_bytes,
                 filename=_make_filename("flowchart", task_id_str, "svg"),
-                type="image/svg+xml"
+                type="image/svg+xml",
             )
 
         else:  # 默认 PNG
             png_bytes = await asyncio.to_thread(
                 export_dag_to_png,
-                nodes=nodes, edges=edges,
+                nodes=nodes,
+                edges=edges,
                 output_path=None,
                 node_states=node_states,
-                title=title, width=1600, height=1200, dpi=200,
+                title=title,
+                width=1600,
+                height=1200,
+                dpi=200,
             )
-            logger.info("[Export] PNG 导出成功 (%.1f KB, task=%s)",
-                       len(png_bytes) / 1024, task_id_str)
+            logger.info(
+                "[Export] PNG 导出成功 (%.1f KB, task=%s)", len(png_bytes) / 1024, task_id_str
+            )
             return dcc.send_bytes(
                 png_bytes,
                 filename=_make_filename("flowchart", task_id_str, "png"),
-                type="image/png"
+                type="image/png",
             )
 
     except Exception as e:
-        logger.error("[Export] %s 图片渲染失败: %s",
-                    image_format.upper(), e, exc_info=True)
+        logger.error("[Export] %s 图片渲染失败: %s", image_format.upper(), e, exc_info=True)
         return None
 
 
@@ -1865,6 +2393,7 @@ for _key, _cfg in GRAPH_CONFIGS.items():
 #  启动
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+
 def _validate_port(port_value) -> int:
     try:
         port = int(port_value)
@@ -1898,7 +2427,10 @@ def main() -> None:
 
     logger.info(
         "[Startup] Dash starting (%s%s) | %s:%d",
-        mode, process_tag, host, port,
+        mode,
+        process_tag,
+        host,
+        port,
     )
 
     app.run(debug=debug, host=host, port=port)

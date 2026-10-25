@@ -51,12 +51,11 @@ def register() -> None:
         raw_st = (node_states or {}).get(nid, NodeStatus.PENDING)
         try:
             status = NodeStatus(raw_st)
-        except (ValueError, KeyError):
+        except ValueError, KeyError:
             status = NodeStatus.PENDING
         text = HINT_TEMPLATES.get(status.value, HINT_TEMPLATES["pending"]).format(nid=nid)
         style = HINT_STYLES.get(status.value, HINT_STYLES["pending"])
         return text, style
-
 
     @callback(
         Output("node-detail-panel", "children"),
@@ -96,7 +95,8 @@ def register() -> None:
             make_btn("❌ 失败", "fail-btn-panel", "failed"),
             html.Button(
                 "🔄 重置",
-                id="reset-btn-panel", n_clicks=0,
+                id="reset-btn-panel",
+                n_clicks=0,
                 style={**BASE_BTN_STYLE, "backgroundColor": "#e2e8f0", "color": "#475569"},
             ),
         ]
@@ -104,8 +104,10 @@ def register() -> None:
             html.Div(
                 f"当前状态: {current_label}",
                 style={
-                    "fontSize": "13px", "color": "#64748b",
-                    "marginBottom": "8px", "fontWeight": "bold",
+                    "fontSize": "13px",
+                    "color": "#64748b",
+                    "marginBottom": "8px",
+                    "fontWeight": "bold",
                 },
             ),
             dcc.Markdown(md_text, style={"fontSize": "14px", "lineHeight": "1.8"}),
@@ -137,15 +139,37 @@ def register() -> None:
     async def on_submit(n_clicks, user_input, refine_value):
         MAX_INPUT_LENGTH = _hub.dev.MAX_INPUT_LENGTH
         if not user_input or not user_input.strip():
-            return ("", True, False, "⚠️ 请输入任务需求", [], False, True, True,
-                    EMPTY_DAG, EMPTY_STATES, EMPTY_BAR_STYLE, 0.0)
+            return (
+                "",
+                True,
+                False,
+                "⚠️ 请输入任务需求",
+                [],
+                False,
+                True,
+                True,
+                EMPTY_DAG,
+                EMPTY_STATES,
+                EMPTY_BAR_STYLE,
+                0.0,
+            )
 
         cleaned = user_input.strip()
         if len(cleaned) > MAX_INPUT_LENGTH:
-            return ("", True, False,
-                    f"⚠️ 输入过长（{len(cleaned)}字），请精简至 {MAX_INPUT_LENGTH} 字以内",
-                    [], False, True, True,
-                    EMPTY_DAG, EMPTY_STATES, EMPTY_BAR_STYLE, 0.0)
+            return (
+                "",
+                True,
+                False,
+                f"⚠️ 输入过长（{len(cleaned)}字），请精简至 {MAX_INPUT_LENGTH} 字以内",
+                [],
+                False,
+                True,
+                True,
+                EMPTY_DAG,
+                EMPTY_STATES,
+                EMPTY_BAR_STYLE,
+                0.0,
+            )
 
         thread_id = str(uuid.uuid4())
         enable_refine = isinstance(refine_value, list) and "refine" in refine_value
@@ -159,16 +183,36 @@ def register() -> None:
             )
         except Exception as e:
             import logging
+
             logging.getLogger(__name__).exception("start_stream 失败")
-            return ("", True, False, f"❌ 任务启动失败: {e}", [],
-                    False, True, True,
-                    EMPTY_DAG, EMPTY_STATES, EMPTY_BAR_STYLE, 0.0)
+            return (
+                "",
+                True,
+                False,
+                f"❌ 任务启动失败: {e}",
+                [],
+                False,
+                True,
+                True,
+                EMPTY_DAG,
+                EMPTY_STATES,
+                EMPTY_BAR_STYLE,
+                0.0,
+            )
 
         return (
-            thread_id, False, True,
+            thread_id,
+            False,
+            True,
             "🚀 任务已提交，正在生成流程图...",
-            [], True, False, True,
-            EMPTY_DAG, EMPTY_STATES, EMPTY_BAR_STYLE, time.time(),
+            [],
+            True,
+            False,
+            True,
+            EMPTY_DAG,
+            EMPTY_STATES,
+            EMPTY_BAR_STYLE,
+            time.time(),
         )
 
     # ── 轮询 stream 进度 ──
@@ -192,21 +236,35 @@ def register() -> None:
         elapsed = safe_elapsed(task_start_time, now)
 
         if not stream_active or not thread_id:
-            return (no_update, no_update, True, False, True, True,
-                    no_update, EMPTY_BAR_MINI_STYLE)
+            return (no_update, no_update, True, False, True, True, no_update, EMPTY_BAR_MINI_STYLE)
 
         state = await get_stream_state(thread_id)
         if not state:
-            return (no_update, f"⚠️ 任务状态丢失 (⏱️ {elapsed}s)",
-                    True, False, True, True,
-                    no_update, EMPTY_BAR_MINI_STYLE)
+            return (
+                no_update,
+                f"⚠️ 任务状态丢失 (⏱️ {elapsed}s)",
+                True,
+                False,
+                True,
+                True,
+                no_update,
+                EMPTY_BAR_MINI_STYLE,
+            )
 
         latest = await state.get_latest()
         direct_response = latest.get("direct_response", "")
         if direct_response:
             msg = f"💬 {direct_response}\n\n⏱️ 总耗时 {elapsed}s"
-            return ([], dcc.Markdown(msg, style=MARKDOWN_PRE_STYLE),
-                    True, False, True, True, no_update, EMPTY_BAR_STYLE)
+            return (
+                [],
+                dcc.Markdown(msg, style=MARKDOWN_PRE_STYLE),
+                True,
+                False,
+                True,
+                True,
+                no_update,
+                EMPTY_BAR_STYLE,
+            )
 
         nodes = latest.get("nodes") or []
         edges = latest.get("edges") or []
@@ -222,11 +280,26 @@ def register() -> None:
 
         if state.finished:
             if state.error:
-                return (elements, f"❌ 任务失败: {state.error} (⏱️ {elapsed}s)",
-                        True, False, True, True, dag, BAR_ERROR)
-            return (elements,
-                    "流程图渲染完成！请先在图中点击一个高亮（黄色）节点，再选择操作",
-                    True, False, True, False, dag, BAR_DONE)
+                return (
+                    elements,
+                    f"❌ 任务失败: {state.error} (⏱️ {elapsed}s)",
+                    True,
+                    False,
+                    True,
+                    True,
+                    dag,
+                    BAR_ERROR,
+                )
+            return (
+                elements,
+                "流程图渲染完成！请先在图中点击一个高亮（黄色）节点，再选择操作",
+                True,
+                False,
+                True,
+                False,
+                dag,
+                BAR_DONE,
+            )
 
         return (elements, status_text, False, True, False, True, dag, BAR_LOADING)
 
@@ -246,14 +319,12 @@ def register() -> None:
             return (True, "⚠️ 没有正在运行的任务", False, True, True)
         try:
             await cancel_stream(thread_id)
-            return (True,
-                    "⏹️ 任务已取消（后端 LLM 调用将在下次响应前终止）",
-                    False, True, True)
+            return (True, "⏹️ 任务已取消（后端 LLM 调用将在下次响应前终止）", False, True, True)
         except Exception as e:
             import logging
+
             logging.getLogger(__name__).exception(f"Failed to cancel stream {thread_id}")
-            return (True, f"❌ 取消失败: {e}（任务可能仍在后台运行）",
-                    False, True, True)
+            return (True, f"❌ 取消失败: {e}（任务可能仍在后台运行）", False, True, True)
 
     # ── 开始执行根节点 ──
     @callback(
@@ -328,9 +399,11 @@ def register() -> None:
             status_msg = "🎉 所有节点已完成！"
 
         bar_style = {
-            "width": f"{pct}%", "height": "100%",
+            "width": f"{pct}%",
+            "height": "100%",
             "background": "linear-gradient(90deg, #10b981, #34d399)",
-            "borderRadius": "6px", "transition": "width 0.3s ease",
+            "borderRadius": "6px",
+            "transition": "width 0.3s ease",
         }
         return new_states, elements, status_msg, bar_style, False
 
@@ -373,9 +446,11 @@ def register() -> None:
             f"✅{done_count} ⏭️{skipped_count} / {total}"
         )
         bar_style = {
-            "width": f"{pct}%", "height": "100%",
+            "width": f"{pct}%",
+            "height": "100%",
             "background": "linear-gradient(90deg, #6366f1, #818cf8)",
-            "borderRadius": "6px", "transition": "width 0.3s ease",
+            "borderRadius": "6px",
+            "transition": "width 0.3s ease",
         }
         return new_states, elements, status_msg, bar_style, False
 
@@ -405,7 +480,10 @@ def register() -> None:
         new_states = dict(node_states or {})
         new_states[selected_nid] = "failed"
         new_states = auto_unlock_downstream(
-            dag, new_states, selected_nid, "failed",
+            dag,
+            new_states,
+            selected_nid,
+            "failed",
             allowed_edge_types=("soft", "optional"),
         )
         elements = cytoscape_cached(nodes, edges, new_states)
@@ -422,9 +500,11 @@ def register() -> None:
             f"✅{done_count} ⏭️{skipped_count} ❌{failed_count}/{total}"
         )
         bar_style = {
-            "width": f"{pct}%", "height": "100%",
+            "width": f"{pct}%",
+            "height": "100%",
             "background": "linear-gradient(90deg, #ef4444, #f87171)",
-            "borderRadius": "6px", "transition": "width 0.3s ease",
+            "borderRadius": "6px",
+            "transition": "width 0.3s ease",
         }
         return new_states, elements, status_msg, bar_style, False
 
@@ -454,7 +534,7 @@ def register() -> None:
 
         try:
             nid_int = int(selected_nid)
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             return no_update, no_update, f"⚠️ 无效节点ID: {selected_nid}", no_update, no_update
 
         nodes = dag.get("nodes", [])
@@ -469,7 +549,10 @@ def register() -> None:
             except Exception as e:
                 logging.getLogger(__name__).error(
                     "[Reset] DB 重置失败 task=%s node=%s: %s",
-                    task_id, nid_int, e, exc_info=True,
+                    task_id,
+                    nid_int,
+                    e,
+                    exc_info=True,
                 )
 
         new_states = dict(old_states)
@@ -492,9 +575,11 @@ def register() -> None:
         pct = int(processed / total * 100) if total > 0 else 0
 
         bar_style = {
-            "width": f"{pct}%", "height": "100%",
+            "width": f"{pct}%",
+            "height": "100%",
             "background": "linear-gradient(90deg, #6366f1, #818cf8)",
-            "borderRadius": "6px", "transition": "width 0.3s ease",
+            "borderRadius": "6px",
+            "transition": "width 0.3s ease",
         }
 
         if has_task and not db_ok:

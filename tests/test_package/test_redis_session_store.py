@@ -18,6 +18,7 @@ test_redis_session_store.py — RedisSessionStore 契约测试
 真 Redis 集成测试（可选）：
     pytest -m integration tests/test_package/test_redis_session_store.py
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -37,6 +38,7 @@ from task_planner.infrastructure.session_store import RedisSessionStore, Session
 # ═══════════════════════════════════════════════════════════════════
 class FakeSession:
     """跟 test_session_store.py 一致的测试替身"""
+
     def __init__(self, thread_id: str):
         self.thread_id = thread_id
         self.start_time = time.time()
@@ -99,6 +101,7 @@ async def test_pop_missing_returns_none(store):
 @pytest.mark.asyncio
 async def test_concurrent_access(store):
     """并发 set / get 不崩，语义一致"""
+
     async def writer(i: int):
         await store.set(f"t{i}", FakeSession(f"t{i}"))
 
@@ -215,6 +218,7 @@ async def test_no_contains_method(store):
 @pytest.mark.asyncio
 async def test_serialize_failure_raises_typeerror(store):
     """session 无法序列化时抛 TypeError"""
+
     class Unserializable:
         def __reduce__(self):
             raise TypeError("cannot pickle")
@@ -235,6 +239,7 @@ async def test_deserialize_corrupted_returns_none(store):
 async def test_custom_serializer():
     """用 JSON 序列化器——session 必须是 JSON-able"""
     import json
+
     store = RedisSessionStore(
         "redis://fake",
         serialize=lambda x: json.dumps(x).encode("utf-8"),

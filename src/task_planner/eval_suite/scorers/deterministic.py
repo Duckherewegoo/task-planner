@@ -1,4 +1,5 @@
 """deterministic.py — 确定性评分（无需 LLM）"""
+
 from ..types import AgentTrace, DeterministicScores, GoldenCase
 
 
@@ -9,10 +10,12 @@ def score_deterministic(trace: AgentTrace, golden: GoldenCase) -> DeterministicS
 
     exp_i = golden.expected_intent
     s = DeterministicScores(
-        intent_match=1.0 if (
+        intent_match=1.0
+        if (
             trace.intent.get("needs_planning") == exp_i.get("needs_planning")
             and trace.intent.get("category") == exp_i.get("category")
-        ) else 0.0,
+        )
+        else 0.0,
         node_count_accuracy=_count_acc(
             len(golden.expected_plan.get("nodes", [])),
             len(trace.plan.get("nodes", [])),

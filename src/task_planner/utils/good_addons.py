@@ -70,7 +70,6 @@ Usage:
   - 无。本文件保持零内部依赖，便于复制到其他项目。
 """
 
-
 import asyncio
 import contextvars
 import enum
@@ -108,6 +107,7 @@ _HAS_CRYPTO = False
 
 try:
     import psutil
+
     _HAS_PSUTIL = True
 except ImportError:
     psutil = None  # type: ignore
@@ -117,6 +117,7 @@ try:
     from rich.console import Console
     from rich.logging import RichHandler
     from rich.table import Table
+
     _HAS_RICH = True
 except ImportError:
     Console = None  # type: ignore
@@ -126,37 +127,65 @@ except ImportError:
 
 try:
     import orjson
+
     _HAS_ORJSON = True
 except ImportError:
     orjson = None  # type: ignore
 
 try:
     import pydantic
+
     _HAS_PYDANTIC = True
 except ImportError:
     pydantic = None  # type: ignore
 
 try:
     import prometheus_client
+
     _HAS_PROMETHEUS = True
 except ImportError:
     prometheus_client = None  # type: ignore
 
 try:
     from cryptography.fernet import Fernet
+
     _HAS_CRYPTO = True
 except ImportError:
     Fernet = None  # type: ignore
 
 __version__ = "6.2.0"
 __all__ = [
-    "boost", "trace", "timed", "retry", "circuit_breaker", "rate_limited",
-    "cached", "validated", "guarded", "fallback", "debounce", "memoize",
-    "EventBus", "RequestContext", "CircuitBreaker", "CircuitOpenError",
-    "RateLimitError", "PerformanceMonitor", "SystemMonitor", "Security",
-    "MetricsCollector", "AuditLog", "GracefulShutdown", "HealthChecker",
-    "ExceptionFingerprinter", "log", "get_logger", "set_log_level",
-    "fast_json_dumps", "fast_json_loads", "diag",
+    "boost",
+    "trace",
+    "timed",
+    "retry",
+    "circuit_breaker",
+    "rate_limited",
+    "cached",
+    "validated",
+    "guarded",
+    "fallback",
+    "debounce",
+    "memoize",
+    "EventBus",
+    "RequestContext",
+    "CircuitBreaker",
+    "CircuitOpenError",
+    "RateLimitError",
+    "PerformanceMonitor",
+    "SystemMonitor",
+    "Security",
+    "MetricsCollector",
+    "AuditLog",
+    "GracefulShutdown",
+    "HealthChecker",
+    "ExceptionFingerprinter",
+    "log",
+    "get_logger",
+    "set_log_level",
+    "fast_json_dumps",
+    "fast_json_loads",
+    "diag",
 ]
 
 F = TypeVar("F", bound=Callable[..., Any])
@@ -167,7 +196,9 @@ T = TypeVar("T")
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 _ctx_trace_id: contextvars.ContextVar[str] = contextvars.ContextVar("trace_id", default="")
-_ctx_request_start: contextvars.ContextVar[float] = contextvars.ContextVar("request_start", default=0.0)
+_ctx_request_start: contextvars.ContextVar[float] = contextvars.ContextVar(
+    "request_start", default=0.0
+)
 _ctx_user_id: contextvars.ContextVar[str] = contextvars.ContextVar("user_id", default="")
 
 
@@ -175,8 +206,10 @@ _ctx_user_id: contextvars.ContextVar[str] = contextvars.ContextVar("user_id", de
 # ║  Part 1: Core Infrastructure                    ║
 # ╚══════════════════════════════════════════════════╝
 
+
 class _SingletonMeta(type):
     """Thread-safe Singleton Metaclass."""
+
     _instances: dict[type, Any] = {}
     _lock = threading.Lock()
 
@@ -197,7 +230,9 @@ class EventBus(metaclass=_SingletonMeta):
         self._history: deque[dict[str, Any]] = deque(maxlen=1000)
         self._seq = 0
 
-    def on(self, event: str, handler: Callable[..., Any], *, priority: int = 0) -> Callable[[], None]:
+    def on(
+        self, event: str, handler: Callable[..., Any], *, priority: int = 0
+    ) -> Callable[[], None]:
         with self._lock:
             self._subs[event].append((priority, handler))
             self._subs[event].sort(key=lambda x: -x[0])
@@ -211,7 +246,9 @@ class EventBus(metaclass=_SingletonMeta):
         with self._lock:
             handlers = list(self._subs.get(event, []))
         self._seq += 1
-        self._history.append({"event": event, "kwargs": kwargs, "time": time.time(), "seq": self._seq})
+        self._history.append(
+            {"event": event, "kwargs": kwargs, "time": time.time(), "seq": self._seq}
+        )
         results = []
         for _, handler in handlers:
             try:
@@ -226,7 +263,9 @@ class EventBus(metaclass=_SingletonMeta):
         with self._lock:
             handlers = list(self._subs.get(event, []))
         self._seq += 1
-        self._history.append({"event": event, "kwargs": kwargs, "time": time.time(), "seq": self._seq})
+        self._history.append(
+            {"event": event, "kwargs": kwargs, "time": time.time(), "seq": self._seq}
+        )
         results = []
         for _, handler in handlers:
             try:
@@ -237,7 +276,10 @@ class EventBus(metaclass=_SingletonMeta):
             except Exception as e:
                 # 有意用 print 而非 log：EventBus 可能在 log 初始化前就被调用，
                 # 且 handler 异常若走 logger 可能递归（log 自身也订阅事件的话）
-                print(f"[EventBus] Async error in {handler.__name__} for {event}: {e}", file=sys.stderr)
+                print(
+                    f"[EventBus] Async error in {handler.__name__} for {event}: {e}",
+                    file=sys.stderr,
+                )
         return results
 
     def get_history(self, last_n: int = 50) -> list[dict[str, Any]]:
@@ -313,7 +355,12 @@ class PerformanceMonitor(metaclass=_SingletonMeta):
     def record(self, name: str, duration_ms: float, *, error: bool = False) -> None:
         with self._lock:
             if name not in self._stats:
-                self._stats[name] = {"count": 0, "errors": 0, "total_ms": 0.0, "times": deque(maxlen=5000)}
+                self._stats[name] = {
+                    "count": 0,
+                    "errors": 0,
+                    "total_ms": 0.0,
+                    "times": deque(maxlen=5000),
+                }
             s = self._stats[name]
             s["count"] += 1
             s["total_ms"] += duration_ms
@@ -333,13 +380,19 @@ class PerformanceMonitor(metaclass=_SingletonMeta):
                     p50, p95, p99 = q[49], q[94], q[98]
                 except Exception:
                     p50 = p95 = p99 = times[0]
-                items.append({
-                    "name": name, "calls": s["count"], "errors": s["errors"],
-                    "total_ms": round(s["total_ms"], 2),
-                    "avg_ms": round(s["total_ms"] / s["count"], 2),
-                    "p50_ms": round(p50, 2), "p95_ms": round(p95, 2), "p99_ms": round(p99, 2),
-                    "max_ms": round(max(times), 2),
-                })
+                items.append(
+                    {
+                        "name": name,
+                        "calls": s["count"],
+                        "errors": s["errors"],
+                        "total_ms": round(s["total_ms"], 2),
+                        "avg_ms": round(s["total_ms"] / s["count"], 2),
+                        "p50_ms": round(p50, 2),
+                        "p95_ms": round(p95, 2),
+                        "p99_ms": round(p99, 2),
+                        "max_ms": round(max(times), 2),
+                    }
+                )
             items.sort(key=lambda x: x.get(sort_by, 0), reverse=True)
             return items[:top_n] if top_n else items
 
@@ -347,7 +400,9 @@ class PerformanceMonitor(metaclass=_SingletonMeta):
         items = self.snapshot(top_n=top_n)
         if not items:
             return "(no data)"
-        header = f"{'Function':<40} {'Calls':>7} {'Avg':>8} {'P50':>8} {'P95':>8} {'P99':>8} {'Err':>5}"
+        header = (
+            f"{'Function':<40} {'Calls':>7} {'Avg':>8} {'P50':>8} {'P95':>8} {'P99':>8} {'Err':>5}"
+        )
         sep = "─" * len(header)
         rows = [sep, header, sep]
         for i in items:
@@ -364,9 +419,19 @@ class PerformanceMonitor(metaclass=_SingletonMeta):
 # ╚══════════════════════════════════════════════════╝
 
 _SENSITIVE_PATTERNS = [
-    (re.compile(r"(password|passwd|pwd|secret|token|api[_-]?key|authorization)\s*[:=]\s*\S+", re.I), r"\1=***"),
+    (
+        re.compile(
+            r"(password|passwd|pwd|secret|token|api[_-]?key|authorization)\s*[:=]\s*\S+", re.I
+        ),
+        r"\1=***",
+    ),
     (re.compile(r"\b\d{17}[\dXx]\b"), "***ID_CARD***"),
-    (re.compile(r"\b(?:Bearer\s+)?[A-Za-z0-9\-_]{20,}\.[A-Za-z0-9\-_]{20,}\.[A-Za-z0-9\-_]{20,}\b"), "***JWT***"),
+    (
+        re.compile(
+            r"\b(?:Bearer\s+)?[A-Za-z0-9\-_]{20,}\.[A-Za-z0-9\-_]{20,}\.[A-Za-z0-9\-_]{20,}\b"
+        ),
+        "***JWT***",
+    ),
 ]
 
 # ── v6.0: 结构化日志格式开关 ──
@@ -375,14 +440,16 @@ _LOG_JSON_FORMAT = os.getenv("GOOD_ADDONS_LOG_JSON", "false").lower() == "true"
 
 class _ContextFilter(logging.Filter):
     """Injects context variables into log records."""
+
     def filter(self, record: logging.LogRecord) -> bool:
         record.trace_id = _ctx_trace_id.get() or "-"  # type: ignore
-        record.user_id = _ctx_user_id.get() or "-"    # type: ignore
+        record.user_id = _ctx_user_id.get() or "-"  # type: ignore
         return True
 
 
 class _SanitizeFilter(logging.Filter):
     """Redacts sensitive information from log messages."""
+
     def filter(self, record: logging.LogRecord) -> bool:
         try:
             msg = record.getMessage()
@@ -397,6 +464,7 @@ class _SanitizeFilter(logging.Filter):
 
 class _JSONFormatter(logging.Formatter):
     """v6.0: JSON 格式日志格式化器。"""
+
     def format(self, record: logging.LogRecord) -> str:
         data = {
             "timestamp": datetime.now(UTC).isoformat(),
@@ -478,10 +546,12 @@ def _setup_logging(
         handler.setFormatter(logging.Formatter("[dim]%(trace_id)s[/] %(message)s"))
     else:
         handler = logging.StreamHandler(sys.stderr)
-        handler.setFormatter(logging.Formatter(
-            "%(asctime)s │ %(levelname)-7s │ %(trace_id)s │ %(message)s",
-            datefmt="%H:%M:%S",
-        ))
+        handler.setFormatter(
+            logging.Formatter(
+                "%(asctime)s │ %(levelname)-7s │ %(trace_id)s │ %(message)s",
+                datefmt="%H:%M:%S",
+            )
+        )
 
     handler.addFilter(_ctx_filter)
     handler.addFilter(_sanitize_filter)
@@ -498,6 +568,7 @@ def _setup_logging(
     root.addFilter(_sanitize_filter)
 
     return logger
+
 
 log: logging.Logger = _setup_logging()
 
@@ -525,6 +596,7 @@ def set_log_level(level: str | int) -> None:
 # ╔══════════════════════════════════════════════════╗
 # ║  Part 3: Exception Fingerprinting               ║
 # ╚══════════════════════════════════════════════════╝
+
 
 class ExceptionFingerprinter:
     """Generates stable fingerprints for exceptions + deduplication."""
@@ -554,11 +626,16 @@ class ExceptionFingerprinter:
                 cls._seen = {k: v for k, v in cls._seen.items() if v > cutoff}
 
         snapshot = RequestContext.snapshot()
-        if 'AUDIT' in globals():
-            globals()['AUDIT'].record("exception", details={
-                "fingerprint": fp, "type": type(exc).__name__,
-                "message": str(exc)[:500], "context": snapshot,
-            })
+        if "AUDIT" in globals():
+            globals()["AUDIT"].record(
+                "exception",
+                details={
+                    "fingerprint": fp,
+                    "type": type(exc).__name__,
+                    "message": str(exc)[:500],
+                    "context": snapshot,
+                },
+            )
         return {"fingerprint": fp, "deduplicated": False, "context": snapshot}
 
 
@@ -572,7 +649,8 @@ def _install_exception_hook() -> None:
             if not info.get("deduplicated"):
                 log.error(
                     "💥 Unhandled exception [%s] | ctx=%s",
-                    info["fingerprint"], info.get("context"),
+                    info["fingerprint"],
+                    info.get("context"),
                     exc_info=(exc_type, exc_value, exc_tb),
                 )
         except Exception:
@@ -586,6 +664,7 @@ def _install_exception_hook() -> None:
 # ║  Part 4: Decorator Arsenal                      ║
 # ╚══════════════════════════════════════════════════╝
 
+
 def _safe_repr(args: Any, kwargs: Any, max_len: int = 200) -> str:
     try:
         parts = [repr(a) for a in args] + [f"{k}={v!r}" for k, v in kwargs.items()]
@@ -598,20 +677,36 @@ def _safe_repr(args: Any, kwargs: Any, max_len: int = 200) -> str:
 @overload
 def trace(func: F) -> F: ...
 @overload
-def trace(*, level: int = logging.DEBUG, slow_ms: float = 200, log_args: bool = False, memory: bool = False, name: str = "") -> Callable[[F], F]: ...
+def trace(
+    *,
+    level: int = logging.DEBUG,
+    slow_ms: float = 200,
+    log_args: bool = False,
+    memory: bool = False,
+    name: str = "",
+) -> Callable[[F], F]: ...
+
 
 def trace(
-    _func: F | None = None, *, level: int = logging.DEBUG, slow_ms: float = 200,
-    log_args: bool = False, memory: bool = False, name: str = "",
+    _func: F | None = None,
+    *,
+    level: int = logging.DEBUG,
+    slow_ms: float = 200,
+    log_args: bool = False,
+    memory: bool = False,
+    name: str = "",
 ) -> F | Callable[[F], F]:
     """Performance tracing decorator."""
+
     def decorator(func: F) -> F:
         fname = name or f"{func.__module__}.{func.__qualname__}"
 
         @functools.wraps(func)
         async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
             t0 = time.perf_counter()
-            mem_before = psutil.Process().memory_info().rss if memory and _HAS_PSUTIL and psutil else 0
+            mem_before = (
+                psutil.Process().memory_info().rss if memory and _HAS_PSUTIL and psutil else 0
+            )
             tid = secrets.token_hex(4)
             old = _ctx_trace_id.set(_ctx_trace_id.get() or tid)
             _recorded = False
@@ -637,10 +732,13 @@ def trace(
                     delta = psutil.Process().memory_info().rss - mem_before
                     if abs(delta) > 1024 * 1024:
                         log.info("🧠 %s mem Δ: %+.1fMB", fname, delta / (1024 * 1024))
+
         @functools.wraps(func)
         def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
             t0 = time.perf_counter()
-            mem_before = psutil.Process().memory_info().rss if memory and _HAS_PSUTIL and psutil else 0
+            mem_before = (
+                psutil.Process().memory_info().rss if memory and _HAS_PSUTIL and psutil else 0
+            )
             tid = secrets.token_hex(4)
             old = _ctx_trace_id.set(_ctx_trace_id.get() or tid)
             _recorded = False
@@ -666,6 +764,7 @@ def trace(
                     delta = psutil.Process().memory_info().rss - mem_before
                     if abs(delta) > 1024 * 1024:
                         log.info("🧠 %s mem Δ: %+.1fMB", fname, delta / (1024 * 1024))
+
         if inspect.iscoroutinefunction(func):
             return cast(F, async_wrapper)
         return cast(F, sync_wrapper)
@@ -677,18 +776,24 @@ def trace(
 
 # ── v6.0: @timed 轻量级计时装饰器 ──
 
+
 @overload
 def timed(func: F) -> F: ...
 @overload
 def timed(*, slow_ms: float = 200, name: str = "") -> Callable[[F], F]: ...
 
+
 def timed(
-    _func: F | None = None, *, slow_ms: float = 200, name: str = "",
+    _func: F | None = None,
+    *,
+    slow_ms: float = 200,
+    name: str = "",
 ) -> F | Callable[[F], F]:
     """
     v6.0: 轻量级性能计时装饰器（@trace 的简化版）。
     仅记录耗时，不记录参数、不追踪内存。
     """
+
     def decorator(func: F) -> F:
         fname = name or f"{func.__module__}.{func.__qualname__}"
 
@@ -725,14 +830,21 @@ def timed(
 
 # ── v6.0: @fallback 优雅降级装饰器 ──
 
+
 @overload
 def fallback(func: F) -> F: ...
 @overload
-def fallback(*, value: Any = None, catch: tuple[type[Exception], ...] = (Exception,), log_error: bool = True) -> Callable[[F], F]: ...
+def fallback(
+    *, value: Any = None, catch: tuple[type[Exception], ...] = (Exception,), log_error: bool = True
+) -> Callable[[F], F]: ...
+
 
 def fallback(
-    _func: F | None = None, *, value: Any = None,
-    catch: tuple[type[Exception], ...] = (Exception,), log_error: bool = True,
+    _func: F | None = None,
+    *,
+    value: Any = None,
+    catch: tuple[type[Exception], ...] = (Exception,),
+    log_error: bool = True,
 ) -> F | Callable[[F], F]:
     """
     v6.0: 优雅降级装饰器——主函数失败时返回备用值，不抛出异常。
@@ -743,6 +855,7 @@ def fallback(
         def fetch_data() -> List[str]:
             return api_call()  # 失败时返回空列表
     """
+
     def decorator(func: F) -> F:
         fallback_value = value() if callable(value) else value
 
@@ -776,20 +889,37 @@ def fallback(
 @overload
 def retry(func: F) -> F: ...
 @overload
-def retry(*, max_attempts: int = 3, base_delay: float = 1.0, max_delay: float = 60.0, exponential: bool = True, jitter: bool = True, exceptions: tuple[type[Exception], ...] = (Exception,), backoff_factor: float = 2.0) -> Callable[[F], F]: ...
+def retry(
+    *,
+    max_attempts: int = 3,
+    base_delay: float = 1.0,
+    max_delay: float = 60.0,
+    exponential: bool = True,
+    jitter: bool = True,
+    exceptions: tuple[type[Exception], ...] = (Exception,),
+    backoff_factor: float = 2.0,
+) -> Callable[[F], F]: ...
+
 
 def retry(
-    _func: F | None = None, *, max_attempts: int = 3, base_delay: float = 1.0,
-    max_delay: float = 60.0, exponential: bool = True, jitter: bool = True,
-    exceptions: tuple[type[Exception], ...] = (Exception,), backoff_factor: float = 2.0,
+    _func: F | None = None,
+    *,
+    max_attempts: int = 3,
+    base_delay: float = 1.0,
+    max_delay: float = 60.0,
+    exponential: bool = True,
+    jitter: bool = True,
+    exceptions: tuple[type[Exception], ...] = (Exception,),
+    backoff_factor: float = 2.0,
 ) -> F | Callable[[F], F]:
     """Retry decorator with exponential backoff."""
+
     def decorator(func: F) -> F:
         def _delay(attempt: int) -> float:
             d = base_delay * (backoff_factor ** (attempt - 1)) if exponential else base_delay
             d = min(d, max_delay)
             if jitter:
-                d *= (0.5 + secrets.randbelow(100) / 100.0)
+                d *= 0.5 + secrets.randbelow(100) / 100.0
             return d
 
         @functools.wraps(func)
@@ -799,10 +929,19 @@ def retry(
                     return await func(*args, **kwargs)
                 except exceptions as e:
                     if attempt >= max_attempts:
-                        log.error("✗ %s failed after %d attempts: %s", func.__qualname__, max_attempts, e)
+                        log.error(
+                            "✗ %s failed after %d attempts: %s", func.__qualname__, max_attempts, e
+                        )
                         raise
                     delay = _delay(attempt)
-                    log.warning("↻ %s attempt %d/%d failed (%s), retry in %.2fs", func.__qualname__, attempt, max_attempts, e, delay)
+                    log.warning(
+                        "↻ %s attempt %d/%d failed (%s), retry in %.2fs",
+                        func.__qualname__,
+                        attempt,
+                        max_attempts,
+                        e,
+                        delay,
+                    )
                     await asyncio.sleep(delay)
 
         @functools.wraps(func)
@@ -812,10 +951,19 @@ def retry(
                     return func(*args, **kwargs)
                 except exceptions as e:
                     if attempt >= max_attempts:
-                        log.error("✗ %s failed after %d attempts: %s", func.__qualname__, max_attempts, e)
+                        log.error(
+                            "✗ %s failed after %d attempts: %s", func.__qualname__, max_attempts, e
+                        )
                         raise
                     delay = _delay(attempt)
-                    log.warning("↻ %s attempt %d/%d failed (%s), retry in %.2fs", func.__qualname__, attempt, max_attempts, e, delay)
+                    log.warning(
+                        "↻ %s attempt %d/%d failed (%s), retry in %.2fs",
+                        func.__qualname__,
+                        attempt,
+                        max_attempts,
+                        e,
+                        delay,
+                    )
                     time.sleep(delay)
 
         if inspect.iscoroutinefunction(func):
@@ -841,8 +989,11 @@ class CircuitBreaker:
     """Circuit Breaker pattern implementation."""
 
     def __init__(
-        self, failure_threshold: int = 5, recovery_timeout: float = 30.0,
-        success_threshold: int = 2, fallback: Callable[..., Any] | None = None,
+        self,
+        failure_threshold: int = 5,
+        recovery_timeout: float = 30.0,
+        success_threshold: int = 2,
+        fallback: Callable[..., Any] | None = None,
     ) -> None:
         self.failure_threshold = failure_threshold
         self.recovery_timeout = recovery_timeout
@@ -857,7 +1008,9 @@ class CircuitBreaker:
     @property
     def state(self) -> CircuitState:
         with self._lock:
-            if self._state == CircuitState.OPEN and (time.time() - self._last_fail_time >= self.recovery_timeout):
+            if self._state == CircuitState.OPEN and (
+                time.time() - self._last_fail_time >= self.recovery_timeout
+            ):
                 self._state = CircuitState.HALF_OPEN
                 self._successes = 0
                 log.info("⚡ CircuitBreaker: OPEN → HALF_OPEN")
@@ -929,11 +1082,20 @@ class CircuitBreaker:
 @overload
 def circuit_breaker(func: F) -> F: ...
 @overload
-def circuit_breaker(*, failure_threshold: int = 5, recovery_timeout: float = 30.0, fallback: Callable[..., Any] | None = None) -> Callable[[F], F]: ...
+def circuit_breaker(
+    *,
+    failure_threshold: int = 5,
+    recovery_timeout: float = 30.0,
+    fallback: Callable[..., Any] | None = None,
+) -> Callable[[F], F]: ...
+
 
 def circuit_breaker(
-    _func: F | None = None, *, failure_threshold: int = 5,
-    recovery_timeout: float = 30.0, fallback: Callable[..., Any] | None = None,
+    _func: F | None = None,
+    *,
+    failure_threshold: int = 5,
+    recovery_timeout: float = 30.0,
+    fallback: Callable[..., Any] | None = None,
 ) -> F | Callable[[F], F]:
     breaker = CircuitBreaker(failure_threshold, recovery_timeout, fallback=fallback)
     if _func is not None:
@@ -964,7 +1126,9 @@ class RateLimitError(Exception):
     pass
 
 
-def rate_limited(rate: float = 10.0, capacity: int = 20, *, on_limit: Callable[..., Any] | None = None) -> Callable[[F], F]:
+def rate_limited(
+    rate: float = 10.0, capacity: int = 20, *, on_limit: Callable[..., Any] | None = None
+) -> Callable[[F], F]:
     bucket = _TokenBucket(rate, capacity)
 
     def decorator(func: F) -> F:
@@ -975,11 +1139,19 @@ def rate_limited(rate: float = 10.0, capacity: int = 20, *, on_limit: Callable[.
                     return on_limit(*args, **kwargs)
                 raise RateLimitError(f"Rate limit exceeded for {func.__qualname__}")
             return func(*args, **kwargs)
+
         return cast(F, wrapper)
+
     return decorator
 
 
-def cached(ttl: float = 300, *, maxsize: int = 1024, key_func: Callable[..., str] | None = None, jitter: float = 0.0) -> Callable[[F], F]:
+def cached(
+    ttl: float = 300,
+    *,
+    maxsize: int = 1024,
+    key_func: Callable[..., str] | None = None,
+    jitter: float = 0.0,
+) -> Callable[[F], F]:
     def decorator(func: F) -> F:
         store: dict[str, tuple[Any, float]] = {}
         lock = threading.Lock()
@@ -988,7 +1160,9 @@ def cached(ttl: float = 300, *, maxsize: int = 1024, key_func: Callable[..., str
         def _key(args: Any, kwargs: Any) -> str:
             if key_func:
                 return key_func(*args, **kwargs)
-            return hashlib.md5(str((func.__qualname__, repr(args), repr(sorted(kwargs.items())))).encode()).hexdigest()
+            return hashlib.md5(
+                str((func.__qualname__, repr(args), repr(sorted(kwargs.items())))).encode()
+            ).hexdigest()
 
         @functools.wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
@@ -1010,8 +1184,9 @@ def cached(ttl: float = 300, *, maxsize: int = 1024, key_func: Callable[..., str
             return result
 
         wrapper.cache_clear = lambda: store.clear()  # type: ignore
-        wrapper.cache_stats = lambda: dict(stats)    # type: ignore
+        wrapper.cache_stats = lambda: dict(stats)  # type: ignore
         return cast(F, wrapper)
+
     return decorator
 
 
@@ -1020,10 +1195,13 @@ def memoize(func: F) -> F:
 
     @functools.wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
-        key = hashlib.md5(str((func.__qualname__, repr(args), repr(sorted(kwargs.items())))).encode()).hexdigest()
+        key = hashlib.md5(
+            str((func.__qualname__, repr(args), repr(sorted(kwargs.items())))).encode()
+        ).hexdigest()
         if key not in cache:
             cache[key] = func(*args, **kwargs)
         return cache[key]
+
     wrapper.cache_clear = cache.clear  # type: ignore
     return cast(F, wrapper)
 
@@ -1043,20 +1221,35 @@ def validated(**type_hints: Any) -> Callable[[F], F]:
                     try:
                         bound.arguments[name] = expected(bound.arguments[name])
                     except (ValueError, TypeError) as e:
-                        raise TypeError(f"Param '{name}': expected {expected.__name__}, got {type(bound.arguments[name]).__name__} ({e})") from e
+                        raise TypeError(
+                            f"Param '{name}': expected {expected.__name__}, got {type(bound.arguments[name]).__name__} ({e})"
+                        ) from e
             return func(*bound.args, **bound.kwargs)
+
         return cast(F, wrapper)
+
     return decorator
 
 
 @overload
 def guarded(func: F) -> F: ...
 @overload
-def guarded(*, fallback: Any = None, catch: tuple[type[Exception], ...] = (Exception,), log_error: bool = True, reraise: bool = False) -> Callable[[F], F]: ...
+def guarded(
+    *,
+    fallback: Any = None,
+    catch: tuple[type[Exception], ...] = (Exception,),
+    log_error: bool = True,
+    reraise: bool = False,
+) -> Callable[[F], F]: ...
+
 
 def guarded(
-    _func: F | None = None, *, fallback: Any = None,
-    catch: tuple[type[Exception], ...] = (Exception,), log_error: bool = True, reraise: bool = False,
+    _func: F | None = None,
+    *,
+    fallback: Any = None,
+    catch: tuple[type[Exception], ...] = (Exception,),
+    log_error: bool = True,
+    reraise: bool = False,
 ) -> F | Callable[[F], F]:
     def decorator(func: F) -> F:
         @functools.wraps(func)
@@ -1065,7 +1258,9 @@ def guarded(
                 return func(*args, **kwargs)
             except catch as e:
                 if log_error:
-                    log.error("🛡 %s caught %s: %s", func.__qualname__, type(e).__name__, e, exc_info=True)
+                    log.error(
+                        "🛡 %s caught %s: %s", func.__qualname__, type(e).__name__, e, exc_info=True
+                    )
                 if reraise:
                     raise
                 return fallback() if callable(fallback) else fallback
@@ -1076,7 +1271,9 @@ def guarded(
                 return await func(*args, **kwargs)
             except catch as e:
                 if log_error:
-                    log.error("🛡 %s caught %s: %s", func.__qualname__, type(e).__name__, e, exc_info=True)
+                    log.error(
+                        "🛡 %s caught %s: %s", func.__qualname__, type(e).__name__, e, exc_info=True
+                    )
                 if reraise:
                     raise
                 return fallback() if callable(fallback) else fallback
@@ -1102,7 +1299,9 @@ def debounce(wait: float = 0.3) -> Callable[[F], F]:
                     timer[0].cancel()
                 timer[0] = threading.Timer(wait, func, args=args, kwargs=kwargs)
                 timer[0].start()
+
         return cast(F, wrapper)
+
     return decorator
 
 
@@ -1110,14 +1309,18 @@ def debounce(wait: float = 0.3) -> Callable[[F], F]:
 # ║  Part 5: Security & System                      ║
 # ╚══════════════════════════════════════════════════╝
 
+
 class Security:
     """Security utilities."""
+
     _XSS = [
         re.compile(r"<script[^>]*>.*?</script>", re.I | re.S),
         re.compile(r"javascript\s*:", re.I),
         re.compile(r"on\w+\s*=", re.I),
     ]
-    _SQL = re.compile(r"\b(UNION|SELECT|INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|EXEC|TRUNCATE|--|;)\b", re.I)
+    _SQL = re.compile(
+        r"\b(UNION|SELECT|INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|EXEC|TRUNCATE|--|;)\b", re.I
+    )
 
     # --- v5.0: CSP Presets ---
     CSP_STRICT = "default-src 'self'"
@@ -1153,7 +1356,9 @@ class Security:
     def verify_password(password: str, hashed: str) -> bool:
         try:
             salt, expected = hashed.split(":", 1)
-            return secrets.compare_digest(hashlib.sha256(f"{salt}{password}".encode()).hexdigest(), expected)
+            return secrets.compare_digest(
+                hashlib.sha256(f"{salt}{password}".encode()).hexdigest(), expected
+            )
         except ValueError:
             return False
 
@@ -1198,7 +1403,10 @@ class SystemMonitor:
 
     @staticmethod
     def start_memory_watchdog(
-        *, max_mb: float = 2048, interval: float = 30, callback: Callable[..., Any] | None = None,
+        *,
+        max_mb: float = 2048,
+        interval: float = 30,
+        callback: Callable[..., Any] | None = None,
     ) -> threading.Thread:
         def _watchdog() -> None:
             while True:
@@ -1222,7 +1430,9 @@ class AuditLog(metaclass=_SingletonMeta):
         self._entries: deque[dict[str, Any]] = deque(maxlen=max_entries)
         self._lock = threading.Lock()
 
-    def record(self, action: str, *, actor: str = "", resource: str = "", details: Any = None) -> dict[str, Any]:
+    def record(
+        self, action: str, *, actor: str = "", resource: str = "", details: Any = None
+    ) -> dict[str, Any]:
         entry = {
             "timestamp": datetime.now(UTC).isoformat(),
             "action": action,
@@ -1304,6 +1514,7 @@ class GracefulShutdown(metaclass=_SingletonMeta):
 # ║  Part 6: HealthChecker (v6.1 NEW)               ║
 # ╚══════════════════════════════════════════════════╝
 
+
 class HealthChecker(metaclass=_SingletonMeta):
     """
     v6.0: 统一健康检查组件。
@@ -1320,18 +1531,24 @@ class HealthChecker(metaclass=_SingletonMeta):
 
     @overload
     def register(
-        self, name: str,
+        self,
+        name: str,
     ) -> Callable[[Callable[[], dict[str, Any]]], Callable[[], dict[str, Any]]]: ...
     @overload
     def register(
-        self, name: str, check_fn: Callable[[], dict[str, Any]],
+        self,
+        name: str,
+        check_fn: Callable[[], dict[str, Any]],
     ) -> Callable[[], dict[str, Any]]: ...
 
     def register(
         self,
         name: str,
         check_fn: Callable[[], dict[str, Any]] | None = None,
-    ) -> Callable[[Callable[[], dict[str, Any]]], Callable[[], dict[str, Any]]] | Callable[[], dict[str, Any]]:
+    ) -> (
+        Callable[[Callable[[], dict[str, Any]]], Callable[[], dict[str, Any]]]
+        | Callable[[], dict[str, Any]]
+    ):
         """
         P0-3 修复：同时支持两种用法。
 
@@ -1343,6 +1560,7 @@ class HealthChecker(metaclass=_SingletonMeta):
         用法 2（直接调用）：
             HEALTH.register("db", check_db)
         """
+
         def _do_register(
             fn: Callable[[], dict[str, Any]],
         ) -> Callable[[], dict[str, Any]]:
@@ -1501,6 +1719,7 @@ class HealthChecker(metaclass=_SingletonMeta):
                 lines.append(f"      {result['details']}")
         return "\n".join(lines)
 
+
 # ── v6.0: 自动注册系统健康检查 ──
 _HEALTH = HealthChecker()
 
@@ -1520,6 +1739,7 @@ def _system_health() -> dict[str, Any]:
         "details": f"RSS: {rss:.1f}MB / limit {_memory_limit_mb:.0f}MB, CPU: {cpu:.1f}%",
     }
 
+
 @_HEALTH.register("eventbus")
 def _eventbus_health() -> dict[str, Any]:
     """通过公开 API 读取 EventBus 状态。"""
@@ -1530,15 +1750,18 @@ def _eventbus_health() -> dict[str, Any]:
         "details": f"subscribers: {subs_count}, history: {len(history)}",
     }
 
+
 # ╔══════════════════════════════════════════════════╗
 # ║  Part 7: JSON & Web Enhancement                 ║
 # ╚══════════════════════════════════════════════════╝
+
 
 def fast_json_dumps(obj: Any, *, pretty: bool = False) -> str:
     """
     v6.0 微调: default 处理更规范。
     支持 datetime、set 等特殊类型。
     """
+
     def _default_encoder(o: Any) -> Any:
         if isinstance(o, datetime):
             return o.isoformat()
@@ -1551,7 +1774,9 @@ def fast_json_dumps(obj: Any, *, pretty: bool = False) -> str:
     if _HAS_ORJSON and orjson:
         opts = orjson.OPT_NON_STR_KEYS | (orjson.OPT_INDENT_2 if pretty else 0)
         return orjson.dumps(obj, default=_default_encoder, option=opts).decode()
-    return json.dumps(obj, default=_default_encoder, ensure_ascii=False, indent=2 if pretty else None)
+    return json.dumps(
+        obj, default=_default_encoder, ensure_ascii=False, indent=2 if pretty else None
+    )
 
 
 def fast_json_loads(data: str | bytes) -> Any:
@@ -1626,6 +1851,7 @@ def _enhance_web_app(app: Any, csp_policy: str | None = None) -> None:
             ms = RequestContext.elapsed() * 1000
             try:
                 from flask import request
+
                 method = request.method
                 path = request.path
                 status = response.status_code
@@ -1659,21 +1885,28 @@ def _enhance_web_app(app: Any, csp_policy: str | None = None) -> None:
 
             log.error(
                 "💥 HTTP %d | %s: %s | request_id=%s | fingerprint=%s",
-                status, type(exc).__name__, exc, tid, info.get("fingerprint"),
+                status,
+                type(exc).__name__,
+                exc,
+                tid,
+                info.get("fingerprint"),
                 exc_info=True,
             )
 
             try:
                 from flask import jsonify
-                return jsonify({
-                    "error": {
-                        "type": type(exc).__name__,
-                        "message": str(exc) if status < 500 else "Internal Server Error",
-                        "request_id": tid,
-                        "fingerprint": info.get("fingerprint"),
-                        "hint": f"Check server logs for request_id={tid}",
+
+                return jsonify(
+                    {
+                        "error": {
+                            "type": type(exc).__name__,
+                            "message": str(exc) if status < 500 else "Internal Server Error",
+                            "request_id": tid,
+                            "fingerprint": info.get("fingerprint"),
+                            "hint": f"Check server logs for request_id={tid}",
+                        }
                     }
-                }), status
+                ), status
             except ImportError:
                 raise exc from None
 
@@ -1694,7 +1927,8 @@ def _enhance_web_app(app: Any, csp_policy: str | None = None) -> None:
             "   app type: %s\n"
             "   server attr: %s\n"
             "   csp_policy: %s",
-            framework, e,
+            framework,
+            e,
             type(app).__name__,
             type(getattr(app, "server", None)).__name__,
             effective_csp[:80],
@@ -1738,12 +1972,16 @@ def _wrap_dash_callbacks(app: Any) -> None:
                             log.error(
                                 "💥 Dash async callback error | %s: %s | "
                                 "request_id=%s | fingerprint=%s",
-                                type(exc).__name__, exc, tid,
+                                type(exc).__name__,
+                                exc,
+                                tid,
                                 info.get("fingerprint"),
                                 exc_info=True,
                             )
                             raise
+
                     return wrapper
+
                 cb_info["callback"] = _make_async_wrapper(original_func)
             else:
                 # ── 同步回调：sync wrapper ──
@@ -1756,14 +1994,17 @@ def _wrap_dash_callbacks(app: Any) -> None:
                             info = ExceptionFingerprinter.capture(exc)
                             tid = RequestContext.trace_id()
                             log.error(
-                                "💥 Dash callback error | %s: %s | "
-                                "request_id=%s | fingerprint=%s",
-                                type(exc).__name__, exc, tid,
+                                "💥 Dash callback error | %s: %s | request_id=%s | fingerprint=%s",
+                                type(exc).__name__,
+                                exc,
+                                tid,
                                 info.get("fingerprint"),
                                 exc_info=True,
                             )
                             raise
+
                     return wrapper
+
                 cb_info["callback"] = _make_sync_wrapper(original_func)
 
             wrapped_count += 1
@@ -1773,8 +2014,11 @@ def _wrap_dash_callbacks(app: Any) -> None:
 
     except Exception as e:
         log.warning(
-            "⚠️ Dash callback wrapping failed (non-fatal): %s", e, exc_info=True,
+            "⚠️ Dash callback wrapping failed (non-fatal): %s",
+            e,
+            exc_info=True,
         )
+
 
 # ╔══════════════════════════════════════════════════╗
 # ║  Part 8: Global Singletons & Bootstrap          ║
@@ -1852,14 +2096,16 @@ def boost(
     _boost_initialized = True
 
     deps = [
-        n for n, f in [
+        n
+        for n, f in [
             ("rich", _HAS_RICH),
             ("psutil", _HAS_PSUTIL),
             ("orjson", _HAS_ORJSON),
             ("pydantic", _HAS_PYDANTIC),
             ("prometheus", _HAS_PROMETHEUS),
             ("crypto", _HAS_CRYPTO),
-        ] if f
+        ]
+        if f
     ]
     log.info(
         "boost() complete | deps: %s | pid: %d | json_log: %s",
@@ -1879,9 +2125,12 @@ def boost(
         "health": HEALTH,
         "security": Security,
     }
+
+
 # ╔══════════════════════════════════════════════════╗
 # ║  Part 9: Diagnostics (v6.0 enhanced)            ║
 # ╚══════════════════════════════════════════════════╝
+
 
 def diag(*, perf_top: int = 15, audit_last: int = 20, include_health: bool = True) -> str:
     """
@@ -1900,7 +2149,9 @@ def diag(*, perf_top: int = 15, audit_last: int = 20, include_health: bool = Tru
     if entries:
         for e in entries:
             ts = e["timestamp"][:19]
-            sections.append(f"  {ts} | {e['action']:<20} | {e['actor']:<15} | {str(e.get('details', ''))[:80]}")
+            sections.append(
+                f"  {ts} | {e['action']:<20} | {e['actor']:<15} | {str(e.get('details', ''))[:80]}"
+            )
     else:
         sections.append("  (empty)")
 
@@ -1909,7 +2160,9 @@ def diag(*, perf_top: int = 15, audit_last: int = 20, include_health: bool = Tru
     mem = SystemMonitor.memory_info()
     cpu = SystemMonitor.cpu_percent()
     if mem:
-        sections.append(f"  RSS: {mem['rss_mb']:.1f} MB | VMS: {mem['vms_mb']:.1f} MB | CPU: {cpu:.1f}%")
+        sections.append(
+            f"  RSS: {mem['rss_mb']:.1f} MB | VMS: {mem['vms_mb']:.1f} MB | CPU: {cpu:.1f}%"
+        )
     else:
         sections.append("  (psutil not available)")
 

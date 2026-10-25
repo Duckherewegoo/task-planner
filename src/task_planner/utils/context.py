@@ -47,8 +47,8 @@ class OperationCancelled(Exception):
 # - 但子 Task 里 set 的值**不会**传回父 Task。
 # - agent.py 的 run_task_stream 用了 contextvars.copy_context() + ctx.run()
 # 来做显式的跨生成器绑定，那是另一套机制，两者不冲突。
-cancel_event_var: contextvars.ContextVar[asyncio.Event | None] = (
-    contextvars.ContextVar("cancel_event", default=None)
+cancel_event_var: contextvars.ContextVar[asyncio.Event | None] = contextvars.ContextVar(
+    "cancel_event", default=None
 )
 
 

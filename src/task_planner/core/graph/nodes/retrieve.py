@@ -102,11 +102,13 @@ def _slim_case(case: dict) -> dict | None:
     for n in plan.get("nodes") or []:
         if not isinstance(n, dict) or n.get("id") is None:
             continue
-        nodes.append({
-            "id": n.get("id"),
-            "name": _truncate(n.get("name", ""), _NAME_MAX_LEN),
-            "detail": _truncate(n.get("detail", ""), _DETAIL_MAX_LEN),
-        })
+        nodes.append(
+            {
+                "id": n.get("id"),
+                "name": _truncate(n.get("name", ""), _NAME_MAX_LEN),
+                "detail": _truncate(n.get("detail", ""), _DETAIL_MAX_LEN),
+            }
+        )
 
     # edges：from / to 必须都在 nodes 里，且不重复
     valid_ids = {n["id"] for n in nodes}
@@ -234,7 +236,10 @@ class ExampleRetriever:
 
         logger.info(
             "[Retrieve] query=%r cat=%r 候选=%d 命中=%d",
-            _truncate(query, 40), cat, len(candidates), len(picked),
+            _truncate(query, 40),
+            cat,
+            len(candidates),
+            len(picked),
         )
         return picked
 
@@ -262,7 +267,7 @@ def get_retriever() -> ExampleRetriever | None:
     if _retriever is not None:
         return _retriever
     with _retriever_lock:
-        if _retriever is None:                     # double-check
+        if _retriever is None:  # double-check
             _retriever = _build_retriever()
     return _retriever
 

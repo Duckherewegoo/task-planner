@@ -4,6 +4,7 @@
 这些测试不跑图、不调 LLM、不碰 DB——只验证"传出去的 resume_data 键名
 是否与 execute 期望一致"。它们是主路径的第一道护栏。
 """
+
 import types
 from unittest.mock import AsyncMock, MagicMock
 
@@ -14,6 +15,7 @@ from task_planner.core.graph.state import UserAction
 from task_planner.services.agent import commands
 
 # ── 构造一个最小 session 替身 ──
+
 
 def _make_session(thread_id="t-1"):
     s = MagicMock()
@@ -39,7 +41,8 @@ def _patch_commands(monkeypatch, session):
 
     monkeypatch.setattr(commands, "graph", fake_graph)
     monkeypatch.setattr(
-        commands, "get_session",
+        commands,
+        "get_session",
         AsyncMock(return_value=session),
     )
     # contextvar 相关的真实用法保留（不需要 mock）
@@ -47,6 +50,7 @@ def _patch_commands(monkeypatch, session):
 
 
 # ── modify_task ──
+
 
 async def test_modify_task_sends_correct_feedback_keys(monkeypatch):
     """核心回归：modify 必须传 user_action / modified_input，不是 action / user_input。"""
@@ -98,6 +102,7 @@ async def test_modify_task_returns_false_when_no_session(monkeypatch):
 
 # ── resume_task ──
 
+
 async def test_resume_task_sends_correct_feedback_key(monkeypatch):
     session = _make_session()
     captured = _patch_commands(monkeypatch, session)
@@ -109,6 +114,7 @@ async def test_resume_task_sends_correct_feedback_key(monkeypatch):
 
 
 # ── retry_node_cmd ──
+
 
 async def test_retry_node_cmd_sends_correct_feedback_key(monkeypatch):
     """核心回归：retry 必须传 user_action / retry_node_index，不是 action / node_index。"""
@@ -127,6 +133,7 @@ async def test_retry_node_cmd_sends_correct_feedback_key(monkeypatch):
 
 
 # ── cancel_task ──
+
 
 async def test_cancel_task_sets_event(monkeypatch):
     session = _make_session()

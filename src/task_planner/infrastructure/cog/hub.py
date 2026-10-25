@@ -21,9 +21,7 @@ class ConfigHub:
         self._sessions: dict[Role, ConfigSession] = {}
 
     # ---------- 装配 ----------
-    def bootstrap(
-        self, schema_path: Path, user_path: Path | None = None
-    ) -> ConfigHub:
+    def bootstrap(self, schema_path: Path, user_path: Path | None = None) -> ConfigHub:
         # 1) YAML → store
         ConfigLoader(self._store).load(schema_path, user_path)
         # 2) Python @register_section → store（YAML 已存在的不覆盖）

@@ -35,6 +35,7 @@ class SafeNodeView(TypedDict, total=False):
     所有字段可选——原始节点字段可能缺失或类型不符被过滤。
     消费方必须用 .get() 访问，不要假设字段一定存在。
     """
+
     id: int
     name: str
     details: str
@@ -88,12 +89,12 @@ if _DRIFT_MISSING_IN_VIEW or _DRIFT_MISSING_IN_SOURCE:
 
 def _type_matches(value: Any, expected_types: tuple[type, ...]) -> bool:
     """
-    判断 value 是否匹配期望类型集合。
+     判断 value 是否匹配期望类型集合。
 
-   ⚠️ bool 是 int 的子类——isinstance(True, int) 返回 True，
-     但业务上 'id' 字段不该被 True/False 通过校验。
-     因此对 bool 值采用更严的规则：
-     仅当 expected_types 显式包含 bool 时才接受。
+    ⚠️ bool 是 int 的子类——isinstance(True, int) 返回 True，
+      但业务上 'id' 字段不该被 True/False 通过校验。
+      因此对 bool 值采用更严的规则：
+      仅当 expected_types 显式包含 bool 时才接受。
     """
     if isinstance(value, bool):
         return bool in expected_types
@@ -137,7 +138,9 @@ def sanitize_node_for_user(node: dict[str, Any]) -> SafeNodeView:
         if not _type_matches(v, expected):
             logger.warning(
                 "[Sanitize] field %r expected %s, got %s, dropped",
-                k, expected, type(v).__name__,
+                k,
+                expected,
+                type(v).__name__,
             )
             continue
         view[k] = v

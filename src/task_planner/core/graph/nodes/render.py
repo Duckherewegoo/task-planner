@@ -18,6 +18,7 @@ async def render_node(state: TaskState, config: RunnableConfig) -> dict[str, Any
 
     # 延迟导入：flowchart_pro 依赖 pyvis/cairosvg，启动时不需要
     from task_planner.utils.flowchart_pro import flowchart_pro
+
     try:
         html = await asyncio.to_thread(
             flowchart_pro.render_interactive,
@@ -25,18 +26,13 @@ async def render_node(state: TaskState, config: RunnableConfig) -> dict[str, Any
             state["edges"],
             state["task_id"],
             rid,
-         )
+        )
     except Exception as e:
         # 渲染失败不阻断执行链：留空 HTML，下游 execute 照常跑
-        logger.warning(
-            "[Graph] render_node 渲染失败(不影响执行): %s (req=%s)", e, rid
-        )
+        logger.warning("[Graph] render_node 渲染失败(不影响执行): %s (req=%s)", e, rid)
         html = ""
-
 
     return {
         "flowchart_html": html,
-        "steps": state.get("steps", []) + [
-            "流程图渲染完成" if html else "流程图渲染失败(已跳过)"
-        ],
-     }
+        "steps": state.get("steps", []) + ["流程图渲染完成" if html else "流程图渲染失败(已跳过)"],
+    }

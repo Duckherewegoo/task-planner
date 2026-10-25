@@ -1,6 +1,7 @@
 """
 regexes.py — 全项目预编译正则。
 """
+
 import re
 
 # ── 思考标签 ──
@@ -21,20 +22,28 @@ SKIP_PLANNING_PATTERNS = [
 
 # ── 敏感信息脱敏 ──
 SENSITIVE_PATTERNS_CONFIG = [
-    {"pattern": r"sk-[a-zA-Z0-9]{20,}",         "replacement": "[REDACTED_API_KEY]"},
-    {"pattern": r"AKIA[A-Z0-9]{16,}",           "replacement": "[REDACTED_AWS_KEY]"},
-    {"pattern": r"ghp_[a-zA-Z0-9]{36,}",        "replacement": "[REDACTED_GITHUB_TOKEN]"},
-    {"pattern": r"xox[bpr]-[a-zA-Z0-9-]+",      "replacement": "[REDACTED_SLACK_TOKEN]"},
-    {"pattern": (r"(?<![a-zA-Z_])password\s*[:=]\s*\S{1,200}", re.IGNORECASE),
-     "replacement": "password=[REDACTED]"},
-    {"pattern": (r"(?<![a-zA-Z_])token\s*[:=]\s*\S{1,200}", re.IGNORECASE),
-     "replacement": "token=[REDACTED]"},
-    {"pattern": (r"(?<![a-zA-Z_])api_key\s*[:=]\s*\S{1,200}", re.IGNORECASE),
-     "replacement": "api_key=[REDACTED]"},
-    {"pattern": (r"(?<![a-zA-Z_])secret\s*[:=]\s*\S{1,200}", re.IGNORECASE),
-     "replacement": "secret=[REDACTED]"},
-    {"pattern": r"\b1[3-9]\d{9}\b",             "replacement": "[REDACTED_PHONE]"},
-    {"pattern": r"\b\d{17}[\dXx]\b",            "replacement": "[REDACTED_ID_CARD]"},
+    {"pattern": r"sk-[a-zA-Z0-9]{20,}", "replacement": "[REDACTED_API_KEY]"},
+    {"pattern": r"AKIA[A-Z0-9]{16,}", "replacement": "[REDACTED_AWS_KEY]"},
+    {"pattern": r"ghp_[a-zA-Z0-9]{36,}", "replacement": "[REDACTED_GITHUB_TOKEN]"},
+    {"pattern": r"xox[bpr]-[a-zA-Z0-9-]+", "replacement": "[REDACTED_SLACK_TOKEN]"},
+    {
+        "pattern": (r"(?<![a-zA-Z_])password\s*[:=]\s*\S{1,200}", re.IGNORECASE),
+        "replacement": "password=[REDACTED]",
+    },
+    {
+        "pattern": (r"(?<![a-zA-Z_])token\s*[:=]\s*\S{1,200}", re.IGNORECASE),
+        "replacement": "token=[REDACTED]",
+    },
+    {
+        "pattern": (r"(?<![a-zA-Z_])api_key\s*[:=]\s*\S{1,200}", re.IGNORECASE),
+        "replacement": "api_key=[REDACTED]",
+    },
+    {
+        "pattern": (r"(?<![a-zA-Z_])secret\s*[:=]\s*\S{1,200}", re.IGNORECASE),
+        "replacement": "secret=[REDACTED]",
+    },
+    {"pattern": r"\b1[3-9]\d{9}\b", "replacement": "[REDACTED_PHONE]"},
+    {"pattern": r"\b\d{17}[\dXx]\b", "replacement": "[REDACTED_ID_CARD]"},
 ]
 
 SENSITIVE_PATTERNS = [

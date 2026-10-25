@@ -59,7 +59,8 @@ async def save_node(state: TaskState, config: RunnableConfig) -> dict[str, Any]:
         fallback_id = f"local-{uuid.uuid4().hex[:12]}"
         logger.warning(
             "[Graph] save_node DB 写入失败，降级为本地 ID: %s | err=%s",
-            fallback_id, e,
+            fallback_id,
+            e,
         )
         return {
             "task_id": fallback_id,

@@ -21,6 +21,7 @@ test_mongodb.py — MongoDB 数据层集成测试
        测 "nodes.$.status" 这类更新会失真。
        走真实 MongoDB 才能验证"行为正确"而非"mock 形状正确"。
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -70,9 +71,7 @@ def _mongodb_env():
         probe.admin.command("ping")
         probe.close()
     except Exception as e:
-        pytest.skip(
-            f"MongoDB 不可达（{_hub.dev.MONGO_HOST}:{_hub.dev.MONGO_PORT}）：{e}"
-        )
+        pytest.skip(f"MongoDB 不可达（{_hub.dev.MONGO_HOST}:{_hub.dev.MONGO_PORT}）：{e}")
 
     yield
 
@@ -116,12 +115,16 @@ def make_plan_data(
     return {
         "task_name": task_name,
         "description": "用于集成测试",
-        "nodes": nodes if nodes is not None else [
+        "nodes": nodes
+        if nodes is not None
+        else [
             {"id": 0, "name": "步骤一", "details": "第一步"},
             {"id": 1, "name": "步骤二", "details": "第二步"},
             {"id": 2, "name": "步骤三", "details": "第三步"},
         ],
-        "edges": edges if edges is not None else [
+        "edges": edges
+        if edges is not None
+        else [
             {"from": 0, "to": 1},
             {"from": 1, "to": 2},
         ],
@@ -272,7 +275,9 @@ async def test_load_task_with_plan_happy_path(clean_db):
     from task_planner.core.db import create_task_with_plan, load_task_with_plan
 
     task_doc, plan_doc = await create_task_with_plan(
-        raw_query="测试", intent_info={}, plan_data=make_plan_data(),
+        raw_query="测试",
+        intent_info={},
+        plan_data=make_plan_data(),
     )
     result = await load_task_with_plan(task_doc["task_id"])
     assert result is not None
@@ -292,7 +297,9 @@ async def test_load_task_with_plan_without_plan(clean_db):
     from task_planner.core.db import create_direct_answer_task, load_task_with_plan
 
     task_doc = await create_direct_answer_task(
-        raw_query="q", intent_info={}, response="r",
+        raw_query="q",
+        intent_info={},
+        response="r",
     )
     result = await load_task_with_plan(task_doc["task_id"])
     assert result is not None
@@ -309,7 +316,9 @@ async def test_load_task_with_plan_plan_lost_warns(clean_db):
     )
 
     task_doc, plan_doc = await create_task_with_plan(
-        raw_query="q", intent_info={}, plan_data=make_plan_data(),
+        raw_query="q",
+        intent_info={},
+        plan_data=make_plan_data(),
     )
     await delete_plan(plan_doc["plan_id"])
 
@@ -331,7 +340,9 @@ async def test_list_tasks_sorted_desc(clean_db):
     ids = []
     for i in range(3):
         doc = await create_direct_answer_task(
-            raw_query=f"q{i}", intent_info={}, response="r",
+            raw_query=f"q{i}",
+            intent_info={},
+            response="r",
         )
         ids.append(doc["task_id"])
         await asyncio.sleep(0.01)  # 保证 created_at 不同
@@ -370,7 +381,9 @@ async def test_list_tasks_with_plan_has_clipboard_emoji(clean_db):
     from task_planner.core.db import create_task_with_plan, list_tasks
 
     await create_task_with_plan(
-        raw_query="q", intent_info={}, plan_data=make_plan_data(),
+        raw_query="q",
+        intent_info={},
+        plan_data=make_plan_data(),
     )
     listed = await list_tasks()
     assert "📋" in listed[0]["title"]
@@ -480,7 +493,9 @@ async def test_delete_task_removes_task_and_plan(clean_db):
     )
 
     task_doc, plan_doc = await create_task_with_plan(
-        raw_query="q", intent_info={}, plan_data=make_plan_data(),
+        raw_query="q",
+        intent_info={},
+        plan_data=make_plan_data(),
     )
     ok = await delete_task(task_doc["task_id"])
     assert ok is True
@@ -500,7 +515,9 @@ async def test_batch_delete_tasks(clean_db):
     ids = []
     for _ in range(3):
         doc = await create_direct_answer_task(
-            raw_query="q", intent_info={}, response="r",
+            raw_query="q",
+            intent_info={},
+            response="r",
         )
         ids.append(doc["task_id"])
 
@@ -593,10 +610,15 @@ async def test_update_node_status_success(clean_db):
     from task_planner.infrastructure.constants import TASK_STATUS
 
     task_doc, _ = await create_task_with_plan(
-        raw_query="q", intent_info={}, plan_data=make_plan_data(),
+        raw_query="q",
+        intent_info={},
+        plan_data=make_plan_data(),
     )
     ok = await update_node_status(
-        task_doc["task_id"], 1, TASK_STATUS["RUNNING"], details="执行中",
+        task_doc["task_id"],
+        1,
+        TASK_STATUS["RUNNING"],
+        details="执行中",
     )
     assert ok is True
     status = await get_node_status(task_doc["task_id"], 1)
@@ -613,7 +635,9 @@ async def test_update_node_status_does_not_touch_other_nodes(clean_db):
     from task_planner.infrastructure.constants import TASK_STATUS
 
     task_doc, _ = await create_task_with_plan(
-        raw_query="q", intent_info={}, plan_data=make_plan_data(),
+        raw_query="q",
+        intent_info={},
+        plan_data=make_plan_data(),
     )
     await update_node_status(task_doc["task_id"], 1, TASK_STATUS["RUNNING"])
 
@@ -626,7 +650,9 @@ async def test_update_node_status_node_not_found(clean_db):
     from task_planner.core.db import create_task_with_plan, update_node_status
 
     task_doc, _ = await create_task_with_plan(
-        raw_query="q", intent_info={}, plan_data=make_plan_data(),
+        raw_query="q",
+        intent_info={},
+        plan_data=make_plan_data(),
     )
     ok = await update_node_status(task_doc["task_id"], 999, 1)
     assert ok is False
@@ -650,13 +676,15 @@ async def test_update_node_status_increments_modified_count(clean_db):
     await create_plan("plan_mc", make_plan_data(), True, now)
     # 手动构造 task 关联（走最小路径）
     db = get_db()
-    db["tasks"].insert_one({
-        "task_id": "task_mc",
-        "plan_id": "plan_mc",
-        "status": 0,
-        "created_at": now,
-        "updated_at": now,
-    })
+    db["tasks"].insert_one(
+        {
+            "task_id": "task_mc",
+            "plan_id": "plan_mc",
+            "status": 0,
+            "created_at": now,
+            "updated_at": now,
+        }
+    )
 
     await update_node_status("task_mc", 1, 1)
 
@@ -675,10 +703,15 @@ async def test_reset_node_status(clean_db):
     from task_planner.infrastructure.constants import TASK_STATUS
 
     task_doc, _ = await create_task_with_plan(
-        raw_query="q", intent_info={}, plan_data=make_plan_data(),
+        raw_query="q",
+        intent_info={},
+        plan_data=make_plan_data(),
     )
     await update_node_status(
-        task_doc["task_id"], 1, TASK_STATUS["FAILED"], details="出错了",
+        task_doc["task_id"],
+        1,
+        TASK_STATUS["FAILED"],
+        details="出错了",
     )
     assert await get_node_status(task_doc["task_id"], 1) == TASK_STATUS["FAILED"]
 
@@ -691,7 +724,9 @@ async def test_reset_node_status_node_not_found(clean_db):
     from task_planner.core.db import create_task_with_plan, reset_node_status
 
     task_doc, _ = await create_task_with_plan(
-        raw_query="q", intent_info={}, plan_data=make_plan_data(),
+        raw_query="q",
+        intent_info={},
+        plan_data=make_plan_data(),
     )
     assert await reset_node_status(task_doc["task_id"], 999) is False
 
@@ -700,7 +735,9 @@ async def test_get_node_status_returns_none_for_missing(clean_db):
     from task_planner.core.db import create_task_with_plan, get_node_status
 
     task_doc, _ = await create_task_with_plan(
-        raw_query="q", intent_info={}, plan_data=make_plan_data(),
+        raw_query="q",
+        intent_info={},
+        plan_data=make_plan_data(),
     )
     assert await get_node_status(task_doc["task_id"], 999) is None
     assert await get_node_status("nonexistent", 0) is None

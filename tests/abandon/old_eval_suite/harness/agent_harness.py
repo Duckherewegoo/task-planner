@@ -98,7 +98,9 @@ class AgentHarness:
         rid = set_req_id()
         logger.info(
             "[Harness] thread=%s req=%s input=%s",
-            self.thread_id, rid, user_input[:50],
+            self.thread_id,
+            rid,
+            user_input[:50],
         )
 
         result: dict[str, Any] = {
@@ -148,12 +150,10 @@ class AgentHarness:
 
                     # ── 终止信号：出现即跳出 ──
                     if snapshot.get("type") in ("complete", "cancelled", "error", "timeout"):
-                        result["error"] = (
-                            snapshot.get("error") or snapshot.get("message")
-                        )
+                        result["error"] = snapshot.get("error") or snapshot.get("message")
                         break
 
-            # ── 采集 final_state（可选，失败不影响主结果）──
+                # ── 采集 final_state（可选，失败不影响主结果）──
                 if result["task_id"] and not result["task_id"].startswith("local-"):
                     try:
                         from task_planner.core.db import get_task
@@ -175,8 +175,7 @@ class AgentHarness:
 
         except TimeoutError:
             result["error"] = f"Timeout after {self.timeout}s"
-            logger.warning("[Harness] 超时 | thread=%s elapsed=%ds",
-                           self.thread_id, self.timeout)
+            logger.warning("[Harness] 超时 | thread=%s elapsed=%ds", self.thread_id, self.timeout)
             # 尝试通知 Agent 取消，避免后台残留
             await self.cancel()
 
@@ -218,6 +217,7 @@ class AgentHarness:
             或 None（无 checkpoint / 查询失败）
         """
         from task_planner.core.graph.workflow import get_thread_state_async
+
         try:
             return await get_thread_state_async(thread_id)
         except Exception as e:
@@ -243,12 +243,14 @@ class AgentHarness:
             True 表示成功调用，False 表示参数非法或任务不存在
         """
         from task_planner.services.agent import modify_task, resume_task
+
         if user_action == "continue":
             return await resume_task(thread_id)
         elif user_action == "modify" and modified_input:
             return await modify_task(thread_id, modified_input)
         logger.warning(
             "[Harness] resume: 非法参数 action=%s modified_input=%s",
-            user_action, bool(modified_input),
+            user_action,
+            bool(modified_input),
         )
         return False

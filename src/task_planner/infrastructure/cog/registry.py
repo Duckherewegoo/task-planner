@@ -35,6 +35,7 @@ def register_section(cls: type[ConfigSection]) -> type[ConfigSection]:
     """装饰器：类定义处声明，import 时自动进全局注册表"""
     return _SECTION_REGISTRY.register(cls)
 
+
 def get_registered_sections() -> tuple[type[ConfigSection], ...]:
     """
     返回所有已注册的 Section 类（对外只读接口）。
@@ -44,8 +45,9 @@ def get_registered_sections() -> tuple[type[ConfigSection], ...]:
     """
     return _SECTION_REGISTRY.all()
 
+
 __all__ = [
     "SectionRegistry",
     "register_section",
-    "get_registered_sections",   # ← 新增
+    "get_registered_sections",  # ← 新增
 ]

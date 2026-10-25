@@ -1,4 +1,5 @@
 """state.py 的默认值契约——覆盖 needs_planning 与 retrieved_examples 字段。"""
+
 import pytest
 
 from task_planner.core.graph.state import create_initial_state
@@ -8,6 +9,7 @@ from task_planner.core.graph.state import create_initial_state
 def test_make_initial_state_normal_needs_planning_true():
     """普通输入 → needs_planning=True（让 intent 判断）"""
     from task_planner.services.agent.state import make_initial_state
+
     state = make_initial_state("帮我规划一个任务", "t-1")
     assert state["needs_planning"] is True
 
@@ -15,6 +17,7 @@ def test_make_initial_state_normal_needs_planning_true():
 def test_make_initial_state_skip_planning_sets_false():
     """命中跳过正则 → needs_planning=False（直接回答）"""
     from task_planner.services.agent.state import make_initial_state
+
     # 假设 SKIP_PLANNING_PATTERNS 覆盖 "不用规划"——具体触发词见 regexes.py
     state = make_initial_state("不用规划，直接告诉我答案", "t-1")
     assert state["needs_planning"] is False
@@ -30,6 +33,7 @@ def test_make_initial_state_has_all_typed_dict_fields():
     # 所有 TypedDict 声明的键（包括 NotRequired）都应存在
     for field in TaskState.__annotations__:
         assert field in state, f"make_initial_state 漏写字段: {field!r}"
+
 
 def test_retrieved_examples_default_is_empty_list():
     """retrieved_examples 应被初始化为 []，供 retrieve 未启用时使用。"""

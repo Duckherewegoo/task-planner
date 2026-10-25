@@ -2,6 +2,7 @@
 llm_client.py — 异步 LLM 调用封装（OpenAI 兼容版）
 支持 async/await，使用 AsyncOpenAI 客户端，含取消、重试、超时控制。
 """
+
 import asyncio
 import json
 import random
@@ -12,15 +13,18 @@ from typing import Any, Optional
 from openai import AsyncOpenAI
 
 from task_planner.infrastructure.cog import hub as _hub
-from task_planner.infrastructure.constants import (MOCK_RESPONSE_PREFIX,
-                                                   VALID_INTENT_CATEGORIES,
-                                                   VALID_INTENT_COMPLEXITIES)
-from task_planner.infrastructure.prompts.loader import (EXECUTE_NODE_PROMPT,
-                                                        INTENT_PROMPT,
-                                                        NODE_REFINE_PROMPT,
-                                                        PLANNER_PROMPT)
-from task_planner.infrastructure.regexes import (SKIP_PLANNING_PATTERNS,
-                                                 THINK_RE, UNREPLACED_PATTERN)
+from task_planner.infrastructure.constants import (
+    MOCK_RESPONSE_PREFIX,
+    VALID_INTENT_CATEGORIES,
+    VALID_INTENT_COMPLEXITIES,
+)
+from task_planner.infrastructure.prompts.loader import (
+    EXECUTE_NODE_PROMPT,
+    INTENT_PROMPT,
+    NODE_REFINE_PROMPT,
+    PLANNER_PROMPT,
+)
+from task_planner.infrastructure.regexes import SKIP_PLANNING_PATTERNS, THINK_RE, UNREPLACED_PATTERN
 
 DASHSCOPE_API_KEY = _hub.dev.DASHSCOPE_API_KEY
 DASHSCOPE_BASE_URL = _hub.dev.DASHSCOPE_BASE_URL
@@ -46,8 +50,10 @@ logger = get_logger(__name__)
 #  业务异常定义
 # ============================================================
 
+
 class LLMClientError(Exception):
     """LLM 客户端基础异常"""
+
     def __init__(self, message: str, req_id: str | None = None):
         self.req_id = req_id
         super().__init__(f"[req={req_id}] {message}" if req_id else message)
@@ -55,16 +61,19 @@ class LLMClientError(Exception):
 
 class LLMTimeoutError(LLMClientError):
     """LLM 调用超时（统一封装 asyncio.TimeoutError / TimeoutError / httpx.TimeoutException）"""
+
     pass
 
 
 class LLMCancelledError(LLMClientError):
     """LLM 调用被用户取消"""
+
     pass
 
 
 class LLMResponseError(LLMClientError):
     """LLM 返回内容异常（空响应、JSON 解析失败、格式不符等）"""
+
     pass
 
 
@@ -113,10 +122,10 @@ async def get_llm_client() -> Optional[AsyncOpenAI]:
             base_url = DASHSCOPE_BASE_URL or "https://dashscope.aliyuncs.com/compatible-mode/v1"
             # 可自定义 httpx 客户端参数以调整连接池
             import httpx
+
             timeout = httpx.Timeout(LLM_TIMEOUT, connect=5.0)
             http_client = httpx.AsyncClient(
-                timeout=timeout,
-                limits=httpx.Limits(max_connections=LLM_MAX_CONCURRENT * 2)
+                timeout=timeout, limits=httpx.Limits(max_connections=LLM_MAX_CONCURRENT * 2)
             )
             _client = AsyncOpenAI(
                 api_key=DASHSCOPE_API_KEY,
@@ -124,13 +133,17 @@ async def get_llm_client() -> Optional[AsyncOpenAI]:
                 http_client=http_client,
             )
             _dashscope_available = True
-            logger.info("[LLMClient] AsyncOpenAI 客户端就绪 (base=%s, max_conn=%d)",
-                        base_url, LLM_MAX_CONCURRENT)
+            logger.info(
+                "[LLMClient] AsyncOpenAI 客户端就绪 (base=%s, max_conn=%d)",
+                base_url,
+                LLM_MAX_CONCURRENT,
+            )
         except ImportError:
             logger.error("[LLMClient] openai 未安装: pip install openai")
             return None
 
     return _client
+
 
 # ============================================================
 #  工具函数（与同步版本保持一致，但无需改动）
@@ -166,14 +179,14 @@ def _extract_tail_json(text: str) -> str | None:
     if not text:
         return None
 
-    last_rbrace = text.rfind('}')
+    last_rbrace = text.rfind("}")
     if last_rbrace == -1:
         return None
     target_end = last_rbrace + 1
 
     pos = target_end
     while True:
-        start = text.rfind('{', 0, pos)
+        start = text.rfind("{", 0, pos)
         if start == -1:
             return None
         try:
@@ -185,19 +198,21 @@ def _extract_tail_json(text: str) -> str | None:
         except json.JSONDecodeError:
             pass
         pos = start
+
+
 def _clean_json_str(text: str) -> str:
     """更稳健的 JSON 提取：兼容 thinking 标签、纯文本思考、markdown 代码块"""
     if not text or not isinstance(text, str):
         return "{}"
 
     # 1. 基础清洗
-    text = text.strip().lstrip('\ufeff')
-    text = re.sub(r'[\u200b\u200c\u200d\ufeff]', '', text)
+    text = text.strip().lstrip("\ufeff")
+    text = re.sub(r"[\u200b\u200c\u200d\ufeff]", "", text)
 
     # 2. 剥离 thinking 标签（标准 thinking 格式）
     #    [Fix-2] 使用预编译的 _THINK_RE + 回退保护
     _prev = text
-    text = _THINK_RE.sub('', text).strip()
+    text = _THINK_RE.sub("", text).strip()
     if not text:
         text = _prev
         logger.warning("[LLM] _clean_json_str thinking标签剥离后文本为空，已回退")
@@ -224,14 +239,13 @@ def _clean_json_str(text: str) -> str:
         json.loads(text)
         return text
     except json.JSONDecodeError as e:
-        logger.debug(
-            "[LLM] _clean_json_str 直接解析失败: %s | text前100字符: %s", e, text[:100])
+        logger.debug("[LLM] _clean_json_str 直接解析失败: %s | text前100字符: %s", e, text[:100])
 
     # 6. 降级：找第一个 { 到最后一个 }
     start = text.find("{")
     end = text.rfind("}")
     if start != -1 and end > start:
-        candidate = text[start:end + 1]
+        candidate = text[start : end + 1]
         try:
             json.loads(candidate)
             return candidate
@@ -255,19 +269,20 @@ def _extract_json(raw: str) -> dict:
             return {}
         result = json.loads(cleaned)
         if isinstance(result, dict):
-            logger.debug("[LLM] _extract_json 成功, keys=%s",
-                         list(result.keys()))
+            logger.debug("[LLM] _extract_json 成功, keys=%s", list(result.keys()))
         else:
-            logger.warning(
-                "[LLM] _extract_json 返回值非dict: type=%s", type(result).__name__)
+            logger.warning("[LLM] _extract_json 返回值非dict: type=%s", type(result).__name__)
         return result if isinstance(result, dict) else {}
     except json.JSONDecodeError as e:
-        logger.warning(
-            "[LLMClient] JSON 解析失败: %s | 原始前200字符: %s", e, raw[:200])
+        logger.warning("[LLMClient] JSON 解析失败: %s | 原始前200字符: %s", e, raw[:200])
         return {}
     except Exception as e:
-        logger.error("[LLMClient] _extract_json 非预期异常: %s: %s | 原始前200字符: %s",
-                     type(e).__name__, e, raw[:200])
+        logger.error(
+            "[LLMClient] _extract_json 非预期异常: %s: %s | 原始前200字符: %s",
+            type(e).__name__,
+            e,
+            raw[:200],
+        )
         return {}
 
 
@@ -288,7 +303,8 @@ def _normalize_llm_output(raw: dict, expected_keys: list[str]) -> dict:
     if not isinstance(raw, dict):
         logger.error(
             "[LLM] _normalize_llm_output 输入非 dict, 已拦截: type=%s, value=%s",
-            type(raw).__name__, str(raw)[:100]
+            type(raw).__name__,
+            str(raw)[:100],
         )
         return {}
 
@@ -303,31 +319,26 @@ def _normalize_llm_output(raw: dict, expected_keys: list[str]) -> dict:
             meta = raw.get("meta", {})
             if not isinstance(meta, dict):
                 logger.warning(
-                    "[LLM] 'meta' 字段非 dict, 已重置为空字典: type=%s",
-                    type(meta).__name__
+                    "[LLM] 'meta' 字段非 dict, 已重置为空字典: type=%s", type(meta).__name__
                 )
                 meta = {}
             if "notes" in raw:
                 meta["notes"] = raw["notes"]
             return {
-                "name": raw.get("name", ""),   # LLM 给了 name 就用，否则留给上游兜底
-                "details": result_val,          # 关键：用 details 而非 content
+                "name": raw.get("name", ""),  # LLM 给了 name 就用，否则留给上游兜底
+                "details": result_val,  # 关键：用 details 而非 content
                 "meta": meta,
             }
         else:
             logger.warning(
-                "[LLM] 'result' 字段非字符串, 跳过 P1 适配: type=%s",
-                type(result_val).__name__
+                "[LLM] 'result' 字段非字符串, 跳过 P1 适配: type=%s", type(result_val).__name__
             )
 
     # P2: 兼容 {"detail": "...", "meta": {...}}  → 映射到 name/details/meta
     if "detail" in raw:
         meta = raw.get("meta", {})
         if not isinstance(meta, dict):
-            logger.warning(
-                "[LLM] 'meta' 字段非 dict, 已重置为空字典: type=%s",
-                type(meta).__name__
-            )
+            logger.warning("[LLM] 'meta' 字段非 dict, 已重置为空字典: type=%s", type(meta).__name__)
             meta = {}
         return {
             "name": raw.get("name", ""),
@@ -336,14 +347,14 @@ def _normalize_llm_output(raw: dict, expected_keys: list[str]) -> dict:
         }
 
     # P3: 兜底透传
-    logger.warning(
-        "[LLM] _normalize_llm_output 无法识别的输出格式: keys=%s", list(raw.keys())
-    )
+    logger.warning("[LLM] _normalize_llm_output 无法识别的输出格式: keys=%s", list(raw.keys()))
     return raw
+
 
 # ============================================================
 #  异步核心调用
 # ============================================================
+
 
 async def _async_call_llm(
     model: str,
@@ -380,7 +391,11 @@ async def _async_call_llm(
             async with asyncio.timeout(timeout):
                 logger.debug(
                     "[LLMClient] 调用模型 %s (第%d次, timeout=%ss, thinking=%s, req=%s)",
-                    model, attempt, timeout, enable_thinking, req_id,
+                    model,
+                    attempt,
+                    timeout,
+                    enable_thinking,
+                    req_id,
                 )
 
                 extra_body: Optional[dict[str, Any]] = None
@@ -416,7 +431,7 @@ async def _async_call_llm(
                             if c:
                                 content_chunks.append(c)
                     finally:
-                        if hasattr(stream, 'close'):
+                        if hasattr(stream, "close"):
                             try:
                                 await stream.close()
                             except Exception:
@@ -450,14 +465,14 @@ async def _async_call_llm(
             raise
         except LLMResponseError:
             raise
-        except (asyncio.TimeoutError, TimeoutError):
+        except asyncio.TimeoutError, TimeoutError:
             last_error = LLMTimeoutError(f"请求超时 ({timeout}s)", req_id)
         except Exception as e:
             last_error = e
 
         # 重试前等待
         # P1 修复：区分瞬态/非瞬态错误；非瞬态直接抛，不浪费重试
-        except (asyncio.TimeoutError, TimeoutError):
+        except asyncio.TimeoutError, TimeoutError:
             last_error = LLMTimeoutError(f"请求超时 ({timeout}s)", req_id)
         except Exception as e:
             err_str = str(e).lower()
@@ -465,7 +480,9 @@ async def _async_call_llm(
 
             # 4xx 类错误（认证失败、参数错误）重试没意义
             non_retryable = (
-                "401" in err_str or "403" in err_str or "400" in err_str
+                "401" in err_str
+                or "403" in err_str
+                or "400" in err_str
                 or "authentication" in err_str
                 or "invalid_api_key" in err_str
                 or "permission" in err_str
@@ -473,19 +490,26 @@ async def _async_call_llm(
             if non_retryable:
                 logger.error(
                     "[LLMClient] ❌ 非瞬态错误, 不重试: %s: %s (req=%s)",
-                    err_name, e, req_id,
+                    err_name,
+                    e,
+                    req_id,
                 )
                 raise LLMClientError(f"LLM 调用失败(不可重试): {e}", req_id) from e
 
             last_error = e
 
         # P1 修复：退避加全抖动（full jitter），避免高并发惊群
-        base_wait = LLM_RETRY_BACKOFF ** attempt
+        base_wait = LLM_RETRY_BACKOFF**attempt
         wait = random.uniform(0, base_wait)
 
         logger.warning(
             "[LLMClient] ⚠️ %s 失败 (attempt=%d/%d, wait=%.1fs, err=%s, req=%s)",
-            model, attempt, LLM_MAX_RETRIES, wait, last_error, req_id,
+            model,
+            attempt,
+            LLM_MAX_RETRIES,
+            wait,
+            last_error,
+            req_id,
         )
 
         if attempt < LLM_MAX_RETRIES:
@@ -500,6 +524,7 @@ async def _async_call_llm(
             raise LLMClientError(f"LLM 调用最终失败: {last_error}", req_id) from last_error
 
     raise LLMClientError("LLM 调用最终失败", req_id)
+
 
 # ============================================================
 #  模板渲染（同步，不变）
@@ -522,9 +547,8 @@ def _render_template(template, req_id: str, **kwargs) -> str:
     try:
         result = template.safe_substitute(**kwargs)
         # 记录尾部 150 字符，足以看到 <user_input> 区域是否被正确替换
-        tail = result[-150:].replace('\n', '\\n')
-        logger.debug(
-            "[LLM] _render_template 渲染完成 (req=%s) | 尾部: %s", req_id, tail)
+        tail = result[-150:].replace("\n", "\\n")
+        logger.debug("[LLM] _render_template 渲染完成 (req=%s) | 尾部: %s", req_id, tail)
 
         # 主动检测：如果渲染后仍包含未替换的占位符，发出警告
         #    findall 返回元组列表如 [('var1', ''), ('', 'var2')]，展平并过滤空串
@@ -534,7 +558,8 @@ def _render_template(template, req_id: str, **kwargs) -> str:
             logger.warning(
                 "[LLM] _render_template 存在未替换占位符: %s (req=%s) "
                 "请检查 config.py 中模板的占位符名是否与 kwargs 匹配",
-                unreplaced, req_id,
+                unreplaced,
+                req_id,
             )
         return result
     except Exception as e:
@@ -545,6 +570,7 @@ def _render_template(template, req_id: str, **kwargs) -> str:
 # ============================================================
 #  公开异步接口
 # ============================================================
+
 
 async def direct_chat(
     user_input: str,
@@ -564,7 +590,6 @@ async def direct_chat(
             cancel_event=cancel_event,
             timeout=timeout,
         )
-
 
 
 def _validate_intent(intent: dict, user_input: str) -> dict:
@@ -595,7 +620,6 @@ def _validate_intent(intent: dict, user_input: str) -> dict:
     # 不在此处设置任何默认值（如 needs_planning、summary 等）
     #    默认值统一在 recognize_intent 中处理
     return validated
-
 
 
 async def recognize_intent(
@@ -684,6 +708,7 @@ async def recognize_intent(
         "complexity": "simple",
     }
 
+
 async def generate_plan(
     user_input: str,
     intent_info: dict[str, Any],
@@ -694,7 +719,9 @@ async def generate_plan(
     _PLAN_REQUIRED_KEYS = ("task_name", "description", "nodes", "edges")
 
     if not isinstance(intent_info, dict):
-        logger.error("[Planner] intent_info 类型非法: %s (req=%s)", type(intent_info).__name__, req_id)
+        logger.error(
+            "[Planner] intent_info 类型非法: %s (req=%s)", type(intent_info).__name__, req_id
+        )
         return {
             "task_name": "规划失败",
             "description": "intent_info 参数类型非法",
@@ -710,15 +737,18 @@ async def generate_plan(
     error_msg = "规划生成异常"
     try:
         prompt = _render_template(
-            PLANNER_PROMPT, req_id,
+            PLANNER_PROMPT,
+            req_id,
             user_input=user_input,
             category=intent_info.get("category", "other"),
             summary=intent_info.get("summary", ""),
         )
         raw = await _async_call_llm(
-            model=LLM_PLANNER_MODEL, prompt=prompt,
+            model=LLM_PLANNER_MODEL,
+            prompt=prompt,
             enable_thinking=LLM_PLANNER_ENABLE_THINKING,
-            req_id=req_id, cancel_event=cancel_event,
+            req_id=req_id,
+            cancel_event=cancel_event,
         )
         plan = _extract_json(raw)
         if not plan or not isinstance(plan, dict):
@@ -753,6 +783,7 @@ async def generate_plan(
         "edges": [],
     }
 
+
 async def refine_node(
     node: dict[str, Any],
     user_input: str,
@@ -781,7 +812,8 @@ async def refine_node(
 
     try:
         prompt = _render_template(
-            NODE_REFINE_PROMPT, req_id,
+            NODE_REFINE_PROMPT,
+            req_id,
             node_json=json.dumps(node, ensure_ascii=False),
             user_input=user_input,
             category=category,
@@ -798,7 +830,9 @@ async def refine_node(
         result = _normalize_llm_output(result, expected_keys=list(_REFINE_REQUIRED_KEYS))
         for key in _REFINE_REQUIRED_KEYS:
             if key not in result or result[key] is None:
-                logger.warning("[Refine] 归一化后仍缺少字段 '%s'，使用原始节点值兜底 (req=%s)", key, req_id)
+                logger.warning(
+                    "[Refine] 归一化后仍缺少字段 '%s'，使用原始节点值兜底 (req=%s)", key, req_id
+                )
                 result[key] = node.get(key, "")
         return result
 
@@ -818,6 +852,7 @@ async def refine_node(
         logger.exception("[Refine] 节点细化未知异常: %s (req=%s)", e, req_id)
         return _fallback_result("节点细化异常", node)
 
+
 # 重构后的 llm_client.py
 async def execute_node_llm(
     prompt: str,
@@ -836,9 +871,11 @@ async def execute_node_llm(
     try:
         async with _get_semaphore():
             raw = await _async_call_llm(
-                model=LLM_NODE_MODEL, prompt=prompt,
+                model=LLM_NODE_MODEL,
+                prompt=prompt,
                 enable_thinking=LLM_NODE_ENABLE_THINKING,
-                req_id=rid, timeout=timeout or LLM_NODE_TIMEOUT,
+                req_id=rid,
+                timeout=timeout or LLM_NODE_TIMEOUT,
                 cancel_event=cancel_event,
             )
 
@@ -846,7 +883,8 @@ async def execute_node_llm(
         if not parsed:
             logger.warning(
                 "[Executor] LLM返回无法解析为JSON (req=%s): %s",
-                rid, raw[:200],
+                rid,
+                raw[:200],
             )
             return False, f"⚠️ 执行结果解析失败，原始输出: {raw[:300]}"
 
@@ -874,18 +912,25 @@ async def execute_node_llm(
         logger.exception("[Executor] 💥 未知异常 (req=%s)", rid)
         return False, f"💥 执行异常: {type(e).__name__}: {str(e)[:200]}"
 
+
 # ============================================================
 #  Mock 函数（异步，直接返回）
 # ============================================================
 
+
 def _mock_intent(req_id: str) -> dict[str, Any]:
-    return {"needs_planning": True, "category": "cooking",
-            "summary": "Mock: 任务解析完成", "complexity": "medium"}
+    return {
+        "needs_planning": True,
+        "category": "cooking",
+        "summary": "Mock: 任务解析完成",
+        "complexity": "medium",
+    }
 
 
 def _mock_plan(req_id: str) -> dict[str, Any]:
     return {
-        "task_name": "Mock任务", "description": "Mock模式生成的计划",
+        "task_name": "Mock任务",
+        "description": "Mock模式生成的计划",
         "nodes": [
             {"id": 1, "name": "准备食材", "details": "洗切西红柿和鸡蛋"},
             {"id": 2, "name": "炒鸡蛋", "details": "热油炒散鸡蛋盛出"},

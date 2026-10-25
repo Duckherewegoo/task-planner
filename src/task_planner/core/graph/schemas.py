@@ -19,8 +19,14 @@ from pydantic import BaseModel, ConfigDict
 
 # ── 枚举（与 infrastructure/prompts/intent.txt 对齐）──
 IntentCategory = Literal[
-    "cooking", "engineering", "logistics", "learning",
-    "life_admin", "creative", "consultation", "other",
+    "cooking",
+    "engineering",
+    "logistics",
+    "learning",
+    "life_admin",
+    "creative",
+    "consultation",
+    "other",
 ]
 
 IntentComplexity = Literal["simple", "medium", "complex"]
@@ -47,7 +53,7 @@ class IntentModel(BaseModel):
     """
 
     model_config = ConfigDict(
-        extra="ignore",   # LLM 可能多给字段——忽略而非报错
+        extra="ignore",  # LLM 可能多给字段——忽略而非报错
     )
 
     needs_planning: bool

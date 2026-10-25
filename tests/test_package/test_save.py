@@ -1,4 +1,5 @@
 """save.py 的冒烟测试——覆盖降级路径与 error 字段契约。"""
+
 from unittest.mock import AsyncMock
 
 import pytest

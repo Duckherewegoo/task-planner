@@ -2,6 +2,7 @@
 loader.py — Prompt 加载器。
 从 .txt 读取，返回 string.Template 实例。
 """
+
 # ═══════════════════════════════════════════════════════════════════
 # 模板渲染（供 llm_client / nodes 共用）
 # ═══════════════════════════════════════════════════════════════════
@@ -11,7 +12,7 @@ from string import Template
 
 _logger = logging.getLogger(__name__)
 
-_DIR = Path(__file__).resolve().parent   # 指向 prompts/ 本身
+_DIR = Path(__file__).resolve().parent  # 指向 prompts/ 本身
 
 
 def _load(name: str) -> Template:
@@ -19,6 +20,7 @@ def _load(name: str) -> Template:
     if not path.exists():
         raise FileNotFoundError(f"Prompt 文件缺失: {path}")
     return Template(path.read_text(encoding="utf-8"))
+
 
 def render_template(tpl: Template, req_id: str, **kwargs) -> str:
     """
@@ -31,11 +33,11 @@ def render_template(tpl: Template, req_id: str, **kwargs) -> str:
         _logger.warning("[Prompt] 缺少变量 %s (req=%s)，已降级为 safe_substitute", e, req_id)
         return tpl.safe_substitute(**kwargs)
 
-INTENT_PROMPT       = _load("intent")
-PLANNER_PROMPT      = _load("planner")
-NODE_REFINE_PROMPT  = _load("node_refine")
-EXECUTE_NODE_PROMPT = _load("execute_node")
 
+INTENT_PROMPT = _load("intent")
+PLANNER_PROMPT = _load("planner")
+NODE_REFINE_PROMPT = _load("node_refine")
+EXECUTE_NODE_PROMPT = _load("execute_node")
 
 
 __all__ = [

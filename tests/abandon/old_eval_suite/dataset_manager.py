@@ -28,11 +28,12 @@ logger = get_logger("eval.dataset_manager")
 @dataclass
 class TestCase:
     """单个测试用例"""
+
     id: str
     input: str
     expected_output: str | None = None
     category: str = "general"
-    complexity: str = "medium"      # simple | medium | complex
+    complexity: str = "medium"  # simple | medium | complex
     expected_plan_nodes: int | None = None
     expected_needs_planning: bool = True
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -44,7 +45,8 @@ class TestCase:
             logger.warning(
                 "[Dataset] case %s: expected_needs_planning=False 但设置了 "
                 "expected_plan_nodes=%s，两者语义冲突，已忽略 expected_plan_nodes",
-                self.id, self.expected_plan_nodes,
+                self.id,
+                self.expected_plan_nodes,
             )
             self.expected_plan_nodes = None
 
@@ -52,7 +54,8 @@ class TestCase:
         if self.complexity not in ("simple", "medium", "complex"):
             logger.warning(
                 "[Dataset] case %s: 非法 complexity=%s，降级为 medium",
-                self.id, self.complexity,
+                self.id,
+                self.complexity,
             )
             self.complexity = "medium"
 
@@ -73,9 +76,7 @@ class DatasetManager:
     """管理评估数据集"""
 
     def __init__(self, data_dir: str | None = None):
-        self.data_dir = (
-            Path(data_dir) if data_dir else Path(__file__).parent / "data"
-        )
+        self.data_dir = Path(data_dir) if data_dir else Path(__file__).parent / "data"
         # P1-3 修复：parents=True 支持多层目录
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self._datasets: dict[str, list[TestCase]] = {}
@@ -96,14 +97,12 @@ class DatasetManager:
         """
         # 缓存命中
         if not force_reload and name in self._datasets:
-            logger.debug("[Dataset] %s 缓存命中 (%d cases)",
-                         name, len(self._datasets[name]))
+            logger.debug("[Dataset] %s 缓存命中 (%d cases)", name, len(self._datasets[name]))
             return self._datasets[name]
 
         file_path = self.data_dir / f"{name}.{file_format}"
         if not file_path.exists():
-            logger.warning("[Dataset] %s 不存在于 %s，返回空列表",
-                           name, file_path)
+            logger.warning("[Dataset] %s 不存在于 %s，返回空列表", name, file_path)
             return []
 
         with open(file_path, encoding="utf-8") as f:
@@ -122,7 +121,8 @@ class DatasetManager:
         if not isinstance(raw, list):
             logger.error(
                 "[Dataset] %s 顶层结构不是 list，实际 type=%s，返回空列表",
-                name, type(raw).__name__,
+                name,
+                type(raw).__name__,
             )
             return []
 
@@ -140,7 +140,10 @@ class DatasetManager:
             if not isinstance(item, dict):
                 logger.error(
                     "[Dataset] %s 第 %d 条不是 dict，已跳过: type=%s, value=%s",
-                    name, idx, type(item).__name__, str(item)[:80],
+                    name,
+                    idx,
+                    type(item).__name__,
+                    str(item)[:80],
                 )
                 continue
 
@@ -151,7 +154,9 @@ class DatasetManager:
                 if case_id in seen_ids:
                     logger.warning(
                         "[Dataset] %s 第 %d 条 id=%s 重复，已跳过",
-                        name, idx, case_id,
+                        name,
+                        idx,
+                        case_id,
                     )
                     continue
                 seen_ids.add(case_id)
@@ -171,18 +176,27 @@ class DatasetManager:
             except KeyError as e:
                 logger.error(
                     "[Dataset] %s 第 %d 条 (id=%s) 缺少必需字段 %s，已跳过",
-                    name, idx, item.get("id", "<无 id>"), e,
+                    name,
+                    idx,
+                    item.get("id", "<无 id>"),
+                    e,
                 )
             except (ValueError, TypeError) as e:
                 logger.error(
                     "[Dataset] %s 第 %d 条 (id=%s) 字段类型错误，已跳过: %s",
-                    name, idx, item.get("id", "<无 id>"), e,
+                    name,
+                    idx,
+                    item.get("id", "<无 id>"),
+                    e,
                 )
 
         if len(cases) < len(raw):
             logger.warning(
                 "[Dataset] %s 共 %d 条，成功加载 %d 条，跳过 %d 条",
-                name, len(raw), len(cases), len(raw) - len(cases),
+                name,
+                len(raw),
+                len(cases),
+                len(raw) - len(cases),
             )
 
         self._datasets[name] = cases
@@ -198,7 +212,8 @@ class DatasetManager:
         return self._datasets.get(name, [])
 
     def split_by_category(
-        self, cases: list[TestCase],
+        self,
+        cases: list[TestCase],
     ) -> dict[str, list[TestCase]]:
         """按类别切分"""
         splits: dict[str, list[TestCase]] = {}
@@ -207,7 +222,8 @@ class DatasetManager:
         return splits
 
     def split_by_complexity(
-        self, cases: list[TestCase],
+        self,
+        cases: list[TestCase],
     ) -> dict[str, list[TestCase]]:
         """按复杂度切分"""
         splits: dict[str, list[TestCase]] = {}
@@ -216,7 +232,10 @@ class DatasetManager:
         return splits
 
     def save_dataset(
-        self, name: str, cases: list[TestCase], file_format: str = "json",
+        self,
+        name: str,
+        cases: list[TestCase],
+        file_format: str = "json",
     ) -> Path:
         """P2-2 补：把 TestCase 列表写回磁盘"""
         file_path = self.data_dir / f"{name}.{file_format}"

@@ -60,7 +60,9 @@ async def intent_node(state: TaskState, config: RunnableConfig) -> dict[str, Any
     user_input = sanitize_input(state["user_input"])
     cancel_event = get_cancel_event()
     raw_intent = await recognize_intent(
-        user_input, req_id=rid, cancel_event=cancel_event,
+        user_input,
+        req_id=rid,
+        cancel_event=cancel_event,
     )
 
     # Pydantic 边界校验——LLM 输出不可信
@@ -74,7 +76,8 @@ async def intent_node(state: TaskState, config: RunnableConfig) -> dict[str, Any
         logger.warning(
             "[Graph] intent 校验失败，降级为保守默认值 "
             "(needs_planning=True, category='other') | errors=%s (req=%s)",
-            e.errors(), rid,
+            e.errors(),
+            rid,
         )
         intent_model = IntentModel(
             needs_planning=True,
@@ -94,7 +97,5 @@ async def intent_node(state: TaskState, config: RunnableConfig) -> dict[str, Any
         "intent": intent,
         "needs_planning": intent_model.needs_planning,
         # 无 reducer 方案：手动拼完整列表（与 _replace_list 覆盖语义一致）
-        "steps": state.get("steps", []) + [
-            f"意图识别: planning={intent_model.needs_planning}"
-        ],
+        "steps": state.get("steps", []) + [f"意图识别: planning={intent_model.needs_planning}"],
     }

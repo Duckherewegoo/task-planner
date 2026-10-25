@@ -80,7 +80,8 @@ async def skip_node(thread_id: str, node_id: str, dag: dict) -> dict[str, Any]:
             if existing in ("done", "running"):
                 logger.info(
                     "[StreamMgr] skip_node: 下游节点 %s 已是 %s，跳过级联",
-                    nxt, existing,
+                    nxt,
+                    existing,
                 )
                 continue
             await state.set_node_state(nxt, "skipped")
@@ -120,7 +121,8 @@ async def fail_node(thread_id: str, node_id: str, dag: dict) -> dict[str, Any]:
             if existing in ("done", "running"):
                 logger.info(
                     "[StreamMgr] fail_node: 下游节点 %s 已是 %s，跳过级联",
-                    nxt, existing,
+                    nxt,
+                    existing,
                 )
                 continue
             await state.set_node_state(nxt, "skipped")

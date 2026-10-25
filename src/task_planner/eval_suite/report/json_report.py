@@ -1,4 +1,5 @@
 """json_report.py — JSON 评估报告输出。"""
+
 import json
 from pathlib import Path
 

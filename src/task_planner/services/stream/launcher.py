@@ -35,6 +35,7 @@ async def start_stream(
          3. 当前 loop 用 asyncio.wrap_future 等 _bootstrap 完成拿
             thread_id（bootstrap 只做构造，很快返回）
     """
+
     async def _bootstrap() -> str:
         """在常驻 loop 上执行——所有 asyncio 原语都在这首次创建。"""
         state = TaskStreamState(thread_id)
@@ -43,9 +44,7 @@ async def start_stream(
         async def _worker():
             try:
                 logger.info("[StreamMgr] 后台协程启动 | thread=%s", thread_id)
-                async for snapshot in run_task_stream_fn(
-                    user_input, thread_id, enable_refine
-                ):
+                async for snapshot in run_task_stream_fn(user_input, thread_id, enable_refine):
                     if state.cancelled:
                         logger.info("[StreamMgr] 收到取消 | thread=%s", thread_id)
                         break
@@ -90,17 +89,14 @@ async def resume_stream(
     if existing and not existing.finished:
         logger.warning("[StreamMgr] resume_stream: 任务仍在运行中 %s", thread_id)
         raise RuntimeError(
-            f"任务 {thread_id} 仍在运行中，无法 resume。"
-            f"请先调用 cancel_stream() 或等待其完成。"
+            f"任务 {thread_id} 仍在运行中，无法 resume。请先调用 cancel_stream() 或等待其完成。"
         )
 
     cp_state = await get_thread_state_async(thread_id)
     if not cp_state:
         raise ValueError(f"未找到 thread_id={thread_id} 的 checkpoint，无法恢复")
 
-    logger.info(
-        "[StreamMgr] resume_stream: thread=%s action=%s", thread_id, user_action
-    )
+    logger.info("[StreamMgr] resume_stream: thread=%s action=%s", thread_id, user_action)
 
     try:
         await resume_graph_async(

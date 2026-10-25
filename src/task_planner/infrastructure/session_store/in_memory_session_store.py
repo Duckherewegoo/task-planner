@@ -84,10 +84,7 @@ class InMemorySessionStore:
         """
         now = time.time()
         async with self._lock:
-            stale = [
-                k for k, v in self._data.items()
-                if now - v["created_at"] > ttl
-            ]
+            stale = [k for k, v in self._data.items() if now - v["created_at"] > ttl]
             for k in stale:
                 self._data.pop(k, None)
         return len(stale)
@@ -98,5 +95,6 @@ class InMemorySessionStore:
 
     def __contains__(self, tid: str) -> bool:
         return tid in self._data
+
 
 __all__ = ["InMemorySessionStore"]

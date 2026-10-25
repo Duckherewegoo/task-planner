@@ -81,6 +81,7 @@ def set_req_id(rid: str | None = None) -> str:
     _req_id_var.set(new_rid)
     return new_rid
 
+
 def get_req_id() -> str:
     """获取当前上下文的 req_id（永不返回 None，无值时返回 "-"）"""
     # P2-1：ContextVar.get() 已保证返回 default，但显式兜底更稳
@@ -155,8 +156,16 @@ class ReqIdLogger(logging.Logger):
         extra = dict(extra) if extra else {}
         extra.setdefault("req_id", get_req_id())
         return super().makeRecord(
-            name, level, fn, lno, msg, args, exc_info,
-            func=func, extra=extra, sinfo=sinfo,
+            name,
+            level,
+            fn,
+            lno,
+            msg,
+            args,
+            exc_info,
+            func=func,
+            extra=extra,
+            sinfo=sinfo,
         )
 
 
@@ -192,6 +201,7 @@ def _resolve_console_level() -> int:
     # 兜底：按 DEBUG 推导
     return logging.DEBUG if DEBUG else logging.WARNING
 
+
 class _SafeQueueHandler(logging.handlers.QueueHandler):
     """
     队列满时记录 stderr 警告，不再静默丢弃。
@@ -208,10 +218,7 @@ class _SafeQueueHandler(logging.handlers.QueueHandler):
             except Exception:
                 msg = "<格式化失败>"
             try:
-                sys.stderr.write(
-                    f"[logger_setup] 日志队列已满，丢弃日志: "
-                    f"{record.name} {msg}\n"
-                )
+                sys.stderr.write(f"[logger_setup] 日志队列已满，丢弃日志: {record.name} {msg}\n")
             except Exception:
                 # stderr 都写不了就彻底放弃（绝不能拖垮主流程）
                 pass
@@ -270,8 +277,8 @@ def _init_root_logger() -> None:
     global _queue_listener, _log_queue
 
     root_logger = logging.getLogger(_ROOT_LOGGER_NAME)
-    root_logger.setLevel(logging.DEBUG)   # 全局最低级别
-    root_logger.propagate = False         # 不再向上（Python root）传播
+    root_logger.setLevel(logging.DEBUG)  # 全局最低级别
+    root_logger.propagate = False  # 不再向上（Python root）传播
 
     # ── 格式 ──
     fmt = (
@@ -297,10 +304,7 @@ def _init_root_logger() -> None:
         os.makedirs(log_dir, exist_ok=True)
     except OSError as e:
         # 目录都建不了（权限/磁盘满）→ 降级为仅控制台
-        sys.stderr.write(
-            f"[logger_setup] 无法创建日志目录 {log_dir}: {e}，"
-            f"已降级为仅控制台输出\n"
-        )
+        sys.stderr.write(f"[logger_setup] 无法创建日志目录 {log_dir}: {e}，已降级为仅控制台输出\n")
         log_dir = None  # type: ignore
 
     file_handler: logging.Handler | None = None
@@ -313,15 +317,14 @@ def _init_root_logger() -> None:
                 interval=1,
                 backupCount=LOG_MAX_DAYS,
                 encoding="utf-8",
-                delay=True,   # P2-3：首次写入才创建文件
+                delay=True,  # P2-3：首次写入才创建文件
             )
             file_handler.setLevel(logging.DEBUG)
             file_handler.setFormatter(formatter)
             file_handler.addFilter(ReqIdFilter())
         except OSError as e:
             sys.stderr.write(
-                f"[logger_setup] 无法打开日志文件 {log_path}: {e}，"
-                f"已降级为仅控制台输出\n"
+                f"[logger_setup] 无法打开日志文件 {log_path}: {e}，已降级为仅控制台输出\n"
             )
             file_handler = None
 
@@ -387,6 +390,7 @@ def get_logger(name: str = _ROOT_LOGGER_NAME) -> ReqIdLogger:
         return _make_standalone_logger(name)  # type: ignore[return-value]
     return setup_logger(name)
 
+
 def is_initialized() -> bool:
     """
     P2-4：日志系统是否已初始化。
@@ -434,7 +438,9 @@ def shutdown_logging() -> None:
     except Exception:
         pass
 
-#-------------其他功能-----------
+
+# -------------其他功能-----------
+
 
 def _warn_offroot_once(name: str) -> None:
     """对非 task_planner 层级的 logger 名，只警告一次。"""
@@ -467,6 +473,7 @@ def _make_standalone_logger(name: str) -> logging.Logger:
     logger.setLevel(logging.INFO)
     logger.propagate = False
     return logger
+
 
 __all__ = [
     "ReqIdLogger",

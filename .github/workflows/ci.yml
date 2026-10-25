@@ -93,7 +93,7 @@ jobs:
           cache: pip
       - run: pip install ruff
       - run: ruff format --check src/ tests/
-        continue-on-error: true # 黄线放行
+        continue-on-error: true
 
   pyright:
     runs-on: ubuntu-latest
@@ -109,7 +109,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
       - run: pyright src/
-        continue-on-error: true # 脏库检查不卡合并
+        continue-on-error: true
 
   checks-passed:
     if: always()
@@ -120,3 +120,42 @@ jobs:
       - name: Verify required checks passed
         if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
         run: exit 1
+
+      - name: 失败时的安慰
+        if: failure() || cancelled()
+        run: |
+          echo "别灰心，Bug 是修不完的！"
+          echo "建议检查一下最近改动的文件，或者看看上面哪一个步骤红了。"
+          echo "喝口水，重启一次，你一定能搞定！"
+
+      - name: 成功时的彩蛋
+        if: success()
+        run: |
+          sudo apt-get install -y cowsay
+          echo "红线检查全部通过，准备合并！" | cowsay -f tux
+
+      - name: 生成测试报告总结
+        if: always()
+        env:
+          LINT_RESULT: ${{ needs.lint.result }}
+          TEST_RESULT: ${{ needs.test.result }}
+          INTEG_RESULT: ${{ needs.integration.result }}
+        run: |
+
+          if [ "$LINT_RESULT" = "success" ]; then LINT_ICON="Pass"; else LINT_ICON="Fail"; fi
+          if [ "$TEST_RESULT" = "success" ]; then TEST_ICON="Pass"; else TEST_ICON="Fail"; fi
+          if [ "$INTEG_RESULT" = "success" ]; then INTEG_ICON="Pass"; else INTEG_ICON="Fail"; fi
+
+          echo "## CI 检查结果" >> $GITHUB_STEP_SUMMARY
+          echo "| 检查项 | 状态 |" >> $GITHUB_STEP_SUMMARY
+          echo "| :--- | :---: |" >> $GITHUB_STEP_SUMMARY
+          echo "| 单元测试 | $TEST_ICON |" >> $GITHUB_STEP_SUMMARY
+          echo "| 集成测试 | $INTEG_ICON |" >> $GITHUB_STEP_SUMMARY
+          echo "| 代码规范 | $LINT_ICON |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ job.status }}" = "success" ]; then
+            echo "> 全部通过，可以合并。" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "> 存在问题，请检查上方日志。" >> $GITHUB_STEP_SUMMARY
+          fi

@@ -54,6 +54,7 @@ def fast_dataset(default_dataset):
 #  集成测试
 # ══════════════════════════════════════════════════
 
+
 @pytest.mark.slow
 @pytest.mark.integration
 @pytest.mark.eval
@@ -66,7 +67,9 @@ async def test_eval_suite_basic(fast_dataset):
     """
     cases = fast_dataset[:2]
     evaluator = CrucibleEvaluator(
-        cases, max_concurrent=1, timeout=60,
+        cases,
+        max_concurrent=1,
+        timeout=60,
     )
 
     # P1-3 修复：给整个 run 加超时兜底
@@ -109,7 +112,9 @@ async def test_eval_single_case(case):
         pytest.skip(f"Skipping complex case {case.id} for fast test")
 
     evaluator = CrucibleEvaluator(
-        [case], max_concurrent=1, timeout=60,
+        [case],
+        max_concurrent=1,
+        timeout=60,
     )
 
     summary = await asyncio.wait_for(evaluator.run(), timeout=120)
@@ -127,6 +132,7 @@ async def test_eval_single_case(case):
 # ══════════════════════════════════════════════════
 #  纯单元测试（不依赖 Agent / DB / 网络）
 # ══════════════════════════════════════════════════
+
 
 @pytest.mark.unit
 class TestEvaluators:
@@ -150,9 +156,12 @@ class TestEvaluators:
 
     def test_plan_node_count_accuracy_exact(self):
         """锁定 P0-1：精确匹配应得 1.0"""
-        assert Evaluators.plan_node_count_accuracy(
-            5, [{"id": 1}, {"id": 2}, {"id": 3}, {"id": 4}, {"id": 5}]
-        ) == 1.0
+        assert (
+            Evaluators.plan_node_count_accuracy(
+                5, [{"id": 1}, {"id": 2}, {"id": 3}, {"id": 4}, {"id": 5}]
+            )
+            == 1.0
+        )
 
     def test_plan_node_count_accuracy_no_negative(self):
         """锁定 P0-1：结果恒在 [0, 1]，不再是负数"""
@@ -172,7 +181,5 @@ class TestEvaluators:
 
     def test_response_relevance_chinese(self):
         """锁定 P0-2：中文相关性不为 0"""
-        r = Evaluators.response_relevance(
-            "西红柿切块，鸡蛋打散", "西红柿炒鸡蛋"
-        )
+        r = Evaluators.response_relevance("西红柿切块，鸡蛋打散", "西红柿炒鸡蛋")
         assert r > 0.0, "中文相关性不能为 0"

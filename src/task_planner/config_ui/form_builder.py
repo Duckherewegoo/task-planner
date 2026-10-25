@@ -24,20 +24,24 @@ def _render_input(entry: ConfigEntry, current: Any) -> Any:
         )
     if entry.type is int:
         return dcc.Input(
-            type="number", value=current,
+            type="number",
+            value=current,
             style={"width": "200px"},
             id=_field_id(entry.name),
         )
     if entry.type is float:
         return dcc.Input(
-            type="number", step=0.1, value=current,
+            type="number",
+            step=0.1,
+            value=current,
             style={"width": "200px"},
             id=_field_id(entry.name),
         )
     # 密钥输入用密码框
     input_type = "password" if entry.secret else "text"
     return dcc.Input(
-        type=input_type, value=current,
+        type=input_type,
+        value=current,
         style={"width": "320px"},
         id=_field_id(entry.name),
     )
@@ -53,61 +57,69 @@ def build_form(include_advanced: bool = False) -> list:
     rows: list = []
 
     # 密钥字段（from_env）
-    secret_entries = [
-        e for e in hub.snapshot()
-        if e.from_env and e.secret
-    ]
+    secret_entries = [e for e in hub.snapshot() if e.from_env and e.secret]
     if secret_entries:
         rows.append(html.H3("🔑 密钥（保存到 .env）"))
         for e in secret_entries:
-            rows.append(html.Div([
-                html.Label(e.purpose or e.name, style={"fontWeight": "bold"}),
-                html.Br(),
-                _render_input(e, e.value),
-                html.Br(),
-                html.Small(
-                    f"环境变量名：{e.env_name or e.name}",
-                    style={"color": "#64748b"},
-                ),
-            ], style={"margin": "12px 0"}))
+            rows.append(
+                html.Div(
+                    [
+                        html.Label(e.purpose or e.name, style={"fontWeight": "bold"}),
+                        html.Br(),
+                        _render_input(e, e.value),
+                        html.Br(),
+                        html.Small(
+                            f"环境变量名：{e.env_name or e.name}",
+                            style={"color": "#64748b"},
+                        ),
+                    ],
+                    style={"margin": "12px 0"},
+                )
+            )
 
     # 用户可改的普通配置
-    user_entries = [
-        e for e in hub.snapshot()
-        if e.scope == Scope.USER and not e.secret
-    ]
+    user_entries = [e for e in hub.snapshot() if e.scope == Scope.USER and not e.secret]
     if user_entries:
         rows.append(html.H3("🎨 用户偏好（保存到 user.yaml）"))
         for e in user_entries:
-            rows.append(html.Div([
-                html.Label(e.purpose or e.name, style={"fontWeight": "bold"}),
-                html.Br(),
-                _render_input(e, e.value),
-            ], style={"margin": "12px 0"}))
+            rows.append(
+                html.Div(
+                    [
+                        html.Label(e.purpose or e.name, style={"fontWeight": "bold"}),
+                        html.Br(),
+                        _render_input(e, e.value),
+                    ],
+                    style={"margin": "12px 0"},
+                )
+            )
 
     # 开发者字段（可选，只读展示）
     if include_advanced:
-        dev_entries = [
-            e for e in hub.snapshot()
-            if e.scope == Scope.DEVELOPER and not e.from_env
-        ]
+        dev_entries = [e for e in hub.snapshot() if e.scope == Scope.DEVELOPER and not e.from_env]
         if dev_entries:
             rows.append(html.Hr())
             rows.append(html.H3("🔧 开发者配置（只读）"))
-            rows.append(html.P(
-                "如需修改，请编辑 config/schema.yaml",
-                style={"color": "#94a3b8", "fontSize": "13px"},
-            ))
+            rows.append(
+                html.P(
+                    "如需修改，请编辑 config/schema.yaml",
+                    style={"color": "#94a3b8", "fontSize": "13px"},
+                )
+            )
             for e in dev_entries:
-                rows.append(html.Div([
-                    html.Span(e.name, style={"fontFamily": "monospace"}),
-                    html.Span(" = ", style={"color": "#94a3b8"}),
-                    html.Span(repr(e.value), style={"fontFamily": "monospace"}),
-                    html.Br(),
-                    html.Small(
-                        e.purpose or "-",
-                        style={"color": "#94a3b8", "fontSize": "12px"},
-                    ),
-                ], style={"margin": "8px 0"}))
+                rows.append(
+                    html.Div(
+                        [
+                            html.Span(e.name, style={"fontFamily": "monospace"}),
+                            html.Span(" = ", style={"color": "#94a3b8"}),
+                            html.Span(repr(e.value), style={"fontFamily": "monospace"}),
+                            html.Br(),
+                            html.Small(
+                                e.purpose or "-",
+                                style={"color": "#94a3b8", "fontSize": "12px"},
+                            ),
+                        ],
+                        style={"margin": "8px 0"},
+                    )
+                )
 
     return rows

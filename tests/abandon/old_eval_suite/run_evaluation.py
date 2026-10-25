@@ -119,8 +119,7 @@ async def run_evaluation(
         flagged = reviewer.flag_for_review(results)
         if flagged:
             req_file = reviewer.save_review_requests(flagged)
-            logger.info("Flagged %d cases for HITL review, saved to %s",
-                        len(flagged), req_file)
+            logger.info("Flagged %d cases for HITL review, saved to %s", len(flagged), req_file)
             print("\n=== HITL Review Request ===")
             print(f"Please review cases in {req_file}")
             # P1-4 说明：input() 阻塞事件循环，此处已接近流程末尾，
@@ -139,7 +138,9 @@ def main() -> int:
     """CLI 入口。返回进程退出码（0 成功 / 1 失败）"""
     parser = argparse.ArgumentParser(description="Task Planner Evaluation Suite")
     parser.add_argument("--dataset", type=str, help="Dataset name (JSON/YAML in data/ dir)")
-    parser.add_argument("--refine", action="store_true", default=True, help="Enable node refinement")
+    parser.add_argument(
+        "--refine", action="store_true", default=True, help="Enable node refinement"
+    )
     parser.add_argument("--concurrent", type=int, default=3, help="Max concurrent runs")
     parser.add_argument("--timeout", type=int, default=300, help="Timeout per case (seconds)")
     parser.add_argument("--hitl", action="store_true", help="Enable Human-in-the-Loop review")
@@ -150,18 +151,20 @@ def main() -> int:
 
     # P0-2 修复：捕获异常，返回非零退出码，CI 能感知失败
     try:
-        summary = asyncio.run(run_evaluation(
-            dataset_name=args.dataset,
-            enable_refine=args.refine,
-            max_concurrent=args.concurrent,
-            timeout=args.timeout,
-            enable_hitl=args.hitl,
-            output_format=args.format,
-            output_dir=args.output,
-        ))
+        summary = asyncio.run(
+            run_evaluation(
+                dataset_name=args.dataset,
+                enable_refine=args.refine,
+                max_concurrent=args.concurrent,
+                timeout=args.timeout,
+                enable_hitl=args.hitl,
+                output_format=args.format,
+                output_dir=args.output,
+            )
+        )
     except KeyboardInterrupt:
         logger.warning("Evaluation interrupted by user")
-        return 130   # 标准 SIGINT 退出码
+        return 130  # 标准 SIGINT 退出码
     except Exception as e:
         logger.exception("Evaluation failed: %s", e)
         return 1

@@ -28,6 +28,7 @@ import logging
 import os
 import re
 import warnings
+
 # =============================================================================
 # 0. 项目根目录与基础环境加载
 # =============================================================================
@@ -45,6 +46,7 @@ try:
     from pathlib import Path
 
     from dotenv import load_dotenv
+
     _PROJECT_ROOT = Path(__file__).resolve().parents[3]
     # 显式指定，无论从哪个目录跑都能找到同一个 .env
     load_dotenv(_PROJECT_ROOT / ".env", override=False)
@@ -69,11 +71,14 @@ def _env(key: str, default: Any = None, cast: Callable = str) -> Any:
         if cast is bool:
             return val.strip().lower() in ("true", "1", "yes", "on", "y")
         return cast(val)
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         # P0-3 修复：改为 %s 占位符风格，兼容 Python < 3.12
         logger.warning(
             "环境变量 %s='%s' 无法转换为 %s，已回退至默认值: %s",
-            key, val, cast.__name__, default,
+            key,
+            val,
+            cast.__name__,
+            default,
         )
         return default
 
@@ -133,9 +138,7 @@ LLM_NODE_TIMEOUT = _env("LLM_NODE_TIMEOUT", 60, int)
 if LLM_NODE_ENABLE_THINKING and LLM_NODE_TIMEOUT < LLM_TIMEOUT:
     warnings.warn(
         "[Config] LLM_NODE_TIMEOUT({}s) < LLM_TIMEOUT({}s) 且节点思考模式已开启，"
-        "自动将 LLM_NODE_TIMEOUT 提升至 {}s".format(
-            LLM_NODE_TIMEOUT, LLM_TIMEOUT, LLM_TIMEOUT
-        ),
+        "自动将 LLM_NODE_TIMEOUT 提升至 {}s".format(LLM_NODE_TIMEOUT, LLM_TIMEOUT, LLM_TIMEOUT),
         UserWarning,
     )
     LLM_NODE_TIMEOUT = LLM_TIMEOUT
@@ -222,30 +225,65 @@ CYTO_STYLESHEET: List[Dict[str, Any]] = [
             "transition-duration": "0.3s",
         },
     },
-    {"selector": ".state-ready", "style": {
-        "background-color": "#fef3c7", "border-color": "#f59e0b", "border-width": 3,
-    }},
-    {"selector": ".state-running", "style": {
-        "background-color": "#dbeafe", "border-color": "#3b82f6", "border-width": 3,
-    }},
-    {"selector": ".state-done", "style": {
-        "background-color": "#d1fae5", "border-color": "#10b981", "opacity": 0.9,
-    }},
-    {"selector": ".state-failed", "style": {
-        "background-color": "#fee2e2", "border-color": "#ef4444", "border-style": "dashed",
-    }},
-    {"selector": ".state-skipped", "style": {
-        "background-color": "#f3f4f6", "border-color": "#9ca3af", "opacity": 0.5,
-    }},
+    {
+        "selector": ".state-ready",
+        "style": {
+            "background-color": "#fef3c7",
+            "border-color": "#f59e0b",
+            "border-width": 3,
+        },
+    },
+    {
+        "selector": ".state-running",
+        "style": {
+            "background-color": "#dbeafe",
+            "border-color": "#3b82f6",
+            "border-width": 3,
+        },
+    },
+    {
+        "selector": ".state-done",
+        "style": {
+            "background-color": "#d1fae5",
+            "border-color": "#10b981",
+            "opacity": 0.9,
+        },
+    },
+    {
+        "selector": ".state-failed",
+        "style": {
+            "background-color": "#fee2e2",
+            "border-color": "#ef4444",
+            "border-style": "dashed",
+        },
+    },
+    {
+        "selector": ".state-skipped",
+        "style": {
+            "background-color": "#f3f4f6",
+            "border-color": "#9ca3af",
+            "opacity": 0.5,
+        },
+    },
     # 补齐 state-timeout（NODE_STATUS_CODE_MAP[4] = "timeout" 对应的样式）
     #    配色取自 STATUS_COLOR[4] / STATUS_BORDER[4]，与后端状态语义一致
-    {"selector": ".state-timeout", "style": {
-        "background-color": "#f3e5f5", "border-color": "#9c27b0",
-        "border-style": "dashed", "border-width": 3,
-    }},
-    {"selector": ".state-blocked", "style": {
-        "background-color": "#f9fafb", "border-color": "#d1d5db", "opacity": 0.6,
-    }},    
+    {
+        "selector": ".state-timeout",
+        "style": {
+            "background-color": "#f3e5f5",
+            "border-color": "#9c27b0",
+            "border-style": "dashed",
+            "border-width": 3,
+        },
+    },
+    {
+        "selector": ".state-blocked",
+        "style": {
+            "background-color": "#f9fafb",
+            "border-color": "#d1d5db",
+            "opacity": 0.6,
+        },
+    },
     {
         "selector": "edge",
         "style": {
@@ -270,56 +308,104 @@ CYTO_STYLESHEET: List[Dict[str, Any]] = [
             "transition-duration": "0.3s",
         },
     },
-    {"selector": ".edge-done", "style": {
-        "line-color": "#10b981", "target-arrow-color": "#10b981", "width": 2.5,
-    }},
-    {"selector": ".edge-pending", "style": {
-        "line-color": "#cbd5e1", "target-arrow-color": "#cbd5e1",
-    }},
-    {"selector": ".edge-skipped", "style": {
-        "line-color": "#d1d5db", "target-arrow-color": "#d1d5db",
-        "line-style": "dashed", "opacity": 0.4,
-    }},
-    {"selector": ".edge-failed", "style": {
-        "line-color": "#ef4444", "target-arrow-color": "#ef4444", "line-style": "dashed",
-    }},
-    {"selector": ".edge-cycle", "style": {
-        "line-color": "#f59e0b", "target-arrow-color": "#f59e0b",
-        "line-style": "dotted", "width": 2,
-        "label": "data(full_label)", "font-size": "10px",
-        "color": "#92400e",
-        "text-background-color": "#fef3c7",
-        "text-background-opacity": 0.95,
-        "text-background-padding": "4px",
-        "text-background-shape": "round-rectangle",
-        "text-border-color": "#f59e0b",
-        "text-border-width": 1,
-    }},
-    {"selector": "edge:hover", "style": {
-        "line-color": "#1a73e8", "target-arrow-color": "#1a73e8", "width": 3,
-        "label": "data(full_label)", "font-size": "11px", "color": "#1a73e8",
-    }},
+    {
+        "selector": ".edge-done",
+        "style": {
+            "line-color": "#10b981",
+            "target-arrow-color": "#10b981",
+            "width": 2.5,
+        },
+    },
+    {
+        "selector": ".edge-pending",
+        "style": {
+            "line-color": "#cbd5e1",
+            "target-arrow-color": "#cbd5e1",
+        },
+    },
+    {
+        "selector": ".edge-skipped",
+        "style": {
+            "line-color": "#d1d5db",
+            "target-arrow-color": "#d1d5db",
+            "line-style": "dashed",
+            "opacity": 0.4,
+        },
+    },
+    {
+        "selector": ".edge-failed",
+        "style": {
+            "line-color": "#ef4444",
+            "target-arrow-color": "#ef4444",
+            "line-style": "dashed",
+        },
+    },
+    {
+        "selector": ".edge-cycle",
+        "style": {
+            "line-color": "#f59e0b",
+            "target-arrow-color": "#f59e0b",
+            "line-style": "dotted",
+            "width": 2,
+            "label": "data(full_label)",
+            "font-size": "10px",
+            "color": "#92400e",
+            "text-background-color": "#fef3c7",
+            "text-background-opacity": 0.95,
+            "text-background-padding": "4px",
+            "text-background-shape": "round-rectangle",
+            "text-border-color": "#f59e0b",
+            "text-border-width": 1,
+        },
+    },
+    {
+        "selector": "edge:hover",
+        "style": {
+            "line-color": "#1a73e8",
+            "target-arrow-color": "#1a73e8",
+            "width": 3,
+            "label": "data(full_label)",
+            "font-size": "11px",
+            "color": "#1a73e8",
+        },
+    },
     {"selector": ":hover", "style": {"border-width": 3, "border-color": "#1a73e8"}},
     # ← NEW: 边类型样式
-    {"selector": ".edge-soft", "style": {
-        "line-style": "dashed", "opacity": 0.5, "width": 1.2,
-    }},
-    {"selector": ".edge-conditional", "style": {
-        "line-style": "dotted", "width": 1.5,
-    }},
-    {"selector": ".edge-retry", "style": {
-        "line-color": "#f59e0b", "target-arrow-color": "#f59e0b",
-        "curve-style": "bezier", "width": 2,
-        "line-style": "dashed",
-    }},
-    {"selector": ".edge-hard", "style": {
-        # 默认实线，无需额外样式，但显式声明以防被覆盖
-    }},
-    {"selector": ":selected", "style": {
-        "border-width": 4, "border-color": "#f59e0b"}},
+    {
+        "selector": ".edge-soft",
+        "style": {
+            "line-style": "dashed",
+            "opacity": 0.5,
+            "width": 1.2,
+        },
+    },
+    {
+        "selector": ".edge-conditional",
+        "style": {
+            "line-style": "dotted",
+            "width": 1.5,
+        },
+    },
+    {
+        "selector": ".edge-retry",
+        "style": {
+            "line-color": "#f59e0b",
+            "target-arrow-color": "#f59e0b",
+            "curve-style": "bezier",
+            "width": 2,
+            "line-style": "dashed",
+        },
+    },
+    {
+        "selector": ".edge-hard",
+        "style": {
+            # 默认实线，无需额外样式，但显式声明以防被覆盖
+        },
+    },
+    {"selector": ":selected", "style": {"border-width": 4, "border-color": "#f59e0b"}},
 ]
 
-#===已废弃（在main/assets/custom.css）另外实现===#
+# ===已废弃（在main/assets/custom.css）另外实现===#
 """
 PULSE_CSS = (
     "@keyframes pulse {"
@@ -347,7 +433,7 @@ PROGRESS_CSS = (
     "}"
 )
 """
-#============================================#
+# ============================================#
 
 # =============================================================================
 # 12. 任务状态枚举（全模块共用）
@@ -380,10 +466,10 @@ EDGE_TYPE_CSS = {
 
 # 边类型 → 颜色（供 pyvis / matplotlib 渲染使用）
 EDGE_TYPE_COLOR = {
-    EDGE_TYPE_HARD: "#64748b",        # 灰色实线
-    EDGE_TYPE_SOFT: "#94a3b8",        # 浅灰虚线
+    EDGE_TYPE_HARD: "#64748b",  # 灰色实线
+    EDGE_TYPE_SOFT: "#94a3b8",  # 浅灰虚线
     EDGE_TYPE_CONDITIONAL: "#f59e0b",  # 橙色点划线
-    EDGE_TYPE_RETRY: "#ef4444",       # 红色回退线
+    EDGE_TYPE_RETRY: "#ef4444",  # 红色回退线
 }
 
 # 边类型 → line style（matplotlib / pydot）
@@ -453,8 +539,12 @@ NODE_COLORS = {
         NODE_TEXT_COLORS.get(code, "#374151"),
     )
     for status_key, code in {
-        "pending": 0, "running": 1, "done": 2,
-        "failed": 3, "timeout": 4, "skipped": 5,
+        "pending": 0,
+        "running": 1,
+        "done": 2,
+        "failed": 3,
+        "timeout": 4,
+        "skipped": 5,
     }.items()
 }
 # 兼容旧键名
@@ -487,42 +577,44 @@ EDGE_STYLES = {
 DEFAULT_EDGE_STYLE = EDGE_STYLES[EDGE_TYPE_HARD]
 
 # 模块级常量集合，避免每次调用重建 + O(1) 查找
-VALID_EDGE_TYPES: FrozenSet[str] = frozenset({
-    EDGE_TYPE_HARD,
-    EDGE_TYPE_SOFT,
-    EDGE_TYPE_CONDITIONAL,
-    EDGE_TYPE_RETRY,
-})
+VALID_EDGE_TYPES: FrozenSet[str] = frozenset(
+    {
+        EDGE_TYPE_HARD,
+        EDGE_TYPE_SOFT,
+        EDGE_TYPE_CONDITIONAL,
+        EDGE_TYPE_RETRY,
+    }
+)
 # 模块级常量
-BAR_DONE = {"width": "100%", "height": "100%",
-            "background": "linear-gradient(90deg, #10b981, #34d399)", "borderRadius": "6px"}
-BAR_ERROR = {"width": "100%", "height": "100%",
-             "background": "#ef4444", "borderRadius": "6px"}
-BAR_LOADING = {"className": "indeterminate-bar",
-               "width": "100%", "height": "100%"}
+BAR_DONE = {
+    "width": "100%",
+    "height": "100%",
+    "background": "linear-gradient(90deg, #10b981, #34d399)",
+    "borderRadius": "6px",
+}
+BAR_ERROR = {"width": "100%", "height": "100%", "background": "#ef4444", "borderRadius": "6px"}
+BAR_LOADING = {"className": "indeterminate-bar", "width": "100%", "height": "100%"}
 
 EMPTY_DAG = {"nodes": [], "edges": []}
 EMPTY_STATES = {}
 EMPTY_BAR_STYLE = {
-    "width": "0%", "height": "100%",
+    "width": "0%",
+    "height": "100%",
     "background": "linear-gradient(90deg, #10b981, #34d399)",
     "borderRadius": "6px",
 }
-EMPTY_BAR_MINI_STYLE = {"width": "0%",
-                        "height": "100%", "background": "transparent"}
-MARKDOWN_PRE_STYLE = {"whiteSpace": "pre-wrap",
-                      "fontSize": "14px", "lineHeight": "1.8"}
+EMPTY_BAR_MINI_STYLE = {"width": "0%", "height": "100%", "background": "transparent"}
+MARKDOWN_PRE_STYLE = {"whiteSpace": "pre-wrap", "fontSize": "14px", "lineHeight": "1.8"}
 # 样式常量提取到回调外部，避免每次触发都重新创建字典
-HINT_BASE_STYLE = {"fontSize": "13px",
-                   "marginTop": "8px", "fontStyle": "italic"}
+HINT_BASE_STYLE = {"fontSize": "13px", "marginTop": "8px", "fontStyle": "italic"}
 HINT_STYLES = {
-    "loading":  {**HINT_BASE_STYLE, "color": "#f59e0b", "fontWeight": "bold"},
-    "ready":    {**HINT_BASE_STYLE, "color": "#10b981", "fontWeight": "bold"},
-    "running":  {**HINT_BASE_STYLE, "color": "#10b981", "fontWeight": "bold"},
-    "done":     {**HINT_BASE_STYLE, "color": "#10b981"},
-    "skipped":  {**HINT_BASE_STYLE, "color": "#9ca3af"},
-    "failed":   {**HINT_BASE_STYLE, "color": "#ef4444"},
-    "pending":  {**HINT_BASE_STYLE, "color": "#f59e0b"},
+    "loading": {**HINT_BASE_STYLE, "color": "#f59e0b", "fontWeight": "bold"},
+    "ready": {**HINT_BASE_STYLE, "color": "#10b981", "fontWeight": "bold"},
+    "running": {**HINT_BASE_STYLE, "color": "#10b981", "fontWeight": "bold"},
+    "done": {**HINT_BASE_STYLE, "color": "#10b981"},
+    "skipped": {**HINT_BASE_STYLE, "color": "#9ca3af"},
+    "failed": {**HINT_BASE_STYLE, "color": "#ef4444"},
+    "pending": {**HINT_BASE_STYLE, "color": "#f59e0b"},
 }
 
 # ⭐ 提取基础样式常量
@@ -585,9 +677,12 @@ STATE_COLORS = {
 }
 
 STATE_LABELS = {
-    "done": "已完成", "skipped": "⏭️ 已跳过",
-    "failed": "❌ 做不到", "running": "🔄 进行中",
-    "pending": "⏳ 等待中", "blocked": "🔒 被阻塞",
+    "done": "已完成",
+    "skipped": "⏭️ 已跳过",
+    "failed": "❌ 做不到",
+    "running": "🔄 进行中",
+    "pending": "⏳ 等待中",
+    "blocked": "🔒 被阻塞",
 }
 
 # ══════════════════════════════════════════════════
@@ -617,8 +712,8 @@ NODE_STATUS_CODE_MAP = {
     1: "running",
     2: "done",
     3: "failed",
-    4: "timeout",     # 修正：原为 "skipped"，与 TASK_STATUS 定义冲突
-    5: "skipped",     # 补齐：原缺失，导致 status_code=5 时前端拿到 undefined
+    4: "timeout",  # 修正：原为 "skipped"，与 TASK_STATUS 定义冲突
+    5: "skipped",  # 补齐：原缺失，导致 status_code=5 时前端拿到 undefined
 }
 
 # 节点操作配置：定义每种操作的下游行为和提示文案
@@ -741,9 +836,9 @@ function(val) {{
 #  边样式（根据边类型返回 pyvis 参数）
 # ══════════════════════════════════════════════════
 EDGE_DASH_MAP: Dict[str, List[int]] = {
-    "dashed":  [10, 5],
+    "dashed": [10, 5],
     "dashdot": [15, 5, 5, 5],
-    "dotted":  [3, 3],
+    "dotted": [3, 3],
 }
 
 # =============================================================================
@@ -752,33 +847,43 @@ EDGE_DASH_MAP: Dict[str, List[int]] = {
 MAX_INPUT_LENGTH = 2000
 # 缓存上限：超过此大小的输入跳过缓存，防止内存膨胀
 MAX_CACHE_INPUT_BYTES = 10 * 1024 * 1024  # 10 MB
-THINK_RE = re.compile(r'<' + r'think>.*?<' + r'/think>', re.DOTALL)
+THINK_RE = re.compile(r"<" + r"think>.*?<" + r"/think>", re.DOTALL)
 
 # P1-3 修复：所有 "词 + 分隔符" 型 pattern 加 (?<![a-zA-Z_]) 前缀，
 #    避免 my_password=xxx 被误伤。
 SENSITIVE_PATTERNS_CONFIG = [
-    {"pattern": r'sk-[a-zA-Z0-9]{20,}', "replacement": '[REDACTED_API_KEY]'},
-    {"pattern": r'AKIA[A-Z0-9]{16,}', "replacement": '[REDACTED_AWS_KEY]'},
-    {"pattern": r'ghp_[a-zA-Z0-9]{36,}',
-        "replacement": '[REDACTED_GITHUB_TOKEN]'},
-    {"pattern": r'xox[bpr]-[a-zA-Z0-9-]+',
-        "replacement": '[REDACTED_SLACK_TOKEN]'},
-    {"pattern": (r'(?<![a-zA-Z_])password\s*[:=]\s*\S{1,200}', re.IGNORECASE),
-     "replacement": 'password=[REDACTED]'},
-    {"pattern": (r'(?<![a-zA-Z_])token\s*[:=]\s*\S{1,200}', re.IGNORECASE),
-     "replacement": 'token=[REDACTED]'},
-    {"pattern": (r'(?<![a-zA-Z_])api_key\s*[:=]\s*\S{1,200}', re.IGNORECASE),
-     "replacement": 'api_key=[REDACTED]'},
-    {"pattern": (r'(?<![a-zA-Z_])secret\s*[:=]\s*\S{1,200}', re.IGNORECASE),
-     "replacement": 'secret=[REDACTED]'},
-    {"pattern": r'\b1[3-9]\d{9}\b', "replacement": '[REDACTED_PHONE]'},
-    {"pattern": r'\b\d{17}[\dXx]\b', "replacement": '[REDACTED_ID_CARD]'},
+    {"pattern": r"sk-[a-zA-Z0-9]{20,}", "replacement": "[REDACTED_API_KEY]"},
+    {"pattern": r"AKIA[A-Z0-9]{16,}", "replacement": "[REDACTED_AWS_KEY]"},
+    {"pattern": r"ghp_[a-zA-Z0-9]{36,}", "replacement": "[REDACTED_GITHUB_TOKEN]"},
+    {"pattern": r"xox[bpr]-[a-zA-Z0-9-]+", "replacement": "[REDACTED_SLACK_TOKEN]"},
+    {
+        "pattern": (r"(?<![a-zA-Z_])password\s*[:=]\s*\S{1,200}", re.IGNORECASE),
+        "replacement": "password=[REDACTED]",
+    },
+    {
+        "pattern": (r"(?<![a-zA-Z_])token\s*[:=]\s*\S{1,200}", re.IGNORECASE),
+        "replacement": "token=[REDACTED]",
+    },
+    {
+        "pattern": (r"(?<![a-zA-Z_])api_key\s*[:=]\s*\S{1,200}", re.IGNORECASE),
+        "replacement": "api_key=[REDACTED]",
+    },
+    {
+        "pattern": (r"(?<![a-zA-Z_])secret\s*[:=]\s*\S{1,200}", re.IGNORECASE),
+        "replacement": "secret=[REDACTED]",
+    },
+    {"pattern": r"\b1[3-9]\d{9}\b", "replacement": "[REDACTED_PHONE]"},
+    {"pattern": r"\b\d{17}[\dXx]\b", "replacement": "[REDACTED_ID_CARD]"},
 ]
 
 # nodes.py 初始化时编译 (此处预编译以提升性能)
 SENSITIVE_PATTERNS = [
-    (re.compile(cfg["pattern"]) if isinstance(cfg["pattern"], str) else re.compile(*cfg["pattern"]),
-     cfg["replacement"])
+    (
+        re.compile(cfg["pattern"])
+        if isinstance(cfg["pattern"], str)
+        else re.compile(*cfg["pattern"]),
+        cfg["replacement"],
+    )
     for cfg in SENSITIVE_PATTERNS_CONFIG
 ]
 
@@ -791,21 +896,26 @@ SESSION_TTL = 3600  # 1小时
 # 意图枚举白名单（frozenset 不可变，O(1) 查找，防止运行时被意外修改）
 # [Fix] 将 "consultation" 加入白名单
 # 否则 Post-check 设置的 category 会被 _validate_intent 二次降级为 "other"
-VALID_INTENT_CATEGORIES: FrozenSet[str] = frozenset({
-    "cooking", "engineering", "logistics",
-    "learning", "life_admin", "creative",
-    "consultation",  # ← 新增：显式拒绝规划时的咨询类意图
-    "other",
-})
+VALID_INTENT_CATEGORIES: FrozenSet[str] = frozenset(
+    {
+        "cooking",
+        "engineering",
+        "logistics",
+        "learning",
+        "life_admin",
+        "creative",
+        "consultation",  # ← 新增：显式拒绝规划时的咨询类意图
+        "other",
+    }
+)
 
-VALID_INTENT_COMPLEXITIES: FrozenSet[str] = frozenset(
-    {"simple", "medium", "complex"})
+VALID_INTENT_COMPLEXITIES: FrozenSet[str] = frozenset({"simple", "medium", "complex"})
 
 # Mock 回复前缀，便于下游管线识别并跳过 JSON 清洗
 MOCK_RESPONSE_PREFIX: str = "[MOCK_LLM_RESPONSE]"
 
 # 预编译正则：匹配未被替换的 $var 或 ${var}，排除 $$ 转义
-UNREPLACED_PATTERN = re.compile(r'\$\{(\w+)\}|(?<!\$)\$(\w+)')
+UNREPLACED_PATTERN = re.compile(r"\$\{(\w+)\}|(?<!\$)\$(\w+)")
 
 # ══════════════════════════════════════════════════
 #  视图分层：面向用户的字段白名单
@@ -1021,7 +1131,8 @@ EXECUTE_NODE_PROMPT = Template("""你是任务执行引擎。对以下节点做�
 SKIP_PLANNING_PATTERNS = [
     re.compile(r"不[需要]?(?:要|用).{0,6}(?:流程图|DAG|图表|拆解|步骤|规划)"),
     re.compile(
-        r"(?:直接|只要|请).{0,8}(?:告诉|教|回答|给出|说明).{0,10}(?:方法|策略|建议|结论|做法|答案)"),
+        r"(?:直接|只要|请).{0,8}(?:告诉|教|回答|给出|说明).{0,10}(?:方法|策略|建议|结论|做法|答案)"
+    ),
     re.compile(r"(?:跳过|别|莫).{0,4}(?:规划|画图|拆解|流程)"),
     re.compile(r"不[需要]?(?:要|用).{0,4}画.{0,4}图"),
 ]
@@ -1029,9 +1140,8 @@ SKIP_PLANNING_PATTERNS = [
 # =============================================================================
 # 19. 异步并发控制
 # =============================================================================
-LLM_MAX_CONCURRENT = _env("LLM_MAX_CONCURRENT", 10, int)   # 同时最多进行的 LLM 调用数
+LLM_MAX_CONCURRENT = _env("LLM_MAX_CONCURRENT", 10, int)  # 同时最多进行的 LLM 调用数
 LLM_CONNECTION_POOL_SIZE = _env("LLM_CONNECTION_POOL_SIZE", 20, int)  # 连接池大小（httpx 内部）
 
 # GOOOD addon
 WERKZEUG_RUN_MAIN = _env("WERKZEUG_RUN_MAIN", True, bool)
-

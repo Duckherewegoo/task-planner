@@ -18,8 +18,8 @@ class StreamStateCleaner:
     - TTL 兜底：防止异常未标记 finished 的任务永久驻留
     """
 
-    CLEAN_INTERVAL = 60          # 清理周期 60s
-    FINISHED_RETENTION = 300     # 已完成任务额外保留 5min
+    CLEAN_INTERVAL = 60  # 清理周期 60s
+    FINISHED_RETENTION = 300  # 已完成任务额外保留 5min
 
     def __init__(self) -> None:
         self._states: dict[str, TaskStreamState] = {}
@@ -32,9 +32,7 @@ class StreamStateCleaner:
         async with self._lock:
             self._states[thread_id] = state
         await self._ensure_started()
-        logger.debug(
-            "[Cleaner] 注册任务 %s (当前活跃: %d)", thread_id, len(self._states)
-        )
+        logger.debug("[Cleaner] 注册任务 %s (当前活跃: %d)", thread_id, len(self._states))
 
     async def unregister(self, thread_id: str) -> None:
         async with self._lock:
@@ -66,9 +64,9 @@ class StreamStateCleaner:
             # 若未来新增其他调用方，务必同样通过 async_runtime.submit 提交。
             self._task = asyncio.create_task(self._cleanup_loop())
             logger.info(
-                 "[Cleaner] 清理协程已启动 (interval=%ds)",
-                 self.CLEAN_INTERVAL,
-             )
+                "[Cleaner] 清理协程已启动 (interval=%ds)",
+                self.CLEAN_INTERVAL,
+            )
 
     async def _cleanup_loop(self) -> None:
         while self._running:
@@ -99,7 +97,8 @@ class StreamStateCleaner:
                         # 用公开方法，不访问私有属性
                         logger.warning(
                             "[Cleaner] TTL 超时强制回收: %s (age=%.0fs)",
-                            tid, state.age_since_created(now),
+                            tid,
+                            state.age_since_created(now),
                         )
 
                 if should_remove:
@@ -111,7 +110,8 @@ class StreamStateCleaner:
         if to_remove:
             logger.info(
                 "[Cleaner] 本轮清理 %d 个任务 (剩余活跃: %d)",
-                len(to_remove), len(self._states),
+                len(to_remove),
+                len(self._states),
             )
 
     async def stop(self) -> None:

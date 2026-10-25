@@ -7,6 +7,7 @@ test_json_extraction.py — 锁定 P0-1 修复
 
 ⚠️ 任何人把 _extract_tail_json 改回手写状态机，这些测试会立刻红。
 """
+
 from __future__ import annotations
 
 import json
@@ -43,7 +44,7 @@ class TestExtractTailJson:
         assert result is not None, "P0-1 回归：含转义引号的 JSON 提取失败"
         parsed = json.loads(result)
         assert parsed["ok"] is True
-        assert '含\"和}' in parsed["reason"] or '含"和}' in parsed["reason"]
+        assert '含"和}' in parsed["reason"] or '含"和}' in parsed["reason"]
 
     def test_nested_braces(self):
         """嵌套花括号"""

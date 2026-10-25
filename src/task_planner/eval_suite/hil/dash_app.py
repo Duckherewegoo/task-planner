@@ -23,55 +23,78 @@ def build_layout(review_path: Path) -> html.Div:
 
     rows = []
     for i, item in enumerate(items):
-        rows.append(html.Div([
-            html.H3(f"{item['case_id']} — {item.get('difficulty', '-')}"),
-            html.P(f"用户需求: {item.get('user_input', '')}"),
-            html.Div([
-                html.Span(f"确定性: {item.get('deterministic_score', 0):.2f}"),
-                html.Span(f"  评委: {item.get('jury_score', 0):.2f}"),
-                html.Span(f"  一致性: {item.get('consensus', 0):.2f}"),
-            ], style={"color": "#64748b", "fontSize": "13px"}),
-            html.Pre(
-                item.get("meta_review", ""),
-                style={"background": "#f8fafc", "padding": "10px",
-                       "borderRadius": "6px", "fontSize": "12px"},
-            ),
-            html.Div([
-                dcc.RadioItems(
-                    id={"type": "hil-status", "index": i},
-                    options=[
-                        {"label": "通过", "value": CaseStatus.APPROVED.value},
-                        {"label": "拒绝", "value": CaseStatus.REJECTED.value},
-                        {"label": "标记", "value": CaseStatus.FLAGGED.value},
-                    ],
-                    value=item.get("human_review", {}).get("status", "pending"),
-                    inline=True,
-                ),
-                dcc.Input(
-                    id={"type": "hil-score", "index": i},
-                    type="number", min=0, max=10, step=0.5,
-                    placeholder="人工评分 0-10",
-                ),
-                dcc.Textarea(
-                    id={"type": "hil-comment", "index": i},
-                    placeholder="人工评语...",
-                    style={"width": "100%", "height": "60px"},
-                ),
-            ], style={"marginTop": "12px"}),
-        ], style={
-            "padding": "16px", "border": "1px solid #e2e8f0",
-            "borderRadius": "10px", "marginBottom": "16px",
-            "background": "white",
-        }))
+        rows.append(
+            html.Div(
+                [
+                    html.H3(f"{item['case_id']} — {item.get('difficulty', '-')}"),
+                    html.P(f"用户需求: {item.get('user_input', '')}"),
+                    html.Div(
+                        [
+                            html.Span(f"确定性: {item.get('deterministic_score', 0):.2f}"),
+                            html.Span(f"  评委: {item.get('jury_score', 0):.2f}"),
+                            html.Span(f"  一致性: {item.get('consensus', 0):.2f}"),
+                        ],
+                        style={"color": "#64748b", "fontSize": "13px"},
+                    ),
+                    html.Pre(
+                        item.get("meta_review", ""),
+                        style={
+                            "background": "#f8fafc",
+                            "padding": "10px",
+                            "borderRadius": "6px",
+                            "fontSize": "12px",
+                        },
+                    ),
+                    html.Div(
+                        [
+                            dcc.RadioItems(
+                                id={"type": "hil-status", "index": i},
+                                options=[
+                                    {"label": "通过", "value": CaseStatus.APPROVED.value},
+                                    {"label": "拒绝", "value": CaseStatus.REJECTED.value},
+                                    {"label": "标记", "value": CaseStatus.FLAGGED.value},
+                                ],
+                                value=item.get("human_review", {}).get("status", "pending"),
+                                inline=True,
+                            ),
+                            dcc.Input(
+                                id={"type": "hil-score", "index": i},
+                                type="number",
+                                min=0,
+                                max=10,
+                                step=0.5,
+                                placeholder="人工评分 0-10",
+                            ),
+                            dcc.Textarea(
+                                id={"type": "hil-comment", "index": i},
+                                placeholder="人工评语...",
+                                style={"width": "100%", "height": "60px"},
+                            ),
+                        ],
+                        style={"marginTop": "12px"},
+                    ),
+                ],
+                style={
+                    "padding": "16px",
+                    "border": "1px solid #e2e8f0",
+                    "borderRadius": "10px",
+                    "marginBottom": "16px",
+                    "background": "white",
+                },
+            )
+        )
 
-    return html.Div([
-        html.H1("🔍 Eval Suite — HIL 人工审查"),
-        html.P("在下面填写人工评分和评语，点击保存导出结果。"),
-        html.Div(id="hil-items", children=rows),
-        html.Button("💾 保存审查结果", id="hil-save-btn", n_clicks=0),
-        html.Div(id="hil-save-status"),
-        dcc.Store(id="hil-review-path", data=str(review_path)),
-    ], style={"maxWidth": "900px", "margin": "40px auto", "padding": "24px"})
+    return html.Div(
+        [
+            html.H1("🔍 Eval Suite — HIL 人工审查"),
+            html.P("在下面填写人工评分和评语，点击保存导出结果。"),
+            html.Div(id="hil-items", children=rows),
+            html.Button("💾 保存审查结果", id="hil-save-btn", n_clicks=0),
+            html.Div(id="hil-save-status"),
+            dcc.Store(id="hil-review-path", data=str(review_path)),
+        ],
+        style={"maxWidth": "900px", "margin": "40px auto", "padding": "24px"},
+    )
 
 
 def main(review_path: str = "eval_reports/hil_review.json"):

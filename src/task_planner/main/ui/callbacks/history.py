@@ -37,18 +37,18 @@ def register() -> None:
             return [], "❌ 加载失败，请检查后端服务"
         if not tasks:
             return [], "暂无历史记录"
-        sorted_tasks = sorted(
-            tasks, key=lambda t: t.get("created", ""), reverse=True
-        )
+        sorted_tasks = sorted(tasks, key=lambda t: t.get("created", ""), reverse=True)
         options = []
         for t in sorted_tasks:
             raw_title = t.get("title") or ""
             safe_title = str(raw_title)[:30] if raw_title else "(无标题)"
             tid_suffix = str(t.get("task_id", ""))[-8:]
-            options.append({
-                "label": f"{safe_title} | {tid_suffix}",
-                "value": t["task_id"],
-            })
+            options.append(
+                {
+                    "label": f"{safe_title} | {tid_suffix}",
+                    "value": t["task_id"],
+                }
+            )
         return options, "请选择历史任务"
 
     @callback(
@@ -76,9 +76,7 @@ def register() -> None:
         try:
             data = await load_task_with_plan(task_id)
         except Exception as e:
-            logger.error(
-                "[History] 加载任务失败 task=%s: %s", task_id, e, exc_info=True
-            )
+            logger.error("[History] 加载任务失败 task=%s: %s", task_id, e, exc_info=True)
             return HistorySelectResult(
                 global_status="❌ 加载失败，请检查后端服务",
                 action_status="❌ 加载失败",
@@ -175,9 +173,7 @@ def register() -> None:
             clean_data = sanitize_node_for_user(dict(node_data))
             md_text = build_detail_markdown(clean_data)
         except Exception as e:
-            logger.error(
-                "[History] 构建节点详情失败 node=%s: %s", nid, e, exc_info=True
-            )
+            logger.error("[History] 构建节点详情失败 node=%s: %s", nid, e, exc_info=True)
             md_text = f"**⚠️ 节点详情加载失败**\n\n`{nid}`"
 
         return HistoryTapNodeResult(
@@ -206,9 +202,7 @@ def register() -> None:
             count = await batch_delete_tasks(ids)
             logger.info("[History] 删除成功 tasks=%s count=%d", ids, count)
         except Exception as e:
-            logger.error(
-                "[History] 删除失败 tasks=%s: %s", ids, e, exc_info=True
-            )
+            logger.error("[History] 删除失败 tasks=%s: %s", ids, e, exc_info=True)
             return no_update, no_update, "❌ 删除失败，请稍后重试或联系管理员"
 
         try:
@@ -263,9 +257,7 @@ def register() -> None:
                 dag, node_states, selected_nid, target_status="done"
             )
         except Exception as e:
-            logger.error(
-                "[NodeAction] 标记完成失败 node=%s: %s", selected_nid, e, exc_info=True
-            )
+            logger.error("[NodeAction] 标记完成失败 node=%s: %s", selected_nid, e, exc_info=True)
             return no_update, no_update, f"❌ 状态更新失败: {selected_nid}"
         logger.info("[NodeAction] 手动标记完成 node=%s", selected_nid)
         return new_states, elements, status_msg
@@ -288,9 +280,7 @@ def register() -> None:
                 dag, node_states, selected_nid, target_status="skipped"
             )
         except Exception as e:
-            logger.error(
-                "[NodeAction] 跳过失败 node=%s: %s", selected_nid, e, exc_info=True
-            )
+            logger.error("[NodeAction] 跳过失败 node=%s: %s", selected_nid, e, exc_info=True)
             return no_update, no_update, f"❌ 跳过操作失败: {selected_nid}"
         logger.info("[NodeAction] 手动跳过 node=%s", selected_nid)
         return new_states, elements, status_msg
@@ -313,9 +303,7 @@ def register() -> None:
                 dag, node_states, selected_nid, target_status="failed"
             )
         except Exception as e:
-            logger.error(
-                "[NodeAction] 标记失败异常 node=%s: %s", selected_nid, e, exc_info=True
-            )
+            logger.error("[NodeAction] 标记失败异常 node=%s: %s", selected_nid, e, exc_info=True)
             return no_update, no_update, f"❌ 标记失败操作异常: {selected_nid}"
         logger.warning("[NodeAction] 手动标记失败 node=%s", selected_nid)
         return new_states, elements, status_msg

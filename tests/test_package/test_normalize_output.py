@@ -8,6 +8,7 @@ test_normalize_output.py — 锁定 P0-2 修复
 
 ⚠️ 任何人把返回的 "details" 改回 "content"，这些测试会立刻红。
 """
+
 from __future__ import annotations
 
 import pytest
@@ -51,8 +52,8 @@ class TestNormalizeLlmOutput:
     def test_non_dict_input_returns_empty(self):
         """非 dict 输入 → {}"""
         assert _normalize_llm_output([1, 2, 3], REFINE_KEYS) == {}  # type: ignore
-        assert _normalize_llm_output("string", REFINE_KEYS) == {}   # type: ignore
-        assert _normalize_llm_output(None, REFINE_KEYS) == {}        # type: ignore
+        assert _normalize_llm_output("string", REFINE_KEYS) == {}  # type: ignore
+        assert _normalize_llm_output(None, REFINE_KEYS) == {}  # type: ignore
 
     def test_meta_not_dict_resets_to_empty(self):
         """meta 是字符串 → 重置为 {}"""

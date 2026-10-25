@@ -69,9 +69,7 @@ async def recognize_intent(
     # 正则硬拦截
     for pattern in SKIP_PLANNING_PATTERNS:
         if pattern.search(user_input):
-            logger.info(
-                "[Intent] 显式拒绝规划命中 (req=%s): %s", req_id, pattern.pattern
-            )
+            logger.info("[Intent] 显式拒绝规划命中 (req=%s): %s", req_id, pattern.pattern)
             return {
                 "needs_planning": False,
                 "category": "consultation",
@@ -108,9 +106,7 @@ async def recognize_intent(
         if intent.get("needs_planning") is True:
             for pattern in SKIP_PLANNING_PATTERNS:
                 if pattern.search(user_input):
-                    logger.warning(
-                        "[Intent] LLM误判planning=True，正则二次拦截 (req=%s)", req_id
-                    )
+                    logger.warning("[Intent] LLM误判planning=True，正则二次拦截 (req=%s)", req_id)
                     intent["needs_planning"] = False
                     intent["category"] = "consultation"
                     intent["summary"] = "用户显式拒绝规划(LLM纠偏)"
@@ -173,7 +169,8 @@ async def generate_plan(
     error_msg = "规划生成异常"
     try:
         prompt = render_template(
-            PLANNER_PROMPT, req_id,
+            PLANNER_PROMPT,
+            req_id,
             user_input=user_input,
             category=intent_info.get("category", "other"),
             summary=intent_info.get("summary", ""),
@@ -240,9 +237,7 @@ async def refine_node(
         }
 
     if not isinstance(node, dict):
-        logger.error(
-            "[Refine] node 类型非法: %s (req=%s)", type(node).__name__, req_id
-        )
+        logger.error("[Refine] node 类型非法: %s (req=%s)", type(node).__name__, req_id)
         return _fallback("node参数类型非法", {})
 
     if _hub.dev.USE_MOCK_LLM:
@@ -252,7 +247,8 @@ async def refine_node(
 
     try:
         prompt = render_template(
-            NODE_REFINE_PROMPT, req_id,
+            NODE_REFINE_PROMPT,
+            req_id,
             node_json=json.dumps(node, ensure_ascii=False),
             user_input=user_input,
             category=category,
@@ -271,7 +267,8 @@ async def refine_node(
             if key not in result or result[key] is None:
                 logger.warning(
                     "[Refine] 归一化后仍缺少字段 '%s'，使用原始节点值兜底 (req=%s)",
-                    key, req_id,
+                    key,
+                    req_id,
                 )
                 result[key] = node.get(key, "")
         return result
@@ -323,9 +320,7 @@ async def execute_node_llm(
 
         parsed = extract_json(raw)
         if not parsed:
-            logger.warning(
-                "[Executor] LLM返回无法解析为JSON (req=%s): %s", rid, raw[:200]
-            )
+            logger.warning("[Executor] LLM返回无法解析为JSON (req=%s): %s", rid, raw[:200])
             return False, f"⚠️ 执行结果解析失败，原始输出: {raw[:300]}"
 
         success = bool(parsed.get("success", False))

@@ -1,4 +1,5 @@
 """cli.py — eval_suite 命令行入口。"""
+
 import argparse
 import asyncio
 import json
@@ -23,13 +24,17 @@ def _load_dataset(d: Path) -> list[GoldenCase]:
             diff = Difficulty(data.get("difficulty", "medium"))
         except ValueError:
             diff = Difficulty.MEDIUM
-        out.append(GoldenCase(
-            case_id=data["case_id"], user_input=data["user_input"],
-            expected_plan=data["expected_plan"],
-            expected_intent=data["expected_intent"],
-            tags=tuple(data.get("tags", [])),
-            difficulty=diff, validated=True,
-        ))
+        out.append(
+            GoldenCase(
+                case_id=data["case_id"],
+                user_input=data["user_input"],
+                expected_plan=data["expected_plan"],
+                expected_intent=data["expected_intent"],
+                tags=tuple(data.get("tags", [])),
+                difficulty=diff,
+                validated=True,
+            )
+        )
     return out
 
 
@@ -51,9 +56,7 @@ async def _cmd_run(args):
     judge = None
     if args.jury:
         models = args.judge_models or ["qwen3.7-plus", "qwen3.7-flash"]
-        judge = CalibratedJudge([
-            JudgeConfig(model=m, name=f"j{i}") for i, m in enumerate(models)
-        ])
+        judge = CalibratedJudge([JudgeConfig(model=m, name=f"j{i}") for i, m in enumerate(models)])
 
     results: list[CaseResult] = []
     for case in cases:
@@ -61,12 +64,18 @@ async def _cmd_run(args):
         trace = await run_agent(case.case_id, case.user_input, use_mock=use_mock)
         det = score_deterministic(trace, case)
         jury = await judge.evaluate(trace, case) if (judge and not trace.error) else None
-        results.append(CaseResult(
-            case_id=case.case_id, user_input=case.user_input,
-            difficulty=case.difficulty, duration_sec=trace.duration_sec,
-            error=trace.error, mock_mode=trace.mock_mode,
-            deterministic=det, jury=jury,
-        ))
+        results.append(
+            CaseResult(
+                case_id=case.case_id,
+                user_input=case.user_input,
+                difficulty=case.difficulty,
+                duration_sec=trace.duration_sec,
+                error=trace.error,
+                mock_mode=trace.mock_mode,
+                deterministic=det,
+                jury=jury,
+            )
+        )
         print(f"    确定性={det.overall:.2f}")
 
     out = Path(args.output)

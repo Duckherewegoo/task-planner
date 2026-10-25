@@ -6,6 +6,7 @@ TaskState 新增字段后，如果 _make_initial_state 没同步，会静默丢�
 
 本测试通过反射对比 TaskState 的注解字段，检测漏写。
 """
+
 from __future__ import annotations
 
 import pytest
@@ -15,7 +16,6 @@ from task_planner.services.agent.state import make_initial_state as _make_initia
 
 
 class TestMakeInitialState:
-
     def test_all_typed_dict_fields_present(self):
         """⚠️ 关键：TaskState 声明的字段都必须出现在 initial_state 中"""
         state = _make_initial_state("测试输入", "thread-1")
@@ -25,9 +25,7 @@ class TestMakeInitialState:
         actual = set(state.keys())
 
         missing = expected - actual
-        assert not missing, \
-            f"initial_state 漏写字段: {missing}. " \
-            f"请在 _make_initial_state 中补齐。"
+        assert not missing, f"initial_state 漏写字段: {missing}. 请在 _make_initial_state 中补齐。"
 
     def test_schema_version_present(self):
         """P2 修复：schema_version 字段存在"""

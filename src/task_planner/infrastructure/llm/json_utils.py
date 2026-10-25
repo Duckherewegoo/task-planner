@@ -80,9 +80,7 @@ def clean_json_str(text: str) -> str:
         json.loads(text)
         return text
     except json.JSONDecodeError as e:
-        logger.debug(
-            "[LLM] clean_json_str 直接解析失败: %s | text前100字符: %s", e, text[:100]
-        )
+        logger.debug("[LLM] clean_json_str 直接解析失败: %s | text前100字符: %s", e, text[:100])
 
     # 6. 降级：找第一个 { 到最后一个 }
     start = text.find("{")
@@ -115,14 +113,10 @@ def extract_json(raw: str) -> dict:
         if isinstance(result, dict):
             logger.debug("[LLM] extract_json 成功, keys=%s", list(result.keys()))
         else:
-            logger.warning(
-                "[LLM] extract_json 返回值非dict: type=%s", type(result).__name__
-            )
+            logger.warning("[LLM] extract_json 返回值非dict: type=%s", type(result).__name__)
         return result if isinstance(result, dict) else {}
     except json.JSONDecodeError as e:
-        logger.warning(
-            "[LLMClient] JSON 解析失败: %s | 原始前200字符: %s", e, raw[:200]
-        )
+        logger.warning("[LLMClient] JSON 解析失败: %s | 原始前200字符: %s", e, raw[:200])
         return {}
     except Exception as e:
         logger.error(
@@ -197,9 +191,7 @@ def normalize_llm_output(raw: dict, expected_keys: list[str]) -> dict:
         }
 
     # P3: 兜底
-    logger.warning(
-        "[LLM] normalize_llm_output 无法识别的输出格式: keys=%s", list(raw.keys())
-    )
+    logger.warning("[LLM] normalize_llm_output 无法识别的输出格式: keys=%s", list(raw.keys()))
     return raw
 
 

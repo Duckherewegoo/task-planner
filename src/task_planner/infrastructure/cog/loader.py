@@ -23,9 +23,7 @@ class ConfigLoader:
     def __init__(self, store: ConfigStore) -> None:
         self._store = store
 
-    def load(
-        self, schema_path: Path, user_path: Path | None = None
-    ) -> None:
+    def load(self, schema_path: Path, user_path: Path | None = None) -> None:
         schema = self._read_yaml(schema_path)
         overrides = self._read_yaml(user_path) if user_path else {}
 
@@ -50,17 +48,23 @@ class ConfigLoader:
         default = spec["default"]
         secret = spec.get("secret", False)
         from_env = spec.get("from_env", False)
-        env_name = spec.get("env", name)   # 允许自定义变量名
+        env_name = spec.get("env", name)  # 允许自定义变量名
 
         # ── 优先级 1：环境变量 ──
         if from_env:
             raw = os.getenv(env_name)
             value = self._coerce(raw, t) if raw is not None else default
             return ConfigEntry(
-                name=name, value=value, default=default,
-                purpose=spec["purpose"], scope=scope, type=t,
-                section=section, secret=secret,
-                from_env=True, env_name=env_name,
+                name=name,
+                value=value,
+                default=default,
+                purpose=spec["purpose"],
+                scope=scope,
+                type=t,
+                section=section,
+                secret=secret,
+                from_env=True,
+                env_name=env_name,
             )
 
         # ── 优先级 2：user.yaml（仅 scope=user） ──
@@ -71,10 +75,16 @@ class ConfigLoader:
             value = default
 
         return ConfigEntry(
-            name=name, value=value, default=default,
-            purpose=spec["purpose"], scope=scope, type=t,
-            section=section, secret=secret,
-            from_env=False, env_name=env_name,
+            name=name,
+            value=value,
+            default=default,
+            purpose=spec["purpose"],
+            scope=scope,
+            type=t,
+            section=section,
+            secret=secret,
+            from_env=False,
+            env_name=env_name,
         )
 
     # ── 类型转换 ──

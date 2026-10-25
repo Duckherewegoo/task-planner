@@ -33,22 +33,59 @@ _DEFAULT_WHITELIST = Path(
 )
 
 # ── 过滤规则 ──
-_MIN_WORD_LEN = 2      # 单字/单数字/单字母一律过滤
-_MAX_WORD_LEN = 50     # 超长多半是 URL 或误录
+_MIN_WORD_LEN = 2  # 单字/单数字/单字母一律过滤
+_MAX_WORD_LEN = 50  # 超长多半是 URL 或误录
 
 # ── 停用词：明确不作为违禁词的高频常用词 ──
 # 这层是"最后一道保险"：即使某词库里误录了，也不会进匹配器
-_COMMON_WORDS: frozenset[str] = frozenset({
-    # 代词
-    "一个", "这个", "那个", "这些", "那些", "什么", "怎么", "怎样",
-    "我们", "你们", "他们", "她们", "它们",
-    # 连词/副词
-    "因为", "所以", "但是", "不过", "而且", "就是", "如果", "虽然",
-    "可以", "应该", "可能", "也许", "一定", "必须",
-    # 助词/常用语
-    "的话", "一下", "进行", "通过", "关于", "对于", "由于", "为了",
-    "需要", "想要", "希望", "谢谢", "请问", "麻烦",
-})
+_COMMON_WORDS: frozenset[str] = frozenset(
+    {
+        # 代词
+        "一个",
+        "这个",
+        "那个",
+        "这些",
+        "那些",
+        "什么",
+        "怎么",
+        "怎样",
+        "我们",
+        "你们",
+        "他们",
+        "她们",
+        "它们",
+        # 连词/副词
+        "因为",
+        "所以",
+        "但是",
+        "不过",
+        "而且",
+        "就是",
+        "如果",
+        "虽然",
+        "可以",
+        "应该",
+        "可能",
+        "也许",
+        "一定",
+        "必须",
+        # 助词/常用语
+        "的话",
+        "一下",
+        "进行",
+        "通过",
+        "关于",
+        "对于",
+        "由于",
+        "为了",
+        "需要",
+        "想要",
+        "希望",
+        "谢谢",
+        "请问",
+        "麻烦",
+    }
+)
 
 # ── 分级：文件名 → tier ──
 # 说明：明确列出的进 block（拦截），其余默认 review（标记待审）
@@ -59,7 +96,6 @@ _FILE_TIER_MAP: dict[str, str] = {
     "暴恐词库.txt": "block",
     "色情词库.txt": "block",
     "涉枪涉爆.txt": "block",
-
     # —— Review：默认待审 ——
     "COVID-19词库.txt": "review",
     "GFW补充词库.txt": "review",
@@ -82,12 +118,12 @@ _IGNORE_DIR_NAMES = {".git", "__pycache__", ".idea", ".vscode", ".venv", "venv"}
 # ── AC自动机（可选依赖） ──
 try:
     import ahocorasick  # type: ignore
+
     _HAS_AHO = True
 except ImportError:
     _HAS_AHO = False
     logger.warning(
-        "pyahocorasick 未安装，将退化为朴素子串匹配。"
-        "安装命令: pip install pyahocorasick"
+        "pyahocorasick 未安装，将退化为朴素子串匹配。安装命令: pip install pyahocorasick"
     )
 
 
@@ -241,7 +277,7 @@ def _parse_words(text: str) -> list[str]:
             continue
         if len(w) < _MIN_WORD_LEN or len(w) > _MAX_WORD_LEN:
             continue
-        if w in _COMMON_WORDS:          # ← 新增
+        if w in _COMMON_WORDS:  # ← 新增
             continue
         out.append(w)
     return out
@@ -276,16 +312,22 @@ def _load_words_by_tier(root: Path) -> tuple[set[str], set[str]]:
 
         (block if tier == "block" else review).update(clean)
         file_count += 1
-        logger.debug("[%s] %s → %d 词 (跳过 %d)",
-                     tier, txt.name, len(clean), len(words) - len(clean))
+        logger.debug(
+            "[%s] %s → %d 词 (跳过 %d)", tier, txt.name, len(clean), len(words) - len(clean)
+        )
 
     review -= block
     logger.info(
         "词库加载完成: %d 文件, block=%d, review=%d, 跳过停用词 %d 个: %s",
-        file_count, len(block), len(review),
-        len(skipped_common), sorted(skipped_common)[:10],
+        file_count,
+        len(block),
+        len(review),
+        len(skipped_common),
+        sorted(skipped_common)[:10],
     )
     return block, review
+
+
 def _load_whitelist(path: Path) -> set[str]:
     if not path.exists():
         logger.info("白名单不存在，跳过: %s", path)
@@ -345,12 +387,12 @@ def __getattr__(name: str):
     PEP 562：`from blocked_words import BLOCKED_WORDS` 会触发首次加载。
     不直接定义模块级变量，避免 import 时立即扫盘。
     """
-    if name == "BLOCKED_WORDS":      # 全部词（block + review）
+    if name == "BLOCKED_WORDS":  # 全部词（block + review）
         m = get_matcher()
         return frozenset(m.all_words)
-    if name == "BLOCK_WORDS":        # 仅 block 级
+    if name == "BLOCK_WORDS":  # 仅 block 级
         return frozenset(get_matcher().block_words)
-    if name == "REVIEW_WORDS":       # 仅 review 级
+    if name == "REVIEW_WORDS":  # 仅 review 级
         return frozenset(get_matcher().review_words)
     if name == "WHITELIST":
         return frozenset(get_matcher().whitelist)

@@ -42,10 +42,15 @@ class SessionStore(Protocol):
     """
 
     async def get(self, tid: str) -> Any | None: ...
-    async def set(self, tid: str, session: Any, *, created_at: float | None = None,) -> None: ...
+    async def set(
+        self,
+        tid: str,
+        session: Any,
+        *,
+        created_at: float | None = None,
+    ) -> None: ...
     async def pop(self, tid: str) -> Any | None: ...
     async def cleanup_stale(self, ttl: int) -> int: ...
-
 
 
 __all__ = ["SessionStore"]

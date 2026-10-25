@@ -25,11 +25,7 @@ async def resolve_dag_data(
     """
     task_id = None
     if history_task_ids:
-        task_id = (
-            history_task_ids[0]
-            if isinstance(history_task_ids, list)
-            else history_task_ids
-        )
+        task_id = history_task_ids[0] if isinstance(history_task_ids, list) else history_task_ids
 
     if task_id:
         try:
@@ -37,7 +33,9 @@ async def resolve_dag_data(
         except Exception as e:
             logger.error(
                 "[Export] 加载历史任务失败 task=%s: %s",
-                task_id, e, exc_info=True,
+                task_id,
+                e,
+                exc_info=True,
             )
             data = None
 
@@ -86,8 +84,7 @@ def update_node_and_render(
 
     total = len(nodes)
     counts = {
-        s: sum(1 for v in new_states.values() if v == s)
-        for s in ("done", "skipped", "failed")
+        s: sum(1 for v in new_states.values() if v == s) for s in ("done", "skipped", "failed")
     }
     processed = counts["done"] + counts["skipped"]
 
@@ -126,10 +123,7 @@ def auto_unlock_downstream(
         current_state = new_states.get(tgt, "pending")
         if current_state not in ("pending", "blocked"):
             continue
-        all_satisfied = all(
-            new_states.get(str(e["from"])) == "done"
-            for e in relevant_in_edges
-        )
+        all_satisfied = all(new_states.get(str(e["from"])) == "done" for e in relevant_in_edges)
         if all_satisfied:
             new_states[tgt] = "running"
 
@@ -153,7 +147,10 @@ async def load_and_fill_query(task_ids, action_label: str) -> tuple:
     except Exception as e:
         logger.error(
             "[HistoryAction] %s 加载失败 task=%s: %s",
-            action_label, task_id, e, exc_info=True,
+            action_label,
+            task_id,
+            e,
+            exc_info=True,
         )
         return "❌ 任务数据加载失败，请稍后重试", no_update, no_update
 
@@ -171,7 +168,9 @@ async def load_and_fill_query(task_ids, action_label: str) -> tuple:
 
     logger.info(
         "[HistoryAction] %s 回填成功 task=%s query_len=%d",
-        action_label, task_id, len(raw_query),
+        action_label,
+        task_id,
+        len(raw_query),
     )
     return msg, "tab-new", raw_query
 
@@ -190,7 +189,7 @@ def safe_elapsed(task_start_time, now) -> float:
         if start <= 0:
             return 0.0
         return round(now - start, 1)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return 0.0
 
 

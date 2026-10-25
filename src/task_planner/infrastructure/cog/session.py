@@ -30,9 +30,7 @@ class ConfigSession:
         entry = self._store.read(name)
         self._guard.assert_writable(entry, self._role)
         if not isinstance(value, entry.type):
-            raise TypeError(
-                f"{name} 期望 {entry.type.__name__}，收到 {type(value).__name__}"
-            )
+            raise TypeError(f"{name} 期望 {entry.type.__name__}，收到 {type(value).__name__}")
         self._store.update(entry.with_value(value))
 
     # ---- Create ----

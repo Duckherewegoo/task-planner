@@ -33,6 +33,11 @@ class HumanReviewError(EvalSuiteError):
 
 
 __all__ = [
-    "EvalSuiteError", "GoldenGenerationError", "GoldenValidationError",
-    "AgentRunError", "JudgeError", "JuryAggregationError", "HumanReviewError",
+    "EvalSuiteError",
+    "GoldenGenerationError",
+    "GoldenValidationError",
+    "AgentRunError",
+    "JudgeError",
+    "JuryAggregationError",
+    "HumanReviewError",
 ]

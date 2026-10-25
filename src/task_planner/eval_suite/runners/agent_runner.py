@@ -26,6 +26,7 @@ def _default_run_fn() -> Callable:
     global _RUN_FN_CACHE
     if _RUN_FN_CACHE is None:
         from task_planner.services.agent import run_task_stream
+
         _RUN_FN_CACHE = run_task_stream
     return _RUN_FN_CACHE
 

@@ -53,7 +53,9 @@ async def update_node_status(
 
     logger.info(
         "[DB] 节点状态更新 %s#%d → %s",
-        task_id, node_id, status_name(new_status),
+        task_id,
+        node_id,
+        status_name(new_status),
     )
     return True
 
@@ -102,7 +104,9 @@ async def get_node_status(task_id: str, node_id: int) -> int | None:
     只读操作，不打 warning（quiet=True）。
     """
     plan_id = await resolve_plan_id(
-        task_id, op="get_node_status", quiet=True,
+        task_id,
+        op="get_node_status",
+        quiet=True,
     )
     if not plan_id:
         return None

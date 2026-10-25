@@ -134,7 +134,7 @@ def _safe_int(val: Any, default: int = 0) -> int:
     """容忍 None / 字符串 / 非法值"""
     try:
         return int(val)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return default
 
 
@@ -182,7 +182,9 @@ def _warn_empty_endpoint(src: Any, tgt: Any) -> None:
         _warned_empty_endpoints.clear()
     _warned_empty_endpoints.add(key)
     logger.warning(
-        "Edge with empty endpoint detected: from=%r, to=%r", src, tgt,
+        "Edge with empty endpoint detected: from=%r, to=%r",
+        src,
+        tgt,
     )
 
 
@@ -218,7 +220,10 @@ def get_edge_type(edge: dict[str, Any]) -> str:
     if normalized:
         logger.warning(
             "Unknown edge type %r (from=%s, to=%s), falling back to %s",
-            raw, edge.get("from"), edge.get("to"), DEFAULT_EDGE_TYPE,
+            raw,
+            edge.get("from"),
+            edge.get("to"),
+            DEFAULT_EDGE_TYPE,
         )
     return DEFAULT_EDGE_TYPE
 
@@ -233,9 +238,9 @@ def _status_icon(status_code: int) -> str:
 
 # P2-5：统一节点 icon 判断（原 dag_to_cytoscape 里的 if-elif 抽出）
 _USER_STATE_ICON = {
-    "done":    "✅",
+    "done": "✅",
     "running": "🔄",
-    "failed":  "❌",
+    "failed": "❌",
     "skipped": "⏭️",
     "timeout": "⏰",
 }
@@ -250,9 +255,9 @@ def _icon_for_node(user_state: str | None, status: int) -> str:
 
 # P2-4：dict 查表替代 if-elif 链
 _USER_STATE_CLASS = {
-    "done":    "state-done",
+    "done": "state-done",
     "running": "state-running",
-    "failed":  "state-failed",
+    "failed": "state-failed",
     "skipped": "state-skipped",
     "timeout": "state-timeout",
 }
@@ -281,16 +286,12 @@ def _node_state_class(
 
     # 无 user_state 也无 status → 看硬依赖
     my_in_edges = [e for e in edges if str(e.get("to")) == nid]
-    hard_in_edges = [
-        e for e in my_in_edges if get_edge_type(e) == EDGE_TYPE_HARD
-    ]
+    hard_in_edges = [e for e in my_in_edges if get_edge_type(e) == EDGE_TYPE_HARD]
 
     if not hard_in_edges:
         return "state-ready"
 
-    all_hard_done = all(
-        str(e.get("from")) in done_nodes for e in hard_in_edges
-    )
+    all_hard_done = all(str(e.get("from")) in done_nodes for e in hard_in_edges)
     return "state-ready" if all_hard_done else "state-blocked"
 
 
@@ -319,17 +320,13 @@ def dag_to_cytoscape(
     elements: list[dict[str, Any]] = []
 
     # 已完成节点集合
-    done_nodes: set[str] = {
-        nid for nid, st in node_states.items() if st == "done"
-    }
+    done_nodes: set[str] = {nid for nid, st in node_states.items() if st == "done"}
     for n in nodes:
         if _safe_int(n.get("status"), default=0) == 2:
             done_nodes.add(str(n["id"]))
 
     # 循环检测（需先转 tuple 给 lru_cache）
-    edge_tuple = tuple(
-        (str(e.get("from", "")), str(e.get("to", ""))) for e in edges
-    )
+    edge_tuple = tuple((str(e.get("from", "")), str(e.get("to", ""))) for e in edges)
     cycle_edge_ids = _detect_cycles_cached(edge_tuple)
 
     # ── 节点 ──
@@ -350,35 +347,27 @@ def dag_to_cytoscape(
 
         node_width = max(120, _label_length(label) * 10 + 40)
 
-        elements.append({
-            "data": {
-                "id": nid,
-                "label": label,
-                "node_name": name,
-                "state": user_state or "pending",
-                "status": status,
-                "status_text": icon,
-                "details": str(
-                    node.get("details")
-                    or node.get("detail")
-                    or "暂无行动细节"
-                ),
-                "preconditions": [str(p) for p in pre],
-                "preconditions_text": (
-                    "；".join(str(p) for p in pre) if pre else "无"
-                ),
-                "postconditions": [str(p) for p in post],
-                "postconditions_text": (
-                    "；".join(str(p) for p in post) if post else "无"
-                ),
-                "retry_count": _safe_int(node.get("retry_count"), default=0),
-                "retry_policy": str(
-                    meta.get("retry_policy", "失败后重试，最多3次")
-                ),
-                "width": node_width,
-            },
-            "classes": cls,
-        })
+        elements.append(
+            {
+                "data": {
+                    "id": nid,
+                    "label": label,
+                    "node_name": name,
+                    "state": user_state or "pending",
+                    "status": status,
+                    "status_text": icon,
+                    "details": str(node.get("details") or node.get("detail") or "暂无行动细节"),
+                    "preconditions": [str(p) for p in pre],
+                    "preconditions_text": ("；".join(str(p) for p in pre) if pre else "无"),
+                    "postconditions": [str(p) for p in post],
+                    "postconditions_text": ("；".join(str(p) for p in post) if post else "无"),
+                    "retry_count": _safe_int(node.get("retry_count"), default=0),
+                    "retry_policy": str(meta.get("retry_policy", "失败后重试，最多3次")),
+                    "width": node_width,
+                },
+                "classes": cls,
+            }
+        )
 
     # ── 边 ──
     for edge in edges:
@@ -398,23 +387,28 @@ def dag_to_cytoscape(
         label_display_len = _label_length(raw_label)
         edge_text_margin = max(10, min(40, label_display_len * 2))
 
-        elements.append({
-            "data": {
-                "id": eid,
-                "source": f,
-                "target": t,
-                "label": short,
-                "full_label": raw_label,
-                "label_length": label_display_len,
-                "text_margin_y": edge_text_margin,
-                "edge_type": get_edge_type(edge),
-            },
-            "classes": cls,
-        })
+        elements.append(
+            {
+                "data": {
+                    "id": eid,
+                    "source": f,
+                    "target": t,
+                    "label": short,
+                    "full_label": raw_label,
+                    "label_length": label_display_len,
+                    "text_margin_y": edge_text_margin,
+                    "edge_type": get_edge_type(edge),
+                },
+                "classes": cls,
+            }
+        )
 
     logger.debug(
         "[CytoAdapter] 转换完成 | 节点=%d 边=%d 循环边=%d 状态数=%d",
-        len(nodes), len(edges), len(cycle_edge_ids), len(node_states),
+        len(nodes),
+        len(edges),
+        len(cycle_edge_ids),
+        len(node_states),
     )
     return elements
 
@@ -499,9 +493,7 @@ def build_detail_markdown(node_data: dict[str, Any] | None) -> str:
     return "\n".join(lines)
 
 
-def build_history_detail_markdown(
-    task_id: str, nodes: list[dict[str, Any]]
-) -> str:
+def build_history_detail_markdown(task_id: str, nodes: list[dict[str, Any]]) -> str:
     """生成历史任务详情的 Markdown 文本"""
     lines = [
         f"## 📋 任务 `{task_id[-8:]}`",

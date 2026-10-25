@@ -15,15 +15,11 @@ def validate_intent(intent: dict, user_input: str) -> dict:
     validated = dict(intent)
 
     if validated.get("category") not in VALID_INTENT_CATEGORIES:
-        logger.warning(
-            "[Intent] 非法 category=%s, 降级为 other", validated.get("category")
-        )
+        logger.warning("[Intent] 非法 category=%s, 降级为 other", validated.get("category"))
         validated["category"] = "other"
 
     if validated.get("complexity") not in VALID_INTENT_COMPLEXITIES:
-        logger.warning(
-            "[Intent] 非法 complexity=%s, 降级为 medium", validated.get("complexity")
-        )
+        logger.warning("[Intent] 非法 complexity=%s, 降级为 medium", validated.get("complexity"))
         validated["complexity"] = "medium"
 
     return validated

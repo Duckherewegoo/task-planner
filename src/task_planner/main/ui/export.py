@@ -64,14 +64,16 @@ def generate_html_export(nodes, edges, task_id) -> str:
         elements_list.append({"data": {"id": nid, "label": label, "detail": detail}})
 
     for i, e in enumerate(edges):
-        elements_list.append({
-            "data": {
-                "id": f"e{i}",
-                "source": str(e["from"]),
-                "target": str(e["to"]),
-                "label": e.get("label", ""),
+        elements_list.append(
+            {
+                "data": {
+                    "id": f"e{i}",
+                    "source": str(e["from"]),
+                    "target": str(e["to"]),
+                    "label": e.get("label", ""),
+                }
             }
-        })
+        )
 
     safe_json = json.dumps(elements_list, ensure_ascii=False).replace("</", r"<\/")
 
@@ -138,7 +140,7 @@ def export_html(nodes, edges, task_id_str):
 
 DATA_EXPORT_STRATEGIES = {
     "json": export_json,
-    "dot":  export_dot,
+    "dot": export_dot,
     "html": export_html,
 }
 
@@ -148,19 +150,25 @@ DATA_EXPORT_STRATEGIES = {
 # ═══════════════════════════════════════════════════════════════════
 def export_svg_bytes(nodes, edges, node_states, title):
     return export_dag_to_svg(
-        nodes=nodes, edges=edges,
+        nodes=nodes,
+        edges=edges,
         output_path=None,
         node_states=node_states,
-        title=title, dpi=200,
+        title=title,
+        dpi=200,
     )
 
 
 def export_png_bytes(nodes, edges, node_states, title):
     return export_dag_to_png(
-        nodes=nodes, edges=edges,
+        nodes=nodes,
+        edges=edges,
         output_path=None,
         node_states=node_states,
-        title=title, width=1600, height=1200, dpi=200,
+        title=title,
+        width=1600,
+        height=1200,
+        dpi=200,
     )
 
 

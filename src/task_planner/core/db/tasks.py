@@ -58,7 +58,11 @@ async def create_task_with_plan(
         db["tasks"].insert_one(task_doc)
         logger.info(
             "[DB] 创建 Task=%s / Plan=%s (nodes=%d, edges=%d, req=%s)",
-            task_id, plan_id, len(plan_doc["nodes"]), len(plan_doc["edges"]), rid,
+            task_id,
+            plan_id,
+            len(plan_doc["nodes"]),
+            len(plan_doc["edges"]),
+            rid,
         )
         return task_doc, plan_doc
     except DuplicateKeyError as e:
@@ -171,15 +175,17 @@ async def list_tasks(limit: int = 50) -> list[dict[str, Any]]:
         else:
             created_str = ""
 
-        results.append({
-            "task_id": t["task_id"],
-            "title": f"{prefix} {title}",
-            "status": t.get("status", 0),
-            "valid": t.get("valid", True),
-            "retry": f"{t.get('retry_count', 0)}/{t.get('max_retries', 3)}",
-            "has_plan": has_plan,
-            "created": created_str,
-        })
+        results.append(
+            {
+                "task_id": t["task_id"],
+                "title": f"{prefix} {title}",
+                "status": t.get("status", 0),
+                "valid": t.get("valid", True),
+                "retry": f"{t.get('retry_count', 0)}/{t.get('max_retries', 3)}",
+                "has_plan": has_plan,
+                "created": created_str,
+            }
+        )
     return results
 
 
@@ -208,10 +214,12 @@ async def mark_task_success(task_id: str) -> None:
     db = get_db()
     result = db["tasks"].update_one(
         {"task_id": task_id, "status": {"$nin": list(TERMINAL_STATUSES)}},
-        {"$set": {
-            "status": TASK_STATUS["SUCCESS"],
-            "updated_at": datetime.now(UTC),
-        }},
+        {
+            "$set": {
+                "status": TASK_STATUS["SUCCESS"],
+                "updated_at": datetime.now(UTC),
+            }
+        },
     )
     if result.modified_count == 0:
         logger.warning("[DB] mark_task_success: 任务 %s 已是终态或不存在", task_id)
@@ -221,11 +229,13 @@ async def mark_task_failed(task_id: str, error: str = "") -> None:
     db = get_db()
     db["tasks"].update_one(
         {"task_id": task_id},
-        {"$set": {
-            "status": TASK_STATUS["FAILED"],
-            "error_msg": error,
-            "updated_at": datetime.now(UTC),
-        }},
+        {
+            "$set": {
+                "status": TASK_STATUS["FAILED"],
+                "error_msg": error,
+                "updated_at": datetime.now(UTC),
+            }
+        },
     )
 
 
@@ -233,11 +243,13 @@ async def mark_task_timeout(task_id: str) -> None:
     db = get_db()
     db["tasks"].update_one(
         {"task_id": task_id},
-        {"$set": {
-            "status": TASK_STATUS["TIMEOUT"],
-            "error_msg": "超过总时限",
-            "updated_at": datetime.now(UTC),
-        }},
+        {
+            "$set": {
+                "status": TASK_STATUS["TIMEOUT"],
+                "error_msg": "超过总时限",
+                "updated_at": datetime.now(UTC),
+            }
+        },
     )
 
 
@@ -245,10 +257,12 @@ async def mark_task_running(task_id: str) -> None:
     db = get_db()
     db["tasks"].update_one(
         {"task_id": task_id},
-        {"$set": {
-            "status": TASK_STATUS["RUNNING"],
-            "updated_at": datetime.now(UTC),
-        }},
+        {
+            "$set": {
+                "status": TASK_STATUS["RUNNING"],
+                "updated_at": datetime.now(UTC),
+            }
+        },
     )
 
 
@@ -275,9 +289,7 @@ async def batch_delete_tasks(task_ids: list[str]) -> int:
     if not task_ids:
         return 0
     db = get_db()
-    cursor = db["tasks"].find(
-        {"task_id": {"$in": task_ids}}, {"plan_id": 1}
-    )
+    cursor = db["tasks"].find({"task_id": {"$in": task_ids}}, {"plan_id": 1})
     plan_ids = []
     for t in cursor:
         if t.get("plan_id"):

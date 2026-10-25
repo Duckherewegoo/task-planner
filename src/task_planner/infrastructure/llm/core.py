@@ -49,7 +49,11 @@ async def async_call_llm(
             async with asyncio.timeout(timeout):
                 logger.debug(
                     "[LLMClient] 调用模型 %s (第%d次, timeout=%ss, thinking=%s, req=%s)",
-                    model, attempt, timeout, enable_thinking, req_id,
+                    model,
+                    attempt,
+                    timeout,
+                    enable_thinking,
+                    req_id,
                 )
 
                 extra_body: dict[str, Any] | None = None
@@ -74,9 +78,7 @@ async def async_call_llm(
                     try:
                         async for chunk in stream:
                             if cancel_event.is_set():
-                                raise LLMCancelledError(
-                                    "任务已取消，停止 LLM 流式读取", req_id
-                                )
+                                raise LLMCancelledError("任务已取消，停止 LLM 流式读取", req_id)
                             if not chunk.choices:
                                 continue
                             delta = chunk.choices[0].delta
@@ -93,9 +95,7 @@ async def async_call_llm(
                             except Exception:
                                 pass
 
-                    content = (
-                        "".join(reasoning_chunks) + "".join(content_chunks)
-                    ).strip()
+                    content = ("".join(reasoning_chunks) + "".join(content_chunks)).strip()
 
                 # ── 非流式 ──
                 else:
@@ -118,7 +118,9 @@ async def async_call_llm(
 
                 logger.info(
                     "[LLMClient] %s 成功 (attempt=%d, req=%s)",
-                    model, attempt, req_id,
+                    model,
+                    attempt,
+                    req_id,
                 )
                 return content
 
@@ -148,19 +150,26 @@ async def async_call_llm(
             if non_retryable:
                 logger.error(
                     "[LLMClient] ❌ 非瞬态错误, 不重试: %s: %s (req=%s)",
-                    err_name, e, req_id,
+                    err_name,
+                    e,
+                    req_id,
                 )
                 raise LLMClientError(f"LLM 调用失败(不可重试): {e}", req_id) from e
 
             last_error = e
 
         # ── 退避 + 重试 ──
-        base_wait = _hub.dev.LLM_RETRY_BACKOFF ** attempt
+        base_wait = _hub.dev.LLM_RETRY_BACKOFF**attempt
         wait = random.uniform(0, base_wait)
 
         logger.warning(
             "[LLMClient] ⚠️ %s 失败 (attempt=%d/%d, wait=%.1fs, err=%s, req=%s)",
-            model, attempt, _hub.dev.LLM_MAX_RETRIES, wait, last_error, req_id,
+            model,
+            attempt,
+            _hub.dev.LLM_MAX_RETRIES,
+            wait,
+            last_error,
+            req_id,
         )
 
         if attempt < _hub.dev.LLM_MAX_RETRIES:
@@ -168,14 +177,10 @@ async def async_call_llm(
                 raise LLMCancelledError("任务已取消，停止重试", req_id) from last_error
             await asyncio.sleep(wait)
         else:
-            logger.error(
-                "[LLMClient] ❌ %s 最终失败: %s (req=%s)", model, last_error, req_id
-            )
+            logger.error("[LLMClient] ❌ %s 最终失败: %s (req=%s)", model, last_error, req_id)
             if isinstance(last_error, LLMTimeoutError):
                 raise last_error from None
-            raise LLMClientError(
-                f"LLM 调用最终失败: {last_error}", req_id
-            ) from last_error
+            raise LLMClientError(f"LLM 调用最终失败: {last_error}", req_id) from last_error
 
     # 理论不可达
     raise LLMClientError("LLM 调用最终失败", req_id)

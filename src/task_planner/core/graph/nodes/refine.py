@@ -67,13 +67,15 @@ def _parse_concurrency() -> int:
     except ValueError:
         logger.warning(
             "[Refine] REFINE_CONCURRENCY=%r 不是整数，回退 %d",
-            raw, _REFINE_CONCURRENCY_DEFAULT,
+            raw,
+            _REFINE_CONCURRENCY_DEFAULT,
         )
         return _REFINE_CONCURRENCY_DEFAULT
     if n < 1:
         logger.warning(
             "[Refine] REFINE_CONCURRENCY=%d < 1，回退 %d",
-            n, _REFINE_CONCURRENCY_DEFAULT,
+            n,
+            _REFINE_CONCURRENCY_DEFAULT,
         )
         return _REFINE_CONCURRENCY_DEFAULT
     return n
@@ -175,7 +177,9 @@ async def refine_node(state: TaskState, config: RunnableConfig) -> dict[str, Any
                 if not isinstance(r, dict):
                     logger.warning(
                         "[Graph] 节点%s refine_node 返回非 dict: %s (req=%s)",
-                        n.get("id"), type(r).__name__, rid,
+                        n.get("id"),
+                        type(r).__name__,
+                        rid,
                     )
                     n["details"] = f"细化异常: 返回 {type(r).__name__}"
                     return n
@@ -195,7 +199,9 @@ async def refine_node(state: TaskState, config: RunnableConfig) -> dict[str, Any
         if cancel_event and cancel_event.is_set():
             logger.info(
                 "[Graph] refine 提前终止，已提交 %d/%d (req=%s)",
-                len(tasks), len(nodes_raw), rid,
+                len(tasks),
+                len(nodes_raw),
+                rid,
             )
             break
 
@@ -226,7 +232,9 @@ async def refine_node(state: TaskState, config: RunnableConfig) -> dict[str, Any
             fallback["details"] = f"细化异常: {res}"
             logger.warning(
                 "[Graph] 节点%s细化异常: %s (req=%s)",
-                fallback.get("id"), res, rid,
+                fallback.get("id"),
+                res,
+                rid,
             )
             refined.append(fallback)
         elif isinstance(res, dict):
@@ -241,7 +249,9 @@ async def refine_node(state: TaskState, config: RunnableConfig) -> dict[str, Any
             fallback["details"] = f"细化返回非 dict: {type(res).__name__}"
             logger.warning(
                 "[Graph] 节点%s _refine_one 返回非 dict: %s (req=%s)",
-                fallback.get("id"), type(res).__name__, rid,
+                fallback.get("id"),
+                type(res).__name__,
+                rid,
             )
             refined.append(fallback)
 

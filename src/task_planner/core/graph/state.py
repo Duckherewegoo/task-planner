@@ -15,6 +15,7 @@ state.py — LangGraph 状态定义
 
 ⚠️ 完整变更历史见 CHANGELOG.md。
 """
+
 from enum import StrEnum
 from typing import Annotated, Any, NotRequired, TypedDict
 
@@ -23,6 +24,7 @@ from langgraph.graph import MessagesState
 
 class UserAction(StrEnum):
     """用户对 interrupt 的响应动作。"""
+
     CONTINUE = "continue"
     CANCEL = "cancel"
     MODIFY = "modify"
@@ -34,6 +36,7 @@ class NodeStatus(StrEnum):
     单个节点的执行状态。公共契约，供执行器 / 前端状态栏使用，
     本文件不直接引用。
     """
+
     PENDING = "pending"
     RUNNING = "running"
     DONE = "done"
@@ -50,6 +53,7 @@ class NodeResult(TypedDict):
        _coerce_node_id 会把非 int/str 降级为 str（如 "?"）。
        下游按 int 消费会炸，这里必须与执行器契约一致。
     """
+
     node_id: int | str
     success: bool
     detail: str

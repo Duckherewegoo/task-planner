@@ -21,8 +21,10 @@ async def plan_node(state: TaskState, config: RunnableConfig) -> dict[str, Any]:
 
     cancel_event = get_cancel_event()
     plan = await generate_plan(
-        state["user_input"], state["intent"],
-        req_id=rid, cancel_event=cancel_event,
+        state["user_input"],
+        state["intent"],
+        req_id=rid,
+        cancel_event=cancel_event,
     )
 
     # Patch A-1：防御 generate_plan 返回非 dict（None / 字符串等）
@@ -31,7 +33,9 @@ async def plan_node(state: TaskState, config: RunnableConfig) -> dict[str, Any]:
     if not isinstance(plan, dict):
         logger.error(
             "[Graph] plan_node 返回非 dict! type=%s raw=%s (req=%s)",
-            type(plan).__name__, str(plan)[:500], rid,
+            type(plan).__name__,
+            str(plan)[:500],
+            rid,
         )
         raise ValueError(
             f"规划失败：generate_plan 返回 {type(plan).__name__}，期望 dict (req={rid})"
@@ -46,7 +50,9 @@ async def plan_node(state: TaskState, config: RunnableConfig) -> dict[str, Any]:
     if not isinstance(nodes_raw, list):
         logger.error(
             "[Graph] plan_node: plan['nodes'] 非 list! type=%s raw=%s (req=%s)",
-            type(nodes_raw).__name__, str(nodes_raw)[:500], rid,
+            type(nodes_raw).__name__,
+            str(nodes_raw)[:500],
+            rid,
         )
         raise ValueError(
             f"规划失败：plan['nodes'] 应为 list，实际为 {type(nodes_raw).__name__} (req={rid})"
@@ -54,7 +60,9 @@ async def plan_node(state: TaskState, config: RunnableConfig) -> dict[str, Any]:
     if not isinstance(edges_raw, list):
         logger.error(
             "[Graph] plan_node: plan['edges'] 非 list! type=%s raw=%s (req=%s)",
-            type(edges_raw).__name__, str(edges_raw)[:500], rid,
+            type(edges_raw).__name__,
+            str(edges_raw)[:500],
+            rid,
         )
         raise ValueError(
             f"规划失败：plan['edges'] 应为 list，实际为 {type(edges_raw).__name__} (req={rid})"
@@ -73,7 +81,8 @@ async def plan_node(state: TaskState, config: RunnableConfig) -> dict[str, Any]:
     if not nodes_raw:
         logger.error(
             "[Graph] plan_node 产出空计划! raw_plan=%s (req=%s)",
-            str(plan)[:500], rid,
+            str(plan)[:500],
+            rid,
         )
         raise ValueError(
             f"规划失败：LLM 未返回有效节点。请检查 planner prompt 或模型输出格式。(req={rid})"
@@ -81,14 +90,15 @@ async def plan_node(state: TaskState, config: RunnableConfig) -> dict[str, Any]:
 
     logger.info(
         "[Graph] plan_node: %d nodes, %d edges (req=%s)",
-        len(nodes_raw), len(edges_raw), rid,
+        len(nodes_raw),
+        len(edges_raw),
+        rid,
     )
 
     return {
         "plan": plan,
         "nodes": nodes_raw,
         "edges": edges_raw,
-        "steps": state.get("steps", []) + [
-            f"规划完成: {len(nodes_raw)}个节点, {len(edges_raw)}条边"
-        ],
+        "steps": state.get("steps", [])
+        + [f"规划完成: {len(nodes_raw)}个节点, {len(edges_raw)}条边"],
     }

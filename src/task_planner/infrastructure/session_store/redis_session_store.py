@@ -57,6 +57,7 @@ logger = get_logger("task_planner.infrastructure.redis_session_store")
 try:
     from redis.asyncio import Redis
     from redis.exceptions import RedisError
+
     _HAS_REDIS = True
 except ImportError:
     _HAS_REDIS = False
@@ -96,10 +97,7 @@ class RedisSessionStore:
         deserialize: Callable[[bytes], Any] = pickle.loads,
     ) -> None:
         if not _HAS_REDIS:
-            raise ImportError(
-                "RedisSessionStore 需要 redis 客户端："
-                "pip install -e \".[redis]\""
-            )
+            raise ImportError('RedisSessionStore 需要 redis 客户端：pip install -e ".[redis]"')
         self._url = url
         self._prefix = key_prefix
         self._default_ttl = default_ttl
@@ -119,7 +117,7 @@ class RedisSessionStore:
             if self._client is None:
                 self._client = Redis.from_url(
                     self._url,
-                    decode_responses=False,   # 我们处理 bytes
+                    decode_responses=False,  # 我们处理 bytes
                 )
         return self._client
 
@@ -139,7 +137,9 @@ class RedisSessionStore:
             return self._deserialize(data)
         except Exception as e:
             logger.error(
-                "[RedisStore] 反序列化失败 tid=%s: %s", tid, e,
+                "[RedisStore] 反序列化失败 tid=%s: %s",
+                tid,
+                e,
             )
             return None
 
@@ -189,7 +189,7 @@ class RedisSessionStore:
         data = None
         try:
             data = await client.getdel(key)
-        except (AttributeError, RedisError):
+        except AttributeError, RedisError:
             # 老版本 Redis / 客户端不支持——pipeline 兜底
             # 注：redis-py 的 Pipeline 本身不是并发场景，只需简单组合
             pipe = client.pipeline()
@@ -204,7 +204,9 @@ class RedisSessionStore:
             return self._deserialize(data)
         except Exception as e:
             logger.error(
-                "[RedisStore] 反序列化失败 tid=%s: %s", tid, e,
+                "[RedisStore] 反序列化失败 tid=%s: %s",
+                tid,
+                e,
             )
             return None
 
@@ -253,7 +255,8 @@ class RedisSessionStore:
         n = 0
         # decode_responses=False 时，pattern 传 str 也能用（内部会编码）
         async for _ in client.scan_iter(
-            match=f"{self._prefix}*", count=100,
+            match=f"{self._prefix}*",
+            count=100,
         ):
             n += 1
         return n

@@ -60,6 +60,7 @@ try:
     logger = setup_logger("task_planner")
 except Exception:
     import logging as _logging
+
     logger = _logging.getLogger("task_planner")
 
 

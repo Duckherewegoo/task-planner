@@ -4,6 +4,7 @@
   - 引入配置面板回调注册（含 URL 驱动 Offcanvas）。
   - 零额外中间件、零额外 Flask 实例，高并发路径与原实现完全一致。
 """
+
 import os
 import sys
 
@@ -85,14 +86,16 @@ def main() -> None:
 
     SHUTDOWN.register(close_db, priority=-100)
     from task_planner.infrastructure.async_runtime import shutdown as async_runtime_shutdown
+
     SHUTDOWN.register(async_runtime_shutdown, priority=-200)
 
     mode = "debug" if debug else "production"
     is_reloader = os.environ.get("WERKZEUG_RUN_MAIN") == "true"
     process_tag = " [reloader]" if is_reloader else ""
 
-    logger.info("[Startup] Dash starting (%s%s) | %s:%d | 配置抽屉=/config",
-                mode, process_tag, host, port)
+    logger.info(
+        "[Startup] Dash starting (%s%s) | %s:%d | 配置抽屉=/config", mode, process_tag, host, port
+    )
 
     app.run(debug=debug, host=host, port=port)
 

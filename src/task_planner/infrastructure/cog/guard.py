@@ -9,7 +9,7 @@ class ConfigGuard:
     """只回答"角色 X 能不能改条目 Y"。"""
 
     _WRITE_RULES = {
-        Role.USER:      frozenset({Scope.USER}),
+        Role.USER: frozenset({Scope.USER}),
         Role.DEVELOPER: frozenset({Scope.USER, Scope.DEVELOPER}),
     }
 

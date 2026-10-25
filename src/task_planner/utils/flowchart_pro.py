@@ -68,7 +68,7 @@ def _safe_int(val: Any, default: int = 0) -> int:
     """P1-5：容忍 None / 字符串 / 非法值"""
     try:
         return int(val)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return default
 
 
@@ -80,14 +80,8 @@ def get_edge_style(edge_type: str) -> dict[str, Any]:
     color = EDGE_TYPE_COLOR.get(edge_type, "#666666")
     style = EDGE_TYPE_STYLE.get(edge_type, "solid")
     # P2-9：用常量替代硬编码 "soft"
-    width = (
-        RENDER_EDGE_WIDTH * 0.75
-        if edge_type == EDGE_TYPE_SOFT
-        else RENDER_EDGE_WIDTH
-    )
-    dashes: Any = (
-        False if style == "solid" else _EDGE_DASH_MAP.get(style, [10, 5])
-    )
+    width = RENDER_EDGE_WIDTH * 0.75 if edge_type == EDGE_TYPE_SOFT else RENDER_EDGE_WIDTH
+    dashes: Any = False if style == "solid" else _EDGE_DASH_MAP.get(style, [10, 5])
     return {"color": color, "width": width, "dashes": dashes}
 
 
@@ -100,12 +94,7 @@ def _get_details(node: dict[str, Any]) -> str:
       node.details > meta.details > node.description
     """
     meta: dict[str, Any] = node.get("meta", {}) or {}
-    details = (
-        node.get("details")
-        or meta.get("details")
-        or node.get("description")
-        or ""
-    )
+    details = node.get("details") or meta.get("details") or node.get("description") or ""
     return str(details).strip()
 
 
@@ -192,7 +181,9 @@ class ProFlowchartRenderer:
         if not FLOWCHART_CYCLE_DETECTION:
             logger.info(
                 "[FlowchartPro] ⏭️ 环检测已禁用 | 节点=%d 边=%d req=%s",
-                len(nodes), len(edges), req_id,
+                len(nodes),
+                len(edges),
+                req_id,
             )
             return g, cycle_edges
 
@@ -204,7 +195,9 @@ class ProFlowchartRenderer:
                 if i >= _MAX_CYCLES_DETECT:
                     logger.warning(
                         "[FlowchartPro] ⚠️ 环数量超过 %d，仅记录前 %d 个 | req=%s",
-                        _MAX_CYCLES_DETECT, _MAX_CYCLES_DETECT, req_id,
+                        _MAX_CYCLES_DETECT,
+                        _MAX_CYCLES_DETECT,
+                        req_id,
                     )
                     break
                 cycles.append(c)
@@ -212,21 +205,24 @@ class ProFlowchartRenderer:
             if cycles:
                 logger.warning(
                     "[FlowchartPro] ⚠️ 检测到 %d 个循环依赖，继续渲染 | req=%s",
-                    len(cycles), req_id,
+                    len(cycles),
+                    req_id,
                 )
                 for cycle in cycles:
                     for i in range(len(cycle)):
-                        cycle_edges.add(
-                            (cycle[i], cycle[(i + 1) % len(cycle)])
-                        )
+                        cycle_edges.add((cycle[i], cycle[(i + 1) % len(cycle)]))
             else:
                 logger.info(
                     "[FlowchartPro] DAG 校验通过（无环）| 节点=%d 边=%d req=%s",
-                    len(nodes), len(edges), req_id,
+                    len(nodes),
+                    len(edges),
+                    req_id,
                 )
         except Exception as e:
             logger.warning(
-                "[FlowchartPro] 环检测失败: %s (req=%s)", e, req_id,
+                "[FlowchartPro] 环检测失败: %s (req=%s)",
+                e,
+                req_id,
             )
 
         return g, cycle_edges
@@ -248,9 +244,7 @@ class ProFlowchartRenderer:
         return f"<b>{html.escape(name)}</b><br><br>{escaped}{pre_html}"
 
     # ── 卡片数据 ──
-    def _build_card_data(
-        self, nodes: list[dict[str, Any]]
-    ) -> dict[str, dict[str, Any]]:
+    def _build_card_data(self, nodes: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
         cards: dict[str, dict[str, Any]] = {}
         for node in nodes:
             nid = str(node.get("id", ""))
@@ -261,25 +255,13 @@ class ProFlowchartRenderer:
             status_code = _safe_int(node.get("status"), default=0)
             cards[nid] = {
                 "id": nid,
-                "name": html.escape(
-                    str(node.get("name", f"步骤{nid}"))
-                ),
+                "name": html.escape(str(node.get("name", f"步骤{nid}"))),
                 "status": status_code,
-                "status_text": html.escape(
-                    STATUS_TEXT.get(status_code, "未知")
-                ),
+                "status_text": html.escape(STATUS_TEXT.get(status_code, "未知")),
                 "details": html.escape(details).replace("\n", "<br>"),
-                "preconditions": [
-                    html.escape(str(p))
-                    for p in meta.get("preconditions", [])
-                ],
-                "postconditions": [
-                    html.escape(str(p))
-                    for p in meta.get("postconditions", [])
-                ],
-                "retry_policy": html.escape(
-                    str(meta.get("retry_policy", "失败后重试，最多3次"))
-                ),
+                "preconditions": [html.escape(str(p)) for p in meta.get("preconditions", [])],
+                "postconditions": [html.escape(str(p)) for p in meta.get("postconditions", [])],
+                "retry_policy": html.escape(str(meta.get("retry_policy", "失败后重试，最多3次"))),
                 "retry_count": _safe_int(node.get("retry_count"), default=0),
             }
         return cards
@@ -346,7 +328,8 @@ class ProFlowchartRenderer:
             if is_cycle:
                 cycle_color = EDGE_TYPE_COLOR.get("retry", "#f59e0b")
                 net.add_edge(
-                    src, tgt,
+                    src,
+                    tgt,
                     label=edge_label,
                     title=edge_label,
                     color={"color": cycle_color},
@@ -354,22 +337,27 @@ class ProFlowchartRenderer:
                     dashes=[8, 4],
                     smooth={"type": "curvedCW", "roundness": 0.25},
                     font={
-                        "size": 11, "face": RENDER_FONT,
-                        "align": "middle", "color": "#92400e",
+                        "size": 11,
+                        "face": RENDER_FONT,
+                        "align": "middle",
+                        "color": "#92400e",
                     },
                 )
             else:
                 edge_type = str(edge.get("type", EDGE_TYPE_HARD)).lower()
                 style = get_edge_style(edge_type)
                 net.add_edge(
-                    src, tgt,
+                    src,
+                    tgt,
                     label=edge_label,
                     title=edge_label,
                     color={"color": style["color"]},
                     width=style["width"],
                     dashes=style["dashes"],
                     font={
-                        "size": 11, "face": RENDER_FONT, "align": "middle",
+                        "size": 11,
+                        "face": RENDER_FONT,
+                        "align": "middle",
                     },
                 )
 
@@ -381,22 +369,19 @@ class ProFlowchartRenderer:
         for code, text in STATUS_TEXT.items():
             if code in STATUS_BORDER:
                 color = STATUS_BORDER[code]
-                items.append(
-                    f'<span style="color:{color};">●</span> '
-                    f"{html.escape(text)}"
-                )
+                items.append(f'<span style="color:{color};">●</span> {html.escape(text)}')
         rows = []
         for i in range(0, len(items), 2):
-            rows.append(" &nbsp; ".join(items[i:i + 2]))
+            rows.append(" &nbsp; ".join(items[i : i + 2]))
         return (
             f'<div id="legend-{uid}" style="'
-            f'position:absolute;top:14px;right:18px;z-index:10;'
-            f'background:white;border:1px solid #e2e8f0;border-radius:10px;'
-            f'padding:10px 14px;font-size:12px;'
+            f"position:absolute;top:14px;right:18px;z-index:10;"
+            f"background:white;border:1px solid #e2e8f0;border-radius:10px;"
+            f"padding:10px 14px;font-size:12px;"
             f'box-shadow:0 2px 8px rgba(0,0,0,0.06);">'
             f'<b style="font-size:13px;color:#1e293b;">任务状态图例</b><br>'
-            f'{"<br>".join(rows)}'
-            f'</div>'
+            f"{'<br>'.join(rows)}"
+            f"</div>"
         )
 
     # ── 交互式渲染（主入口） ──
@@ -411,7 +396,10 @@ class ProFlowchartRenderer:
             _g, cycle_edges = self._validate_dag(nodes, edges, req_id)
 
             net = self._build_network(
-                nodes, edges, req_id, cycle_edges=cycle_edges,
+                nodes,
+                edges,
+                req_id,
+                cycle_edges=cycle_edges,
             )
             base_html = net.generate_html()
 
@@ -433,13 +421,16 @@ class ProFlowchartRenderer:
 
             logger.info(
                 "[FlowchartPro] 流程图渲染完成 | task=%s req=%s",
-                task_id, req_id,
+                task_id,
+                req_id,
             )
             return base_html
 
         except Exception as e:
             logger.exception(
-                "[FlowchartPro] 渲染失败: %s (req=%s)", e, req_id,
+                "[FlowchartPro] 渲染失败: %s (req=%s)",
+                e,
+                req_id,
             )
             return self._error_html(f"{type(e).__name__}: {e}", req_id)
 
@@ -459,8 +450,11 @@ class ProFlowchartRenderer:
         # 优先用 lxml
         try:
             import lxml.etree as ET  # type: ignore
+
             parser = ET.XMLParser(
-                resolve_entities=True, recover=True, encoding="utf-8",
+                resolve_entities=True,
+                recover=True,
+                encoding="utf-8",
             )
             root = ET.fromstring(svg_unescaped.encode("utf-8"), parser)
             return ET.tostring(root, encoding="unicode", method="xml")
@@ -481,10 +475,7 @@ class ProFlowchartRenderer:
                     self.depth = 0
 
                 def _attrs_str(self, attrs) -> str:
-                    return " ".join(
-                        f'{k}="{html.escape(str(v), quote=True)}"'
-                        for k, v in attrs
-                    )
+                    return " ".join(f'{k}="{html.escape(str(v), quote=True)}"' for k, v in attrs)
 
                 def handle_starttag(self, tag, attrs) -> None:
                     if tag == "svg":
@@ -495,9 +486,7 @@ class ProFlowchartRenderer:
 
                 def handle_startendtag(self, tag, attrs) -> None:
                     if self.depth > 0:
-                        self.parts.append(
-                            f"<{tag} {self._attrs_str(attrs)}/>"
-                        )
+                        self.parts.append(f"<{tag} {self._attrs_str(attrs)}/>")
 
                 def handle_endtag(self, tag) -> None:
                     if tag == "svg" and self.depth > 0:
@@ -553,8 +542,8 @@ class ProFlowchartRenderer:
     def _error_html(self, message: str, req_id: str) -> str:
         return (
             '<div style="width:100%;height:520px;display:flex;'
-            'align-items:center;justify-content:center;'
-            'border:1px solid #fecaca;border-radius:12px;'
+            "align-items:center;justify-content:center;"
+            "border:1px solid #fecaca;border-radius:12px;"
             'background:#fef2f2;padding:24px;">'
             '<div style="color:#dc2626;text-align:center;max-width:600px;">'
             '<h3 style="margin:0 0 12px;font-size:20px;">'
@@ -614,16 +603,11 @@ def build_clean_svg(
         x = col * cell_w + cell_w // 2
         y = row * cell_h + cell_h // 2
         node_positions[nid] = (x, y)
-        safe_label = html.escape(
-            str(node.get("label", nid)), quote=True
-        )
+        safe_label = html.escape(str(node.get("label", nid)), quote=True)
         svg_parts.append(
-            f'<rect class="node-rect" x="{x - 80}" y="{y - 25}" '
-            f'width="160" height="50"/>'
+            f'<rect class="node-rect" x="{x - 80}" y="{y - 25}" width="160" height="50"/>'
         )
-        svg_parts.append(
-            f'<text class="node-text" x="{x}" y="{y}">{safe_label}</text>'
-        )
+        svg_parts.append(f'<text class="node-text" x="{x}" y="{y}">{safe_label}</text>')
 
     for edge in edges:
         # 兼容 from/to 与 source/target
@@ -632,16 +616,15 @@ def build_clean_svg(
 
         if src is None or tgt is None:
             logger.warning(
-                "[FlowchartPro] build_clean_svg: edge 缺少端点: %s", edge,
+                "[FlowchartPro] build_clean_svg: edge 缺少端点: %s",
+                edge,
             )
             continue
 
         if src in node_positions and tgt in node_positions:
             x1, y1 = node_positions[src]
             x2, y2 = node_positions[tgt]
-            svg_parts.append(
-                f'<path class="edge" d="M{x1 + 80} {y1} L{x2 - 80} {y2}" />'
-            )
+            svg_parts.append(f'<path class="edge" d="M{x1 + 80} {y1} L{x2 - 80} {y2}" />')
 
     svg_parts.append("</svg>")
     return "\n".join(svg_parts)
@@ -657,13 +640,14 @@ def export(
     """导出为指定格式"""
     fmt = fmt.lower()
     logger.info(
-        "[FlowchartPro] 导出 | task=%s fmt=%s req=%s", task_id, fmt, req_id,
+        "[FlowchartPro] 导出 | task=%s fmt=%s req=%s",
+        task_id,
+        fmt,
+        req_id,
     )
 
     if fmt == "html":
-        return flowchart_pro.render_interactive(
-            nodes, edges, task_id, req_id
-        )
+        return flowchart_pro.render_interactive(nodes, edges, task_id, req_id)
 
     if fmt == "json":
         return json.dumps(
@@ -677,9 +661,7 @@ def export(
             indent=2,
         )
 
-    html_content = flowchart_pro.render_interactive(
-        nodes, edges, task_id, req_id
-    )
+    html_content = flowchart_pro.render_interactive(nodes, edges, task_id, req_id)
     svg_content = flowchart_pro._extract_svg_from_html(html_content)
 
     if fmt == "svg":
@@ -697,9 +679,7 @@ def export(
                 nid = n.get("id")
                 if nid is None:
                     continue
-                g.add_node(
-                    nid, label=str(n.get("name", f"步骤{nid}"))
-                )
+                g.add_node(nid, label=str(n.get("name", f"步骤{nid}")))
             for e in edges:
                 src = e.get("from")
                 tgt = e.get("to")
@@ -713,9 +693,7 @@ def export(
         except (OSError, RuntimeError) as e:
             raise ValueError(f"DOT 导出失败: {e}") from e
 
-    raise ValueError(
-        f"不支持的导出格式: {fmt}（支持 svg / png / pdf / dot / html / json）"
-    )
+    raise ValueError(f"不支持的导出格式: {fmt}（支持 svg / png / pdf / dot / html / json）")
 
 
 __all__ = [

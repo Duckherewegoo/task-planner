@@ -1,4 +1,5 @@
 """base — 代码内置的基础配置（与 YAML 互补，不重复）"""
+
 from importlib.metadata import version
 
 from ..entry import ConfigEntry, Scope
@@ -9,7 +10,8 @@ from ..section import ConfigSection
 @register_section
 class BaseSection(ConfigSection):
     section = "base_code"
-    value = version("task-planner")   # 从已安装的包读
+    value = version("task-planner")  # 从已安装的包读
+
     def define(self):
         return (
             ConfigEntry(

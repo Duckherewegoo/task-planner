@@ -1,4 +1,5 @@
 """execute.py 的冒烟测试——覆盖本轮 DB 降级容错、RETRY_NODE 语义、三指针裁决。"""
+
 from unittest.mock import AsyncMock
 
 import pytest
@@ -11,6 +12,7 @@ from task_planner.core.graph.nodes.execute import (
 from task_planner.core.graph.state import UserAction
 
 # ── 构造最小 state ──
+
 
 def _make_state(**overrides):
     base = {
@@ -36,7 +38,7 @@ def _patch_execute_common(monkeypatch, interrupt_return=None, exec_result=None):
             retryable=False,
             node_id=1,
             node_name="步骤1",
-            )
+        )
     if interrupt_return is None:
         interrupt_return = {"user_action": "continue"}
 
@@ -71,6 +73,7 @@ def _patch_execute_common(monkeypatch, interrupt_return=None, exec_result=None):
 
 
 # ── DB 降级容错 ──
+
 
 async def test_execute_survives_mark_task_running_failure(monkeypatch):
     """mark_task_running 抛异常时，execute_node 仍能完成并返回 updates。"""
@@ -111,6 +114,7 @@ async def test_execute_survives_all_db_failures(monkeypatch):
 
 # ── RETRY_NODE 语义：不前进 idx ──
 
+
 async def test_retry_node_does_not_advance_index(monkeypatch):
     _patch_execute_common(
         monkeypatch,
@@ -132,6 +136,7 @@ async def test_continue_advances_index(monkeypatch):
 
 # ── MODIFY 重置 ──
 
+
 async def test_modify_resets_state(monkeypatch):
     _patch_execute_common(
         monkeypatch,
@@ -141,7 +146,7 @@ async def test_modify_resets_state(monkeypatch):
     updates = await execute_node(state, {})
 
     assert updates["current_node_index"] == 0
-    assert updates["needs_planning"] is True       # 与 create_initial_state 对齐
+    assert updates["needs_planning"] is True  # 与 create_initial_state 对齐
     assert updates["nodes"] == []
     assert updates["task_id"] == ""
     assert updates["user_action"] is None
@@ -160,12 +165,14 @@ async def test_modify_without_input_falls_back_to_continue(monkeypatch):
 
 # ── 取消分支 ──
 
+
 async def test_cancel_branch_clears_pointers(monkeypatch):
     _patch_execute_common(monkeypatch)
     from task_planner.infrastructure.llm import LLMCancelledError
+
     monkeypatch.setattr(
         "task_planner.core.graph.nodes.execute.execute_single_node",
-        AsyncMock(side_effect=LLMCancelledError("test cancel")),   # ← 加 message
+        AsyncMock(side_effect=LLMCancelledError("test cancel")),  # ← 加 message
     )
     state = _make_state(retry_node_index=1, resume_from_node_index=0)
     updates = await execute_node(state, {})
@@ -177,6 +184,7 @@ async def test_cancel_branch_clears_pointers(monkeypatch):
 
 
 # ── 三指针裁决 ──
+
 
 def _resolve_state(**overrides):
     base = {
@@ -192,15 +200,16 @@ NODES = [{"id": i} for i in range(10)]
 
 
 def test_resolve_priority_retry_over_resume():
-    assert _resolve_target_index(
-        _resolve_state(retry_node_index=2, resume_from_node_index=3), NODES, "rid"
-    ) == 2
+    assert (
+        _resolve_target_index(
+            _resolve_state(retry_node_index=2, resume_from_node_index=3), NODES, "rid"
+        )
+        == 2
+    )
 
 
 def test_resolve_priority_resume_over_current():
-    assert _resolve_target_index(
-        _resolve_state(resume_from_node_index=3), NODES, "rid"
-    ) == 3
+    assert _resolve_target_index(_resolve_state(resume_from_node_index=3), NODES, "rid") == 3
 
 
 def test_resolve_current_when_no_pointers():
@@ -208,9 +217,7 @@ def test_resolve_current_when_no_pointers():
 
 
 def test_resolve_invalid_retry_falls_back_to_current():
-    assert _resolve_target_index(
-        _resolve_state(retry_node_index=999), NODES, "rid"
-    ) == 5
+    assert _resolve_target_index(_resolve_state(retry_node_index=999), NODES, "rid") == 5
 
 
 def test_resolve_retry_by_node_id_when_not_valid_index():
@@ -221,6 +228,4 @@ def test_resolve_retry_by_node_id_when_not_valid_index():
 
 
 def test_resolve_resume_out_of_range_falls_back():
-    assert _resolve_target_index(
-        _resolve_state(resume_from_node_index=999), NODES, "rid"
-    ) == 5
+    assert _resolve_target_index(_resolve_state(resume_from_node_index=999), NODES, "rid") == 5

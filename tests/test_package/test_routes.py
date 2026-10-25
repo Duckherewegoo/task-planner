@@ -1,4 +1,5 @@
 """路由函数的冒烟测试——覆盖本轮归一化与拒绝逻辑的改动。"""
+
 import pytest
 
 from task_planner.core.graph.nodes.routes import (
@@ -10,13 +11,16 @@ from task_planner.core.graph.state import UserAction
 
 # ── route_after_intent ──
 
+
 def test_route_after_intent_cancel_priority():
     """cancel_requested 优先于一切。"""
     assert route_after_intent({"cancel_requested": True, "needs_planning": True}) == "cancel"
 
 
 def test_route_after_intent_direct_answer_when_no_planning():
-    assert route_after_intent({"cancel_requested": False, "needs_planning": False}) == "direct_answer"
+    assert (
+        route_after_intent({"cancel_requested": False, "needs_planning": False}) == "direct_answer"
+    )
 
 
 def test_route_after_intent_plan_default():
@@ -29,6 +33,7 @@ def test_route_after_intent_needs_planning_missing_defaults_true():
 
 
 # ── route_after_execute ──
+
 
 def _exec_state(**overrides):
     """构造最小 exec state，未指定字段用合理默认值。"""
@@ -44,7 +49,10 @@ def _exec_state(**overrides):
 
 def test_route_after_execute_cancel_requested_priority():
     """cancel_requested=True 优先于 user_action。"""
-    assert route_after_execute(_exec_state(cancel_requested=True, user_action=UserAction.CONTINUE)) == "cancel"
+    assert (
+        route_after_execute(_exec_state(cancel_requested=True, user_action=UserAction.CONTINUE))
+        == "cancel"
+    )
 
 
 def test_route_after_execute_user_action_cancel():
@@ -89,6 +97,7 @@ def test_route_after_execute_no_action_finished():
 
 
 # ── route_after_render ──
+
 
 def test_route_after_render_always_execute():
     assert route_after_render({}) == "execute"

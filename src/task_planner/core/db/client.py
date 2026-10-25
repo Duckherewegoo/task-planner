@@ -51,7 +51,7 @@ _init_lock = threading.Lock()
 
 # 失败冷却——全局，与线程无关
 _last_fail_time: float = 0.0
-_FAIL_COOLDOWN = 10.0   # 失败后 10 秒内不再重试，防雪崩
+_FAIL_COOLDOWN = 10.0  # 失败后 10 秒内不再重试，防雪崩
 
 
 def init_db() -> None:
@@ -95,7 +95,9 @@ def init_db() -> None:
             _db = new_db
             logger.info(
                 "[DB] MongoDB 连接成功 (%s:%d/%s)",
-                _hub.dev.MONGO_HOST, _hub.dev.MONGO_PORT, _hub.dev.MONGO_DB,
+                _hub.dev.MONGO_HOST,
+                _hub.dev.MONGO_PORT,
+                _hub.dev.MONGO_DB,
             )
         except Exception as e:
             # 异常路径：显式关闭半成品 client，避免连接泄漏
@@ -110,15 +112,19 @@ def init_db() -> None:
 
 def _create_indexes_on(db: Database) -> None:
     """同步建索引。"""
-    db["tasks"].create_indexes([
-        IndexModel([("task_id", ASCENDING)], unique=True),
-        IndexModel([("created_at", DESCENDING)]),
-        IndexModel([("status", ASCENDING)]),
-    ])
-    db["plans"].create_indexes([
-        IndexModel([("plan_id", ASCENDING)], unique=True),
-        IndexModel([("created_at", DESCENDING)]),
-    ])
+    db["tasks"].create_indexes(
+        [
+            IndexModel([("task_id", ASCENDING)], unique=True),
+            IndexModel([("created_at", DESCENDING)]),
+            IndexModel([("status", ASCENDING)]),
+        ]
+    )
+    db["plans"].create_indexes(
+        [
+            IndexModel([("plan_id", ASCENDING)], unique=True),
+            IndexModel([("created_at", DESCENDING)]),
+        ]
+    )
 
 
 def get_db() -> Database:

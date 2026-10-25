@@ -27,6 +27,7 @@ from .protocol import SessionStore
 # ── Redis 实现（可选依赖，缺席时降级）──
 try:
     from .redis_session_store import RedisSessionStore
+
     _HAS_REDIS_IMPL = True
 except ImportError:
     # redis 客户端没装——但内存版仍可用

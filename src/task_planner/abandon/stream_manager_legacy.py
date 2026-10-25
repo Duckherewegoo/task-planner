@@ -21,13 +21,13 @@ Changelog:
   P2-x：__all__ 补全 / age_since_finished 方法 / 日志 %s 风格 /
            TTL 统一从 config 读
 """
+
 import asyncio
 import time
 from collections import deque
 from typing import Any, Callable, Optional
 
-from task_planner.core.graph.workflow import (get_thread_state_async,
-                                              resume_graph_async)
+from task_planner.core.graph.workflow import get_thread_state_async, resume_graph_async
 from task_planner.infrastructure.cog import hub as _hub
 from task_planner.infrastructure.logger_setup import get_logger
 from task_planner.services.agent import cancel_task
@@ -41,6 +41,7 @@ logger = get_logger("task_planner.stream_manager")
 # ══════════════════════════════════════════════════
 #  1. 单任务状态实体（协程安全版）
 # ══════════════════════════════════════════════════
+
 
 class TaskStreamState:
     """单个流式任务的状态快照 + 节点状态（协程安全）"""
@@ -188,6 +189,7 @@ class TaskStreamState:
 #  2. 内存垃圾回收器（异步版）
 # ══════════════════════════════════════════════════
 
+
 class StreamStateCleaner:
     """
     TaskStreamState 内存垃圾回收器（异步版）
@@ -196,9 +198,9 @@ class StreamStateCleaner:
     - TTL 兜底：防止异常未标记 finished 的任务永久驻留
     """
 
-    DEFAULT_TTL = _SESSION_TTL   # P2-3：统一从 config 读
-    CLEAN_INTERVAL = 60          # 清理周期 60s
-    FINISHED_RETENTION = 300     # 已完成任务额外保留 5min
+    DEFAULT_TTL = _SESSION_TTL  # P2-3：统一从 config 读
+    CLEAN_INTERVAL = 60  # 清理周期 60s
+    FINISHED_RETENTION = 300  # 已完成任务额外保留 5min
 
     def __init__(self):
         self._states: dict[str, TaskStreamState] = {}
@@ -212,7 +214,9 @@ class StreamStateCleaner:
             self._states[thread_id] = state
         await self._ensure_started()
         logger.debug(
-            "[Cleaner] 注册任务 %s (当前活跃: %d)", thread_id, len(self._states),
+            "[Cleaner] 注册任务 %s (当前活跃: %d)",
+            thread_id,
+            len(self._states),
         )
 
     async def unregister(self, thread_id: str) -> None:
@@ -243,7 +247,8 @@ class StreamStateCleaner:
             self._task = asyncio.create_task(self._cleanup_loop())
             logger.info(
                 "[Cleaner] 清理协程已启动 (interval=%ds, ttl=%ds)",
-                self.CLEAN_INTERVAL, self.DEFAULT_TTL,
+                self.CLEAN_INTERVAL,
+                self.DEFAULT_TTL,
             )
 
     async def _cleanup_loop(self) -> None:
@@ -277,7 +282,8 @@ class StreamStateCleaner:
                         should_remove = True
                         logger.warning(
                             "[Cleaner] TTL 超时强制回收: %s (age=%.0fs)",
-                            tid, now - state._created_at,
+                            tid,
+                            now - state._created_at,
                         )
 
                 if should_remove:
@@ -289,7 +295,8 @@ class StreamStateCleaner:
         if to_remove:
             logger.info(
                 "[Cleaner] 本轮清理 %d 个任务 (剩余活跃: %d)",
-                len(to_remove), len(self._states),
+                len(to_remove),
+                len(self._states),
             )
 
     async def stop(self) -> None:
@@ -325,6 +332,7 @@ async def get_node_states(thread_id: str) -> dict[str, str]:
 # ══════════════════════════════════════════════════
 #  4. 异步任务启动器 (核心业务逻辑)
 # ══════════════════════════════════════════════════
+
 
 async def start_stream(
     thread_id: str,
@@ -384,8 +392,7 @@ async def resume_stream(
         # P1-2 修复：不再静默返回 thread_id（会误导调用方以为 resume 成功）
         logger.warning("[StreamMgr] resume_stream: 任务仍在运行中 %s", thread_id)
         raise RuntimeError(
-            f"任务 {thread_id} 仍在运行中，无法 resume。"
-            f"请先调用 cancel_stream() 或等待其完成。"
+            f"任务 {thread_id} 仍在运行中，无法 resume。请先调用 cancel_stream() 或等待其完成。"
         )
 
     # 使用异步版本
@@ -394,7 +401,9 @@ async def resume_stream(
         raise ValueError(f"未找到 thread_id={thread_id} 的 checkpoint，无法恢复")
 
     logger.info(
-        "[StreamMgr] resume_stream: thread=%s action=%s", thread_id, user_action,
+        "[StreamMgr] resume_stream: thread=%s action=%s",
+        thread_id,
+        user_action,
     )
 
     state = TaskStreamState(thread_id)
@@ -420,8 +429,10 @@ async def resume_stream(
         try:
             logger.info("[StreamMgr] resume 后台协程启动 | thread=%s", thread_id)
             async for snapshot in run_task_stream_fn(
-                user_input="", thread_id=thread_id,
-                enable_refine=False, resume=True,
+                user_input="",
+                thread_id=thread_id,
+                enable_refine=False,
+                resume=True,
             ):
                 if state.cancelled:
                     break
@@ -449,6 +460,7 @@ async def resume_stream(
 # ══════════════════════════════════════════════════
 #  5. 任务与节点操作接口（全部异步）
 # ══════════════════════════════════════════════════
+
 
 async def cancel_stream(thread_id: str) -> bool:
     """
@@ -526,7 +538,8 @@ async def skip_node(thread_id: str, node_id: str, dag: dict) -> dict[str, Any]:
             if existing in ("done", "running"):
                 logger.info(
                     "[StreamMgr] skip_node: 下游节点 %s 已是 %s，跳过级联",
-                    nxt, existing,
+                    nxt,
+                    existing,
                 )
                 continue
             await state.set_node_state(nxt, "skipped")
@@ -570,7 +583,8 @@ async def fail_node(thread_id: str, node_id: str, dag: dict) -> dict[str, Any]:
             if existing in ("done", "running"):
                 logger.info(
                     "[StreamMgr] fail_node: 下游节点 %s 已是 %s，跳过级联",
-                    nxt, existing,
+                    nxt,
+                    existing,
                 )
                 continue
             await state.set_node_state(nxt, "skipped")
@@ -619,6 +633,7 @@ async def get_ready_nodes(thread_id: str, dag: dict) -> list[str]:
 # ══════════════════════════════════════════════════
 #  6. 视图层辅助函数（同步，无需改动）
 # ══════════════════════════════════════════════════
+
 
 def snapshot_to_elements(snapshot: dict) -> list:
     """从 snapshot 提取 elements（供 Dash Cytoscape 渲染）"""

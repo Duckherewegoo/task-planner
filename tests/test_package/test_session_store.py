@@ -10,6 +10,7 @@ test_session_store.py — 锁定 P0-4 修复
 - cleanup_stale 能清理过期会话
 - 并发 set/get 不崩
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -22,6 +23,7 @@ from task_planner.infrastructure.session_store import InMemorySessionStore
 
 class FakeSession:
     """测试替身"""
+
     def __init__(self, thread_id: str):
         self.thread_id = thread_id
         self.start_time = time.time()
@@ -71,6 +73,7 @@ async def test_cleanup_stale():
 @pytest.mark.asyncio
 async def test_concurrent_access(store):
     """并发 set / get / pop 不崩，语义一致"""
+
     async def writer(i: int):
         s = FakeSession(f"t{i}")
         await store.set(f"t{i}", s)

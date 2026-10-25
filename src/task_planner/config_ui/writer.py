@@ -14,6 +14,7 @@ logger = get_logger("task_planner.config_ui.writer")
 # 优先用 ruamel.yaml（保留注释），没装就用标准库
 try:
     from ruamel.yaml import YAML
+
     _HAS_RUAMEL = True
 except ImportError:
     _HAS_RUAMEL = False
@@ -53,6 +54,7 @@ def write_user_yaml(path: Path, updates: dict[str, Any]) -> None:
             y.dump(data, f)
     else:
         import yaml
+
         header = (
             "# ═══════════════════════════════════════════════════════\n"
             "# user.yaml — 用户配置覆盖\n"

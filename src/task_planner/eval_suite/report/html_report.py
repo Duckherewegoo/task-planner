@@ -1,4 +1,5 @@
 """html_report.py — HTML 评估报告输出。"""
+
 import html as H
 from datetime import datetime
 from pathlib import Path
@@ -13,7 +14,7 @@ def render_html_report(results: list[CaseResult], output: Path) -> Path:
         det = r.deterministic.overall
         jury = r.jury.aggregated_overall if r.jury else 0.0
         agree = r.jury.agreement if r.jury else 0.0
-        cls = ' class="err"' if r.error else ''
+        cls = ' class="err"' if r.error else ""
         rows.append(f"""<tr{cls}>
   <td>{H.escape(r.case_id)}</td>
   <td>{r.difficulty.value}</td>
@@ -21,10 +22,11 @@ def render_html_report(results: list[CaseResult], output: Path) -> Path:
   <td>{jury:.2f}</td>
   <td>{agree:.2f}</td>
   <td>{r.duration_sec:.1f}s</td>
-  <td>{H.escape(str(r.error or ''))[:80]}</td>
+  <td>{H.escape(str(r.error or ""))[:80]}</td>
 </tr>""")
 
-    output.write_text(f"""<!DOCTYPE html>
+    output.write_text(
+        f"""<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>Eval Report</title>
 <style>
 body{{font-family:system-ui;margin:40px;background:#f8fafc}}
@@ -38,8 +40,10 @@ tr.err td{{background:#fef2f2}}
 <p class="meta">生成时间：{datetime.now().isoformat()} | 用例数：{len(results)}</p>
 <table><thead><tr>
 <th>Case</th><th>难度</th><th>确定性</th><th>评委</th><th>一致性</th><th>耗时</th><th>错误</th>
-</tr></thead><tbody>{''.join(rows)}</tbody></table>
-</body></html>""", encoding="utf-8")
+</tr></thead><tbody>{"".join(rows)}</tbody></table>
+</body></html>""",
+        encoding="utf-8",
+    )
     return output
 
 

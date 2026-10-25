@@ -17,8 +17,11 @@ from ..types import AgentTrace, DimensionScore, GoldenCase, JudgeScore
 logger = get_logger("task_planner.eval_suite.llm_judge")
 
 _EXPECTED_DIMENSIONS = (
-    "task_understanding", "node_quality", "edge_quality",
-    "executability", "structural_integrity",
+    "task_understanding",
+    "node_quality",
+    "edge_quality",
+    "executability",
+    "structural_integrity",
 )
 
 
@@ -72,17 +75,23 @@ async def llm_judge(
     prompt = _JUDGE_PROMPT.format(
         user_input=golden.user_input,
         expected_plan=json.dumps(
-            golden.expected_plan, ensure_ascii=False, indent=2,
+            golden.expected_plan,
+            ensure_ascii=False,
+            indent=2,
         ),
         actual_plan=json.dumps(
-            trace.plan, ensure_ascii=False, indent=2,
+            trace.plan,
+            ensure_ascii=False,
+            indent=2,
         ),
     )
 
     try:
         raw = await async_call_llm(
-            model=judge_model, prompt=prompt,
-            enable_thinking=False, req_id=req_id,
+            model=judge_model,
+            prompt=prompt,
+            enable_thinking=False,
+            req_id=req_id,
         )
         parsed = extract_json(raw)
         if not parsed:
@@ -98,16 +107,18 @@ async def llm_judge(
                 continue
             try:
                 score = float(d.get("score", 0))
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 logger.warning("[Judge] %s score 非法: %r", judge_model, d.get("score"))
                 score = 0.0
             # 限幅到 [0, 10]，防止评委返回越界分数污染聚合
             score = max(0.0, min(10.0, score))
-            dims_list.append(DimensionScore(
-                name=d["name"],
-                score=max(0.0, min(10.0, score)),
-                reason=str(d.get("reason", "")),
-            ))
+            dims_list.append(
+                DimensionScore(
+                    name=d["name"],
+                    score=max(0.0, min(10.0, score)),
+                    reason=str(d.get("reason", "")),
+                )
+            )
         dims = tuple(dims_list)
         missing = set(_EXPECTED_DIMENSIONS) - {d.name for d in dims}
         if missing:

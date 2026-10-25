@@ -14,6 +14,7 @@ presentation_utils.py — 通用展示辅助函数（Dropdown 构建、任务 ID
 
 ⚠️ 完整变更历史见 CHANGELOG.md。
 """
+
 from typing import Any
 
 from wcwidth import wcswidth
@@ -77,16 +78,18 @@ def build_history_dropdown_options(
     for t in tasks:
         tid = t.get("task_id")
         if not tid:
-            continue   # 跳过无 ID 的任务
+            continue  # 跳过无 ID 的任务
 
         raw_title = t.get("title") or t.get("raw_query") or "无标题任务"
         title = _display_truncate(str(raw_title), HISTORY_LABEL_MAX_LEN)
         tid_suffix = str(tid)[-8:]
 
-        options.append({
-            "label": f"{title} | {tid_suffix}",
-            "value": tid,
-        })
+        options.append(
+            {
+                "label": f"{title} | {tid_suffix}",
+                "value": tid,
+            }
+        )
     return options
 
 

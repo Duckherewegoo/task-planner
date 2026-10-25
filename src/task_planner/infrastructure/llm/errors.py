@@ -11,16 +11,19 @@ class LLMClientError(Exception):
 
 class LLMTimeoutError(LLMClientError):
     """LLM 调用超时"""
+
     pass
 
 
 class LLMCancelledError(LLMClientError):
     """LLM 调用被用户取消"""
+
     pass
 
 
 class LLMResponseError(LLMClientError):
     """LLM 返回内容异常（空响应、JSON 解析失败、格式不符等）"""
+
     pass
 
 

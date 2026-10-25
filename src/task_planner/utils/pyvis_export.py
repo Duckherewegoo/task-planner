@@ -65,7 +65,7 @@ def _shorten_label(label: str, max_width: int = 60) -> str:
     if wcswidth(label) <= max_width:
         return label
 
-    reserve = 3   # "..." 的宽度
+    reserve = 3  # "..." 的宽度
     truncated = ""
     current = 0
     for ch in label:
@@ -81,13 +81,7 @@ def _shorten_label(label: str, max_width: int = 60) -> str:
 
 def _escape_dot_text(s: str) -> str:
     """转义 DOT 字符串中的特殊字符"""
-    return (
-        str(s)
-        .replace("\\", "\\\\")
-        .replace('"', '\\"')
-        .replace("\n", "\\n")
-        .replace("\r", "")
-    )
+    return str(s).replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n").replace("\r", "")
 
 
 def _get_edge_type(edge: dict) -> str:
@@ -102,7 +96,10 @@ def _get_edge_type(edge: dict) -> str:
         return normalized
     logger.debug(
         "[Export] 未知边类型 %r (from=%s, to=%s)，降级为 %s",
-        raw, edge.get("from"), edge.get("to"), DEFAULT_EDGE_TYPE,
+        raw,
+        edge.get("from"),
+        edge.get("to"),
+        DEFAULT_EDGE_TYPE,
     )
     return DEFAULT_EDGE_TYPE
 
@@ -131,7 +128,10 @@ def _estimate_canvas_size(
 
     logger.debug(
         "[Export] 画布尺寸估算: nodes=%d, edges=%d → %dx%d",
-        n, e, width, height,
+        n,
+        e,
+        width,
+        height,
     )
     return width, height
 
@@ -155,9 +155,7 @@ def _build_pydot_graph(
         import networkx as nx
         import pydot  # noqa: F401
     except ImportError as e:
-        raise ImportError(
-            "导出需要安装 pydot 和 networkx: pip install pydot networkx"
-        ) from e
+        raise ImportError("导出需要安装 pydot 和 networkx: pip install pydot networkx") from e
 
     if not nodes:
         raise ValueError("没有节点数据可导出")
@@ -232,20 +230,22 @@ def _build_pydot_graph(
     # ── 转 pydot ──
     dot_graph = nx.nx_pydot.to_pydot(G)
 
-    dot_graph.obj_dict["attributes"].update({
-        "dpi": str(dpi),
-        "bgcolor": "white",
-        "rankdir": "TB",
-        "nodesep": "0.8",
-        "ranksep": "1.2",
-        "pad": "0.5",
-        "label": _escape_dot_text(title),
-        "labelloc": "t",
-        "fontname": FONT_FACE,
-        "fontsize": "18",
-        "splines": "true",
-        "overlap": "false",
-    })
+    dot_graph.obj_dict["attributes"].update(
+        {
+            "dpi": str(dpi),
+            "bgcolor": "white",
+            "rankdir": "TB",
+            "nodesep": "0.8",
+            "ranksep": "1.2",
+            "pad": "0.5",
+            "label": _escape_dot_text(title),
+            "labelloc": "t",
+            "fontname": FONT_FACE,
+            "fontsize": "18",
+            "splines": "true",
+            "overlap": "false",
+        }
+    )
 
     return dot_graph
 
@@ -280,16 +280,15 @@ def export_dag_to_svg(
         raise ValueError("没有节点数据可导出")
 
     states = _normalize_node_states(node_states)
-    dot_graph = _build_pydot_graph(
-        nodes, edges, states, title, dpi, font_size
-    )
+    dot_graph = _build_pydot_graph(nodes, edges, states, title, dpi, font_size)
     svg_bytes = dot_graph.create_svg(prog="dot")
 
     _write_if_requested(svg_bytes, output_path)
     if output_path is not None:
         logger.info(
             "[Export] SVG 已保存: %s (%.1f KB)",
-            output_path, len(svg_bytes) / 1024,
+            output_path,
+            len(svg_bytes) / 1024,
         )
     return svg_bytes
 
@@ -325,9 +324,7 @@ def export_dag_to_png(
         ) from e
 
     states = _normalize_node_states(node_states)
-    dot_graph = _build_pydot_graph(
-        nodes, edges, states, title, dpi, font_size
-    )
+    dot_graph = _build_pydot_graph(nodes, edges, states, title, dpi, font_size)
     svg_bytes = dot_graph.create_svg(prog="dot")
 
     est_w, est_h = _estimate_canvas_size(nodes, edges)
@@ -348,7 +345,11 @@ def export_dag_to_png(
 
     logger.debug(
         "[Export] PNG 渲染尺寸: %dx%d (dpi=%d, est=%dx%d)",
-        final_w, final_h, dpi, est_w, est_h,
+        final_w,
+        final_h,
+        dpi,
+        est_w,
+        est_h,
     )
 
     buf = io.BytesIO()
@@ -364,7 +365,8 @@ def export_dag_to_png(
     if output_path is not None:
         logger.info(
             "[Export] PNG 已保存: %s (%.1f KB)",
-            output_path, len(png_bytes) / 1024,
+            output_path,
+            len(png_bytes) / 1024,
         )
     return png_bytes
 
@@ -385,14 +387,10 @@ def export_dag_to_pdf(
     try:
         import cairosvg
     except ImportError as e:
-        raise ImportError(
-            "导出 PDF 需要安装 cairosvg: pip install cairosvg"
-        ) from e
+        raise ImportError("导出 PDF 需要安装 cairosvg: pip install cairosvg") from e
 
     states = _normalize_node_states(node_states)
-    dot_graph = _build_pydot_graph(
-        nodes, edges, states, title, dpi, font_size
-    )
+    dot_graph = _build_pydot_graph(nodes, edges, states, title, dpi, font_size)
     svg_bytes = dot_graph.create_svg(prog="dot")
 
     buf = io.BytesIO()
@@ -407,7 +405,8 @@ def export_dag_to_pdf(
     if output_path is not None:
         logger.info(
             "[Export] PDF 已保存: %s (%.1f KB)",
-            output_path, len(pdf_bytes) / 1024,
+            output_path,
+            len(pdf_bytes) / 1024,
         )
     return pdf_bytes
 
@@ -430,9 +429,7 @@ def export_dag_to_dot(
         raise ValueError("没有节点数据可导出")
 
     states = _normalize_node_states(node_states)
-    dot_graph = _build_pydot_graph(
-        nodes, edges, states, title, dpi, font_size
-    )
+    dot_graph = _build_pydot_graph(nodes, edges, states, title, dpi, font_size)
     return dot_graph.to_string()
 
 
@@ -487,9 +484,7 @@ def export_from_dag_store(
 
     exporter = fmt_map.get(fmt)
     if exporter is None:
-        raise ValueError(
-            f"不支持的格式: {fmt}，支持: {list(fmt_map.keys()) + ['dot']}"
-        )
+        raise ValueError(f"不支持的格式: {fmt}，支持: {list(fmt_map.keys()) + ['dot']}")
 
     return exporter(
         nodes=nodes,

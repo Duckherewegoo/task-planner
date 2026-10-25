@@ -7,6 +7,7 @@
   - 保存回调升级：写盘后调 reload_hub() 热重载，区分 user.yaml / .env 提示
   - 尝试 load_dotenv(override=True)，装了 python-dotenv 则密钥也能全热更
 """
+
 from pathlib import Path
 
 from dash import ALL, Input, Output, State, ctx, no_update
@@ -88,6 +89,7 @@ def _register_drawer_callbacks(app) -> None:
 
     主页面 children 不依赖 pathname，因此开关抽屉时主页面状态零丢失。
     """
+
     @app.callback(
         Output("config-overlay", "style"),
         Output("config-drawer-panel", "style"),
@@ -125,6 +127,7 @@ def _register_form_callbacks(app) -> None:
         if ctx.triggered_id == "cfg-reload-btn":
             try:
                 from task_planner.infrastructure.cog import reload_hub
+
                 n = reload_hub()
                 logger.info("[ConfigUI] hub.reload 完成: %d 条", n)
             except Exception as e:
@@ -163,13 +166,13 @@ def _register_form_callbacks(app) -> None:
             elif entry.type is int:
                 try:
                     val = int(val) if val not in (None, "") else entry.default
-                except (TypeError, ValueError):
+                except TypeError, ValueError:
                     errors.append(f"{name}: 需要整数")
                     continue
             elif entry.type is float:
                 try:
                     val = float(val) if val not in (None, "") else entry.default
-                except (TypeError, ValueError):
+                except TypeError, ValueError:
                     errors.append(f"{name}: 需要小数")
                     continue
 
@@ -207,6 +210,7 @@ def _register_form_callbacks(app) -> None:
         if env_updates:
             try:
                 from dotenv import load_dotenv
+
                 load_dotenv(_ENV_FILE, override=True)
                 env_hot_ok = True
                 logger.info("[ConfigUI] .env 已重新注入进程环境")
@@ -218,6 +222,7 @@ def _register_form_callbacks(app) -> None:
         hot_ok = False
         try:
             from task_planner.infrastructure.cog import reload_hub
+
             n = reload_hub()
             hot_ok = True
             logger.info("[ConfigUI] hub.reload 成功: %d 条", n)

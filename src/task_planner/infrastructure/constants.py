@@ -46,15 +46,19 @@ EDGE_TYPE_STYLE = {
 }
 
 EDGE_DASH_MAP: dict[str, list[int]] = {
-    "dashed":  [10, 5],
+    "dashed": [10, 5],
     "dashdot": [15, 5, 5, 5],
-    "dotted":  [3, 3],
+    "dotted": [3, 3],
 }
 
-VALID_EDGE_TYPES: frozenset[str] = frozenset({
-    EDGE_TYPE_HARD, EDGE_TYPE_SOFT,
-    EDGE_TYPE_CONDITIONAL, EDGE_TYPE_RETRY,
-})
+VALID_EDGE_TYPES: frozenset[str] = frozenset(
+    {
+        EDGE_TYPE_HARD,
+        EDGE_TYPE_SOFT,
+        EDGE_TYPE_CONDITIONAL,
+        EDGE_TYPE_RETRY,
+    }
+)
 
 # ══════════════════════════════════════════════════
 # 状态颜色与样式映射
@@ -111,8 +115,12 @@ NODE_COLORS = {
         NODE_TEXT_COLORS.get(code, "#374151"),
     )
     for status_key, code in {
-        "pending": 0, "running": 1, "done": 2,
-        "failed": 3, "timeout": 4, "skipped": 5,
+        "pending": 0,
+        "running": 1,
+        "done": 2,
+        "failed": 3,
+        "timeout": 4,
+        "skipped": 5,
     }.items()
 }
 NODE_COLORS["completed"] = NODE_COLORS["done"]
@@ -171,9 +179,9 @@ NODE_STATUS_CODE_MAP = {
 }
 
 NODE_ACTION_CONFIG = {
-    "done":    {"unlock_downstream": True,  "label": "完成", "icon": "✅"},
+    "done": {"unlock_downstream": True, "label": "完成", "icon": "✅"},
     "skipped": {"unlock_downstream": False, "label": "跳过", "icon": "⏭️"},
-    "failed":  {"unlock_downstream": False, "label": "失败", "icon": "❌"},
+    "failed": {"unlock_downstream": False, "label": "失败", "icon": "❌"},
 }
 
 # ══════════════════════════════════════════════════
@@ -187,18 +195,18 @@ NODE_STATUS_ICONS = STATUS_ICONS
 # UI 状态（前端节点展示用）
 # ══════════════════════════════════════════════════
 STATE_COLORS = {
-    "done":    ("#10b981", "white"),
+    "done": ("#10b981", "white"),
     "skipped": ("#6366f1", "white"),
-    "failed":  ("#ef4444", "white"),
+    "failed": ("#ef4444", "white"),
     "running": ("#f59e0b", "white"),
     "pending": ("#e2e8f0", "#475569"),
     "blocked": ("#94a3b8", "white"),
 }
 
 STATE_LABELS = {
-    "done":    "已完成",
+    "done": "已完成",
     "skipped": "⏭️ 已跳过",
-    "failed":  "❌ 做不到",
+    "failed": "❌ 做不到",
     "running": "🔄 进行中",
     "pending": "⏳ 等待中",
     "blocked": "🔒 被阻塞",
@@ -206,24 +214,29 @@ STATE_LABELS = {
 
 HINT_TEMPLATES = {
     "running": "已选中节点 {nid}，现在可以「开始执行」或「跳过/做不到」",
-    "done":    "节点 {nid} 已完成",
+    "done": "节点 {nid} 已完成",
     "skipped": "⏭️ 节点 {nid} 已跳过",
-    "failed":  "❌ 节点 {nid} 标记为做不到",
+    "failed": "❌ 节点 {nid} 标记为做不到",
     "pending": "⏳ 节点 {nid} 等待前置条件完成，暂时无法操作",
 }
 
 # ══════════════════════════════════════════════════
 # 意图
 # ══════════════════════════════════════════════════
-VALID_INTENT_CATEGORIES: frozenset[str] = frozenset({
-    "cooking", "engineering", "logistics",
-    "learning", "life_admin", "creative",
-    "consultation", "other",
-})
-
-VALID_INTENT_COMPLEXITIES: frozenset[str] = frozenset(
-    {"simple", "medium", "complex"}
+VALID_INTENT_CATEGORIES: frozenset[str] = frozenset(
+    {
+        "cooking",
+        "engineering",
+        "logistics",
+        "learning",
+        "life_admin",
+        "creative",
+        "consultation",
+        "other",
+    }
 )
+
+VALID_INTENT_COMPLEXITIES: frozenset[str] = frozenset({"simple", "medium", "complex"})
 
 # ══════════════════════════════════════════════════
 # 其它

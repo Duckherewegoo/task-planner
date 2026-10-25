@@ -34,9 +34,10 @@ logger = get_logger("task_planner.eval_suite.jury")
 @dataclass(frozen=True)
 class JudgeConfig:
     """单个评委的配置。"""
+
     model: str
     name: str
-    weight: float = 1.0    # 仅 Weighted 策略使用
+    weight: float = 1.0  # 仅 Weighted 策略使用
 
 
 class CalibratedJudge:
@@ -86,7 +87,10 @@ class CalibratedJudge:
         async def _one(j: JudgeConfig) -> JudgeScore:
             async with self._get_semaphore():
                 return await llm_judge(
-                    trace, golden, j.model, req_id=f"jury_{j.name}",
+                    trace,
+                    golden,
+                    j.model,
+                    req_id=f"jury_{j.name}",
                 )
 
         raw = await asyncio.gather(
@@ -97,10 +101,12 @@ class CalibratedJudge:
         for i, item in enumerate(raw):
             if isinstance(item, BaseException):
                 logger.error("[Jury] 评委 %s 异常: %s", self.judges[i].name, item)
-                scores.append(JudgeScore(
-                    judge_model=self.judges[i].model,
-                    error=f"评委异常: {type(item).__name__}: {item}",
-                ))
+                scores.append(
+                    JudgeScore(
+                        judge_model=self.judges[i].model,
+                        error=f"评委异常: {type(item).__name__}: {item}",
+                    )
+                )
             else:
                 scores.append(item)
 
@@ -114,22 +120,17 @@ class CalibratedJudge:
             )
 
         # ── 3. 聚合各维度 ──
-        all_dims = {
-            d.name for s in valid for d in s.dimensions
-        }
+        all_dims = {d.name for s in valid for d in s.dimensions}
         aggregated_dims: dict[str, float] = {}
         for dim in all_dims:
-            vals = [
-                s.dimension(dim).score
-                for s in valid
-                if s.dimension(dim) is not None
-            ]
+            vals = [s.dimension(dim).score for s in valid if s.dimension(dim) is not None]
             if vals:
                 aggregated_dims[dim] = self._aggregate(vals)
 
         aggregated_overall = (
             round(sum(aggregated_dims.values()) / len(aggregated_dims), 2)
-            if aggregated_dims else 0.0
+            if aggregated_dims
+            else 0.0
         )
 
         # ── 4. 一致性 + 置信区间 ──
@@ -155,9 +156,7 @@ class CalibratedJudge:
             return round(statistics.mean(values), 2)
         if self.strategy == VotingStrategy.UNANIMOUS:
             if max(values) - min(values) > 1.0:
-                raise ValueError(
-                    f"评委不一致（分差 {max(values) - min(values):.1f}）"
-                )
+                raise ValueError(f"评委不一致（分差 {max(values) - min(values):.1f}）")
             return round(statistics.mean(values), 2)
         if self.strategy == VotingStrategy.WEIGHTED:
             if not weights or len(weights) != len(values):
@@ -178,9 +177,19 @@ class CalibratedJudge:
         return round(max(0.0, 1.0 - statistics.stdev(values) / cls._AGREEMENT_SCALE), 3)
 
     _T_TABLE = {
-        1: 12.71, 2: 4.30, 3: 3.18, 4: 2.78, 5: 2.57,
-        6: 2.45, 7: 2.36, 8: 2.31, 9: 2.26, 10: 2.23,
-        15: 2.13, 20: 2.09, 30: 2.04,
+        1: 12.71,
+        2: 4.30,
+        3: 3.18,
+        4: 2.78,
+        5: 2.57,
+        6: 2.45,
+        7: 2.36,
+        8: 2.31,
+        9: 2.26,
+        10: 2.23,
+        15: 2.13,
+        20: 2.09,
+        30: 2.04,
     }
 
     @staticmethod
@@ -203,5 +212,5 @@ class CalibratedJudge:
         mean = statistics.mean(values)
         stdev = statistics.stdev(values)
         t = CalibratedJudge._t_value(n - 1)
-        margin = t * stdev / (n ** 0.5)
+        margin = t * stdev / (n**0.5)
         return round(mean - margin, 2), round(mean + margin, 2)

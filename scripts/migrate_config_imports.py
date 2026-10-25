@@ -31,16 +31,14 @@ from __future__ import annotations
 import argparse
 import ast
 import io
-import re
 import sys
 import tokenize
 from pathlib import Path
-from typing import Dict, List, Set, Tuple
 
 # ═══════════════════════════════════════════════════════════════════════
 # 1. 变量分类表
 # ═══════════════════════════════════════════════════════════════════════
-RUNTIME_VARS: Set[str] = {
+RUNTIME_VARS: set[str] = {
     # base
     "DEBUG", "LOG_DIR", "LOG_FILE", "LOG_MAX_DAYS", "LOG_CONSOLE_LEVEL",
     "DASH_DISABLE_VERSION_CHECK",
@@ -66,7 +64,7 @@ RUNTIME_VARS: Set[str] = {
     "MAX_INPUT_LENGTH", "MAX_CACHE_INPUT_BYTES", "SESSION_TTL",
 }
 
-CONSTANT_VARS: Set[str] = {
+CONSTANT_VARS: set[str] = {
     "TASK_STATUS",
     "EDGE_TYPE_HARD", "EDGE_TYPE_SOFT", "EDGE_TYPE_CONDITIONAL", "EDGE_TYPE_RETRY",
     "DEFAULT_EDGE_TYPE", "EDGE_TYPE_CSS", "EDGE_TYPE_COLOR", "EDGE_TYPE_STYLE",
@@ -83,16 +81,16 @@ CONSTANT_VARS: Set[str] = {
     "SUPPORTED_EXPORT_FORMATS", "FONT_FACE",
 }
 
-REGEX_VARS: Set[str] = {
+REGEX_VARS: set[str] = {
     "THINK_RE", "UNREPLACED_PATTERN", "SKIP_PLANNING_PATTERNS",
     "SENSITIVE_PATTERNS", "SENSITIVE_PATTERNS_CONFIG",
 }
 
-PROMPT_VARS: Set[str] = {
+PROMPT_VARS: set[str] = {
     "INTENT_PROMPT", "PLANNER_PROMPT", "NODE_REFINE_PROMPT", "EXECUTE_NODE_PROMPT",
 }
 
-UI_STYLE_VARS: Set[str] = {
+UI_STYLE_VARS: set[str] = {
     "BASE_BTN_STYLE", "BUTTON_STYLE_PRIMARY", "BUTTON_STYLE_DANGER", "BUTTON_STYLE_SECONDARY",
     "SECTION_HEADER_STYLE", "ZOOM_TOOLBAR_STYLE",
     "BAR_DONE", "BAR_ERROR", "BAR_LOADING",
@@ -100,9 +98,9 @@ UI_STYLE_VARS: Set[str] = {
     "MARKDOWN_PRE_STYLE", "HINT_BASE_STYLE", "HINT_STYLES",
 }
 
-ASSET_STYLE_VARS: Set[str] = {"CYTO_STYLESHEET"}
+ASSET_STYLE_VARS: set[str] = {"CYTO_STYLESHEET"}
 
-ASSET_JS_VARS: Set[str] = {
+ASSET_JS_VARS: set[str] = {
     "GRAPH_CONFIGS",
     "FIT_JS_TEMPLATE", "ZOOM_BTN_JS_TEMPLATE", "ZOOM_SLIDER_JS_TEMPLATE",
 }
@@ -131,8 +129,8 @@ def _is_old_config_import(node: ast.ImportFrom) -> bool:
     return False
 
 
-def find_imports(tree: ast.Module) -> List[ast.ImportFrom]:
-    out: List[ast.ImportFrom] = []
+def find_imports(tree: ast.Module) -> list[ast.ImportFrom]:
+    out: list[ast.ImportFrom] = []
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom) and _is_old_config_import(node):
             out.append(node)
@@ -142,12 +140,12 @@ def find_imports(tree: ast.Module) -> List[ast.ImportFrom]:
 # ═══════════════════════════════════════════════════════════════════════
 # 3. 生成新 import 块
 # ═══════════════════════════════════════════════════════════════════════
-def _indent_of(lines: List[str], lineno: int) -> str:
+def _indent_of(lines: list[str], lineno: int) -> str:
     line = lines[lineno - 1]
     return line[: len(line) - len(line.lstrip())]
 
 
-def _block(module: str, names: List[str], indent: str) -> List[str]:
+def _block(module: str, names: list[str], indent: str) -> list[str]:
     if not names:
         return []
     if len(names) == 1:
@@ -160,11 +158,11 @@ def _block(module: str, names: List[str], indent: str) -> List[str]:
 
 
 def build_import_block(
-    names: Set[str],
+    names: set[str],
     indent: str,
-    aliases: Dict[str, str],  # real_name -> alias
-) -> List[str]:
-    lines: List[str] = []
+    aliases: dict[str, str],  # real_name -> alias
+) -> list[str]:
+    lines: list[str] = []
 
     def with_alias(name: str) -> str:
         return f"{name} as {aliases[name]}" if name in aliases else name
@@ -191,7 +189,7 @@ def build_import_block(
 # ═══════════════════════════════════════════════════════════════════════
 # 4. tokenize：业务代码里加 _hub.dev. 前缀
 # ═══════════════════════════════════════════════════════════════════════
-def rewrite_names(source: str, runtime_names: Set[str]) -> str:
+def rewrite_names(source: str, runtime_names: set[str]) -> str:
     """
     只把 NAME token 且不在 import 行里的，加 `_hub.dev.` 前缀。
     STRING / COMMENT / f-string 内容完全不动。
@@ -202,7 +200,7 @@ def rewrite_names(source: str, runtime_names: Set[str]) -> str:
     tokens = list(tokenize.generate_tokens(io.StringIO(source).readline))
 
     # 收集所有 import 行号
-    import_lines: Set[int] = set()
+    import_lines: set[int] = set()
     for tok in tokens:
         if tok.type == tokenize.NAME and tok.string in ("import", "from"):
             import_lines.add(tok.start[0])
@@ -220,7 +218,7 @@ def rewrite_names(source: str, runtime_names: Set[str]) -> str:
         except tokenize.TokenizeError:
             continue
 
-        spans: List[Tuple[int, int]] = []
+        spans: list[tuple[int, int]] = []
         for tok in line_tokens:
             if tok.type == tokenize.NAME and tok.string in runtime_names:
                 spans.append((tok.start[1], tok.end[1]))
@@ -243,7 +241,7 @@ def rewrite_names(source: str, runtime_names: Set[str]) -> str:
 # ═══════════════════════════════════════════════════════════════════════
 # 5. __all__ 清理（仅 direct 模式调用）
 # ═══════════════════════════════════════════════════════════════════════
-def clean_dunder_all(source: str, migrated: Set[str]) -> str:
+def clean_dunder_all(source: str, migrated: set[str]) -> str:
     """把 __all__ 里被迁移的名字删掉（仅 direct 模式使用）"""
     try:
         tree = ast.parse(source)
@@ -251,7 +249,7 @@ def clean_dunder_all(source: str, migrated: Set[str]) -> str:
         return source
 
     lines = source.split("\n")
-    edits: List[Tuple[int, int, str]] = []
+    edits: list[tuple[int, int, str]] = []
 
     for node in tree.body:
         if not isinstance(node, ast.Assign):
@@ -265,7 +263,7 @@ def clean_dunder_all(source: str, migrated: Set[str]) -> str:
         if not isinstance(node.value, (ast.List, ast.Tuple)):
             continue
 
-        kept: List[str] = []
+        kept: list[str] = []
         for elt in node.value.elts:
             if isinstance(elt, ast.Constant) and isinstance(elt.value, str):
                 if elt.value in migrated:
@@ -288,7 +286,7 @@ def clean_dunder_all(source: str, migrated: Set[str]) -> str:
 # ═══════════════════════════════════════════════════════════════════════
 # 6. 单文件转换
 # ═══════════════════════════════════════════════════════════════════════
-def transform(source: str, mode: str) -> Tuple[str, Dict, Set[str]]:
+def transform(source: str, mode: str) -> tuple[str, dict, set[str]]:
     """
     返回 (新源码, info, unknown_names)
     """
@@ -302,20 +300,20 @@ def transform(source: str, mode: str) -> Tuple[str, Dict, Set[str]]:
         return source, {}, set()
 
     lines = source.split("\n")
-    unknown: Set[str] = set()
+    unknown: set[str] = set()
 
-    all_names: Set[str] = set()
-    alias_map: Dict[str, str] = {}       # real -> alias
-    runtime_alias: Dict[str, str] = {}   # alias -> real
+    all_names: set[str] = set()
+    alias_map: dict[str, str] = {}       # real -> alias
+    runtime_alias: dict[str, str] = {}   # alias -> real
 
-    import_edits: List[Tuple[int, int, str]] = []  # (start_idx, end_idx, replacement)
+    import_edits: list[tuple[int, int, str]] = []  # (start_idx, end_idx, replacement)
 
     for node in imports:
         start_idx = node.lineno - 1
         end_idx = node.end_lineno
         indent = _indent_of(lines, node.lineno)
 
-        names: Set[str] = set()
+        names: set[str] = set()
         for alias in node.names:
             real = alias.name
             names.add(real)
@@ -364,7 +362,7 @@ _SKIP_DIRS = {
 }
 
 
-def find_py_files(root: Path) -> List[Path]:
+def find_py_files(root: Path) -> list[Path]:
     return sorted(
         p for p in root.rglob("*.py")
         if not any(part in _SKIP_DIRS for part in p.parts)
@@ -419,7 +417,7 @@ def main() -> int:
           f"{'dry-run' if dry_run else 'apply'})……")
 
     changed_files = 0
-    unknown_total: Set[str] = set()
+    unknown_total: set[str] = set()
 
     for path in files:
         try:
@@ -460,7 +458,7 @@ def main() -> int:
     print("═" * 72)
 
     if unknown_total:
-        print(f"\n⚠️  以下名字未在分类表里，已忽略（请手动确认）:")
+        print("\n⚠️  以下名字未在分类表里，已忽略（请手动确认）:")
         for n in sorted(unknown_total):
             print(f"    - {n}")
         return 1

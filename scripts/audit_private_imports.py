@@ -22,7 +22,7 @@ import argparse
 import ast
 import sys
 from pathlib import Path
-from typing import Dict, List, NamedTuple, Optional, Set, Tuple
+from typing import NamedTuple
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -34,7 +34,7 @@ class Finding(NamedTuple):
     lineno: int
     target_module: str
     name: str
-    alias: Optional[str]
+    alias: str | None
 
 
 class ModuleInfo(NamedTuple):
@@ -42,7 +42,7 @@ class ModuleInfo(NamedTuple):
     file: Path
     is_package: bool
     tree: ast.Module
-    all_names: Set[str]
+    all_names: set[str]
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -63,10 +63,10 @@ def find_project_root(start: Path) -> Path:
     return start
 
 
-def find_py_files(root: Path) -> List[Path]:
+def find_py_files(root: Path) -> list[Path]:
     """P1-1：用相对路径过滤，避免绝对路径误伤"""
     root = root.resolve()
-    result: List[Path] = []
+    result: list[Path] = []
     for p in root.rglob("*.py"):
         try:
             rel_parts = p.relative_to(root).parts
@@ -78,7 +78,7 @@ def find_py_files(root: Path) -> List[Path]:
     return sorted(result)
 
 
-def module_path_of(file: Path, src_root: Path) -> Optional[Tuple[str, bool]]:
+def module_path_of(file: Path, src_root: Path) -> tuple[str, bool] | None:
     try:
         rel = file.relative_to(src_root)
     except ValueError:
@@ -133,8 +133,8 @@ def resolve_relative_import(
     current_module: str,
     current_is_package: bool,
     level: int,
-    module: Optional[str],
-) -> Optional[str]:
+    module: str | None,
+) -> str | None:
     """相对导入 → 绝对模块名；超出顶层包返回 None"""
     if level == 0:
         return module
@@ -155,9 +155,9 @@ def resolve_relative_import(
 # ═══════════════════════════════════════════════════════════════════
 # AST 收集
 # ═══════════════════════════════════════════════════════════════════
-def collect_dunder_all(tree: ast.Module) -> Set[str]:
+def collect_dunder_all(tree: ast.Module) -> set[str]:
     """收集 __all__（支持 Assign 和 AnnAssign 两种写法）"""
-    names: Set[str] = set()
+    names: set[str] = set()
 
     def _extract(value: ast.AST) -> None:
         if isinstance(value, (ast.List, ast.Tuple)):
@@ -202,7 +202,7 @@ def main() -> int:
         return 2
 
     # ── 收集 src/ ──
-    modules: Dict[str, ModuleInfo] = {}
+    modules: dict[str, ModuleInfo] = {}
     for path in find_py_files(src_root):
         info = module_path_of(path, src_root)
         if info is None:
@@ -219,7 +219,7 @@ def main() -> int:
         )
 
     # ── 收集 tests/（仅 A 类用）──
-    test_all: List[Tuple[Path, Set[str]]] = []
+    test_all: list[tuple[Path, set[str]]] = []
     if args.also_tests and tests_root.exists():
         for path in find_py_files(tests_root):
             try:
@@ -230,7 +230,7 @@ def main() -> int:
             test_all.append((path, collect_dunder_all(tree)))
 
     # ── A 类 ──
-    a_findings: List[Finding] = []
+    a_findings: list[Finding] = []
     for mod_name, m in modules.items():
         for name in m.all_names:
             if is_private(name):
@@ -245,7 +245,7 @@ def main() -> int:
                 ))
 
     # ── B 类 ──
-    b_findings: List[Finding] = []
+    b_findings: list[Finding] = []
     for mod_name, m in modules.items():
         for node in ast.walk(m.tree):
             if not isinstance(node, ast.ImportFrom):
@@ -285,7 +285,7 @@ def main() -> int:
     print(f"\n【B】跨模块引用私有名 —— {len(b_findings)} 处")
     print("─" * 78)
     if b_findings:
-        by_target: Dict[str, List[Finding]] = {}
+        by_target: dict[str, list[Finding]] = {}
         for f in b_findings:
             by_target.setdefault(f.target_module, []).append(f)
         for target in sorted(by_target):

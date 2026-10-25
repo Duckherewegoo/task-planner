@@ -22,7 +22,7 @@ strip_future_annotations.py — 批量删除 .py 文件里的
 
 建议在 git 干净工作区下跑，随时 `git diff` / `git restore` 回滚。
 """
-from __future__ import annotations  # noqa: F401  (脚本自身用，无妨)
+from __future__ import annotations
 
 import argparse
 import re

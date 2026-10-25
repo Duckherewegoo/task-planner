@@ -38,14 +38,13 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple
 
 # ═══════════════════════════════════════════════════════════════════
 # 配置
 # ═══════════════════════════════════════════════════════════════════
 
 # 模块路径重写
-MODULE_REWRITES: Dict[str, str] = {
+MODULE_REWRITES: dict[str, str] = {
     "task_planner.core.database": "task_planner.core.db",
     "task_planner.infrastructure.llm_client": "task_planner.infrastructure.llm",
     "task_planner.services.stream_manager": "task_planner.services.stream",
@@ -55,7 +54,7 @@ MODULE_REWRITES: Dict[str, str] = {
 # 私有名 alias 重写
 # key   = (原模块, 原名)
 # value = (新模块, 新名, 保持的新别名)
-ALIAS_REWRITES: Dict[Tuple[str, str], Tuple[str, str, str]] = {
+ALIAS_REWRITES: dict[tuple[str, str], tuple[str, str, str]] = {
     ("task_planner.services.agent", "_is_graph_finished"):
         ("task_planner.services.agent.view", "is_graph_finished", "_is_graph_finished"),
     ("task_planner.services.agent", "_make_initial_state"):
@@ -69,7 +68,7 @@ ALIAS_REWRITES: Dict[Tuple[str, str], Tuple[str, str, str]] = {
 }
 
 # 待删薄壳文件（相对项目根）
-SHELL_FILES: List[str] = [
+SHELL_FILES: list[str] = [
     "src/task_planner/core/database.py",
     "src/task_planner/infrastructure/llm_client.py",
     "src/task_planner/services/stream_manager.py",
@@ -77,7 +76,7 @@ SHELL_FILES: List[str] = [
 ]
 
 # 待删 alias 定义行（相对项目根 → 正则列表）
-LINES_TO_REMOVE: Dict[str, List[re.Pattern]] = {
+LINES_TO_REMOVE: dict[str, list[re.Pattern]] = {
     "src/task_planner/services/agent/__init__.py": [
         re.compile(r"^\s*from\s+\.\s*state\s+import\s+make_initial_state\s+as\s+_make_initial_state\b"),
         re.compile(r"^\s*from\s+\.\s*view\s+import\s+is_graph_finished\s+as\s+_is_graph_finished\b"),
@@ -88,7 +87,7 @@ LINES_TO_REMOVE: Dict[str, List[re.Pattern]] = {
 }
 
 # 与待删行相邻的注释，也一起删
-CONTEXT_COMMENT_PATTERNS: List[re.Pattern] = [
+CONTEXT_COMMENT_PATTERNS: list[re.Pattern] = [
     re.compile(r"^\s*#\s*向后兼容"),
     re.compile(r"^\s*#\s*═{4,}\s*$"),
     re.compile(r"^\s*#\s*─{4,}\s*$"),
@@ -106,7 +105,7 @@ _SKIP_DIRS = {
 # 基础工具
 # ═══════════════════════════════════════════════════════════════════
 
-def find_py_files(root: Path) -> List[Path]:
+def find_py_files(root: Path) -> list[Path]:
     return sorted(
         p for p in root.rglob("*.py")
         if not any(part in _SKIP_DIRS for part in p.parts)
@@ -134,7 +133,7 @@ _IMPORT_HEAD_RE = re.compile(
 )
 
 
-def _iter_imports(source: str) -> List[Tuple[int, int, str]]:
+def _iter_imports(source: str) -> list[tuple[int, int, str]]:
     """
     遍历所有 "from X import ..." 语句。
     返回 [(start, end, statement_text), ...]
@@ -143,7 +142,7 @@ def _iter_imports(source: str) -> List[Tuple[int, int, str]]:
       - 带尾注释：from x import a  # comment
       - 多行括号：from x import (\n  a,\n  b,\n)
     """
-    result: List[Tuple[int, int, str]] = []
+    result: list[tuple[int, int, str]] = []
     for m in _IMPORT_HEAD_RE.finditer(source):
         start = m.start()
         pos = m.end()
@@ -186,7 +185,7 @@ def _iter_imports(source: str) -> List[Tuple[int, int, str]]:
     return result
 
 
-def _parse_import_items(stmt: str) -> Tuple[str, List[Tuple[str, Optional[str]]]]:
+def _parse_import_items(stmt: str) -> tuple[str, list[tuple[str, str | None]]]:
     """
     解析 import 语句。
     Returns (module, [(name, alias_or_None), ...])
@@ -203,7 +202,7 @@ def _parse_import_items(stmt: str) -> Tuple[str, List[Tuple[str, Optional[str]]]
     # 剥离注释
     body = re.sub(r"#[^\n]*", "", body)
     # 按逗号拆分
-    items: List[Tuple[str, Optional[str]]] = []
+    items: list[tuple[str, str | None]] = []
     for part in body.split(","):
         part = part.strip()
         if not part:
@@ -220,7 +219,7 @@ def _parse_import_items(stmt: str) -> Tuple[str, List[Tuple[str, Optional[str]]]
 
 def _format_import(
     module: str,
-    items: List[Tuple[str, Optional[str]]],
+    items: list[tuple[str, str | None]],
     indent: str = "",
 ) -> str:
     if not items:
@@ -241,9 +240,9 @@ def _format_import(
 # 改写逻辑
 # ═══════════════════════════════════════════════════════════════════
 
-def rewrite_source(source: str) -> Tuple[str, int]:
+def rewrite_source(source: str) -> tuple[str, int]:
     """改写源码 → (新源码, 改动数)"""
-    edits: List[Tuple[int, int, str]] = []  # (start, end, new_text)
+    edits: list[tuple[int, int, str]] = []  # (start, end, new_text)
 
     for start, end, stmt in _iter_imports(source):
         try:
@@ -253,8 +252,8 @@ def rewrite_source(source: str) -> Tuple[str, int]:
 
         indent = _extract_indent(source[start:end])
 
-        stay: List[Tuple[str, Optional[str]]] = []
-        move: Dict[str, List[Tuple[str, Optional[str]]]] = {}
+        stay: list[tuple[str, str | None]] = []
+        move: dict[str, list[tuple[str, str | None]]] = {}
 
         for name, alias in items:
             key = (module, name)
@@ -268,7 +267,7 @@ def rewrite_source(source: str) -> Tuple[str, int]:
 
         new_module = MODULE_REWRITES.get(module, module)
 
-        parts: List[str] = []
+        parts: list[str] = []
         if stay:
             parts.append(_format_import(new_module, stay, indent))
         for new_mod, new_items in move.items():
@@ -285,17 +284,17 @@ def rewrite_source(source: str) -> Tuple[str, int]:
     return source, len(edits)
 
 
-def remove_alias_lines(source: str, patterns: List[re.Pattern]) -> Tuple[str, int]:
+def remove_alias_lines(source: str, patterns: list[re.Pattern]) -> tuple[str, int]:
     """删除匹配行 + 相关注释"""
     lines = source.split("\n")
-    to_delete: Set[int] = set()
+    to_delete: set[int] = set()
 
     for i, line in enumerate(lines):
         if any(p.match(line) for p in patterns):
             to_delete.add(i)
 
     # 向上扩展：连续的注释或空行一起删
-    extra: Set[int] = set()
+    extra: set[int] = set()
     for i in list(to_delete):
         j = i - 1
         while j >= 0:
@@ -322,7 +321,7 @@ def remove_alias_lines(source: str, patterns: List[re.Pattern]) -> Tuple[str, in
 # 验证
 # ═══════════════════════════════════════════════════════════════════
 
-def validate_python(path: Path, source: str) -> Optional[str]:
+def validate_python(path: Path, source: str) -> str | None:
     """AST 验证；返回 None 表示通过，返回字符串表示错误信息"""
     try:
         ast.parse(source, filename=str(path))
@@ -462,7 +461,7 @@ def main() -> int:
     print(f"  扫描 {len(py_files)} 个 .py 文件")
 
     # 每个文件的改动：{绝对路径: (旧内容, 新内容, 改动数)}
-    changes: Dict[Path, Tuple[str, str, int]] = {}
+    changes: dict[Path, tuple[str, str, int]] = {}
 
     for path in py_files:
         try:
@@ -492,7 +491,7 @@ def main() -> int:
     print("阶段 2/5：Validate（AST 语法检查）")
     print("═" * 72)
 
-    errors: List[Tuple[Path, str]] = []
+    errors: list[tuple[Path, str]] = []
     for path, (_old, new, _n) in changes.items():
         err = validate_python(path, new)
         if err:
@@ -550,12 +549,12 @@ def main() -> int:
     backup_dir = make_backup_dir(root)
     print(f"  备份目录: {backup_dir}")
 
-    backed_up: List[str] = []
+    backed_up: list[str] = []
     for path in sorted(changes.keys()):
         rel = backup_file(path, root, backup_dir)
         backed_up.append(rel)
 
-    backed_up_deleted: List[str] = []
+    backed_up_deleted: list[str] = []
     for p in shell_paths:
         if p.exists():
             rel = backup_file(p, root, backup_dir)
@@ -577,8 +576,8 @@ def main() -> int:
     print("阶段 4/5：Apply")
     print("═" * 72)
 
-    written: List[Path] = []
-    deleted: List[Path] = []
+    written: list[Path] = []
+    deleted: list[Path] = []
 
     try:
         for path in sorted(changes.keys()):
@@ -595,7 +594,7 @@ def main() -> int:
 
     except Exception as e:
         print(f"\n  ❌ 写入过程中异常：{e}")
-        print(f"  🔄 尝试自动回滚……")
+        print("  🔄 尝试自动回滚……")
         do_rollback(backup_dir, root)
         return 3
 
@@ -632,7 +631,7 @@ def main() -> int:
     # ══════════════════════════════════════════════════════════
     print()
     print("═" * 72)
-    print(f"全部完成")
+    print("全部完成")
     print("═" * 72)
     print()
     print("下一步：")
@@ -640,10 +639,10 @@ def main() -> int:
     print("  2. 全链路:  python -c 'import task_planner; from task_planner.main.ui import app; print(\"OK\")'")
     print("  3. 手工改 README.md 里 'main.dash_app' → 'main.ui.app'")
     print()
-    print(f"如需回滚：")
+    print("如需回滚：")
     print(f"  python scripts/remove_compat_shells.py --rollback {backup_dir.relative_to(root)}")
     print()
-    print(f"确认无误后删除备份：")
+    print("确认无误后删除备份：")
     print(f"  rm -rf {backup_dir.relative_to(root)}")
     return 0
 

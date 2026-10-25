@@ -38,12 +38,12 @@ import sys
 import types
 from pathlib import Path
 from string import Template
-from typing import Any, Dict, List, Set, Tuple
+from typing import Any
 
 # ═══════════════════════════════════════════════════════════════════
 # 1. 忽略清单 —— 有意删除 / 内部辅助 / 标准库，不报警
 # ═══════════════════════════════════════════════════════════════════
-IGNORE_NAMES: Set[str] = {
+IGNORE_NAMES: set[str] = {
     # Python 标准库 / 常见导入
     "os", "re", "sys", "logging", "warnings", "Path",
     "Any", "Callable", "Dict", "List", "Set", "FrozenSet", "Tuple",
@@ -58,7 +58,7 @@ IGNORE_NAMES: Set[str] = {
 # ═══════════════════════════════════════════════════════════════════
 # 2. 从单个 .py 提取顶层名字 + 值
 # ═══════════════════════════════════════════════════════════════════
-def extract_names(path: Path) -> Tuple[Set[str], Dict[str, Any]]:
+def extract_names(path: Path) -> tuple[set[str], dict[str, Any]]:
     """
     返回 (声明的名字集合, 成功执行后拿到的值字典)。
 
@@ -78,7 +78,7 @@ def extract_names(path: Path) -> Tuple[Set[str], Dict[str, Any]]:
         return set(), {}
 
     # ── 阶段 1：AST 收集顶层声明 ──
-    declared: Set[str] = set()
+    declared: set[str] = set()
     for node in tree.body:
         if isinstance(node, ast.Assign):
             for t in node.targets:
@@ -97,7 +97,7 @@ def extract_names(path: Path) -> Tuple[Set[str], Dict[str, Any]]:
                 declared.add(alias.asname or alias.name)
 
     # ── 阶段 2：尽力 exec 拿真实值 ──
-    ns: Dict[str, Any] = {
+    ns: dict[str, Any] = {
         "__file__": str(path),
         "__name__": f"_driftcheck_{path.stem}",
     }
@@ -111,7 +111,7 @@ def extract_names(path: Path) -> Tuple[Set[str], Dict[str, Any]]:
             file=sys.stderr,
         )
 
-    values: Dict[str, Any] = {}
+    values: dict[str, Any] = {}
     for name in declared:
         values[name] = ns.get(name, "<UNEXECUTED>")
     return declared, values
@@ -144,7 +144,7 @@ def _val_eq(a: Any, b: Any) -> bool:
         return all(_val_eq(a[k], b[k]) for k in a)
     # 列表 / 元组
     if isinstance(a, (list, tuple)) and isinstance(b, (list, tuple)):
-        return len(a) == len(b) and all(_val_eq(x, y) for x, y in zip(a, b))
+        return len(a) == len(b) and all(_val_eq(x, y) for x, y in zip(a, b, strict=False))
     try:
         return a == b
     except Exception:
@@ -164,7 +164,7 @@ def _short_repr(v: Any, limit: int = 80) -> str:
 # ═══════════════════════════════════════════════════════════════════
 # 4. YAML 名字提取（用于 cog）
 # ═══════════════════════════════════════════════════════════════════
-def extract_from_yaml(path: Path) -> Set[str]:
+def extract_from_yaml(path: Path) -> set[str]:
     try:
         import yaml
     except ImportError:
@@ -181,8 +181,8 @@ def extract_from_yaml(path: Path) -> Set[str]:
         print(f"[ERR] 解析 YAML 失败 {path}: {e}", file=sys.stderr)
         return set()
 
-    names: Set[str] = set()
-    for section, items in data.items():
+    names: set[str] = set()
+    for _section, items in data.items():
         if isinstance(items, dict):
             for name in items.keys():
                 names.add(name)
@@ -193,10 +193,10 @@ def extract_from_yaml(path: Path) -> Set[str]:
 # 5. 收集新模块
 # ═══════════════════════════════════════════════════════════════════
 def discover_modules(
-    root: Path, exclude_names: Set[str] | None = None
-) -> List[Path]:
+    root: Path, exclude_names: set[str] | None = None
+) -> list[Path]:
     exclude_names = exclude_names or set()
-    result: List[Path] = []
+    result: list[Path] = []
     for p in sorted(root.rglob("*.py")):
         if "__pycache__" in p.parts:
             continue
@@ -209,15 +209,15 @@ def discover_modules(
 
 
 def collect_new(
-    module_paths: List[Path],
-) -> Tuple[Dict[str, Tuple[Any, Path]], List[Tuple[str, Path, Path]]]:
+    module_paths: list[Path],
+) -> tuple[dict[str, tuple[Any, Path]], list[tuple[str, Path, Path]]]:
     """
     返回:
         name -> (value, source_path)
         dups: [(name, first_path, second_path), ...]
     """
-    names: Dict[str, Tuple[Any, Path]] = {}
-    dups: List[Tuple[str, Path, Path]] = []
+    names: dict[str, tuple[Any, Path]] = {}
+    dups: list[tuple[str, Path, Path]] = []
     for p in module_paths:
         declared, values = extract_names(p)
         for n in declared:
@@ -254,7 +254,7 @@ def main() -> int:
         return 2
 
     # ── 确定新模块列表 ──
-    new_paths: List[Path] = list(args.new)
+    new_paths: list[Path] = list(args.new)
     if args.new_root:
         new_paths.extend(discover_modules(args.new_root))
     if not new_paths and not args.cog_yaml:
@@ -284,7 +284,7 @@ def main() -> int:
     new_keys = set(new_names.keys())
     missing = sorted(old_names - new_keys)
 
-    drift: List[Tuple[str, Any, Any, Path]] = []
+    drift: list[tuple[str, Any, Any, Path]] = []
     for name in sorted(old_names & new_keys):
         ov = old_values.get(name, "<UNEXECUTED>")
         nv, np_ = new_names[name]
@@ -328,7 +328,7 @@ def main() -> int:
     print(f"➕ 新增（新有旧无，仅供参考）: {len(added)}")
     if added:
         for n in added[:50]:
-            v, p = new_names[n]
+            _v, p = new_names[n]
             print(f"    + {n}  [{p.name}]")
         if len(added) > 50:
             print(f"    ... 还有 {len(added) - 50} 个")

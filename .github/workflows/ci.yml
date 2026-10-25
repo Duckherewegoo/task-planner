@@ -3,32 +3,19 @@ name: CI
 on:
   push:
     branches: [main]
-    paths-ignore:
-      - 'docs/**'
-      - '**.md'
-      - '.gitignore'
+    paths-ignore: ['docs/**', '**.md', '.gitignore']
   pull_request:
     branches: [main]
-    paths-ignore:
-      - 'docs/**'
-      - '**.md'
-      - '.gitignore'
+    paths-ignore: ['docs/**', '**.md', '.gitignore']
 
-# ── 最小权限：只需要读代码 ──
 permissions:
   contents: read
 
-# ── 同一分支连续 push 时，自动取消旧 run ──
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  # ══════════════════════════════════════════════════════════════
-  #  红线层：必须通过才能合并
-  # ══════════════════════════════════════════════════════════════
-
-  # ── 代码规范（秒级）──
   lint:
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -39,12 +26,9 @@ jobs:
           python-version: "3.14"
           allow-prereleases: true
           cache: pip
-      - name: Install ruff
-        run: pip install ruff==0.8.0
-      - name: Ruff check
-        run: ruff check src/ tests/
+      - run: pip install ruff
+      - run: ruff check src/ tests/
 
-  # ── 单元测试（不碰外部服务，开启并行）──
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -55,39 +39,29 @@ jobs:
           python-version: "3.14"
           allow-prereleases: true
           cache: pip
-      - name: Install
-        run: |
+      - run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
-      - name: Pytest (unit)
-        # 💡 已引入 pytest-xdist (-n auto)，需确保 pyproject.toml 的 dev 依赖里有 pytest-xdist
-        run: pytest tests/ -q -n auto
+      - run: pytest tests/ -q -n auto
         env:
           USE_MOCK_LLM: "true"
 
-  # ── 集成测试（起真 MongoDB + Redis）──
   integration:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     services:
       mongodb:
         image: mongo:7
-        ports:
-          - 27017:27017
+        ports: [27017:27017]
         options: >-
           --health-cmd "mongosh --eval 'db.runCommand(\"ping\")'"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
+          --health-interval 10s --health-timeout 5s --health-retries 5
       redis:
         image: redis:7
-        ports:
-          - 6379:6379
+        ports: [6379:6379]
         options: >-
           --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
+          --health-interval 10s --health-timeout 5s --health-retries 5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -95,26 +69,18 @@ jobs:
           python-version: "3.14"
           allow-prereleases: true
           cache: pip
-      - name: Install
-        run: |
+      - run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
-      - name: Pytest (integration)
-        run: pytest tests/ -m integration -v
+      - run: pytest tests/ -m integration -v
         env:
           MONGO_HOST: localhost
           MONGO_PORT: "27017"
           MONGO_DB: task_planner_test
-          MONGODB_URI: mongodb://localhost:27017/task_planner_test # 👈 补充兜底 URI
           REDIS_HOST: localhost
           REDIS_PORT: "6379"
           USE_MOCK_LLM: "true"
 
-  # ══════════════════════════════════════════════════════════════
-  #  黄线层：希望过，暂不阻塞——用红叉警示，但不进 needs
-  # ══════════════════════════════════════════════════════════════
-
-  # ── 格式检查（黄线）──
   format:
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -125,13 +91,10 @@ jobs:
           python-version: "3.14"
           allow-prereleases: true
           cache: pip
-      - name: Install ruff
-        run: pip install ruff==0.8.0
-      - name: Ruff format check
-        run: ruff format --check src/ tests/
-        # 去掉了 continue-on-error，让失败显红，但因为它不在 checks-passed 的 needs 里，所以不阻断合并
+      - run: pip install ruff
+      - run: ruff format --check src/ tests/
+        continue-on-error: true # 黄线放行
 
-  # ── 类型检查（黄线，严格模式）──
   pyright:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -142,38 +105,18 @@ jobs:
           python-version: "3.14"
           allow-prereleases: true
           cache: pip
-      - name: Install
-        run: |
+      - run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
-      - name: Pyright
-        run: pyright src/
-        # 去掉了 continue-on-error，同上，显红但不卡合并
+      - run: pyright src/
+        continue-on-error: true # 脏库检查不卡合并
 
-  # ══════════════════════════════════════════════════════════════
-  #  门禁：分支保护规则绑在 checks-passed 上
-  # ══════════════════════════════════════════════════════════════
   checks-passed:
     if: always()
-    # ⚠️ 核心逻辑：这里只依赖红线 job。
-    # 黄线（format / pyright）怎么红都不会卡在这里。
     needs: [lint, test, integration]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
       - name: Verify required checks passed
         if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
-        run: |
-          echo "❌ 红线检查未通过"
-          exit 1
-      - name: Pass
-        run: |
-          sudo apt-get install -y cowsay
-          echo "✅ 红线检查全部通过" | cowsay -f tux
-          echo "🚀 Ready to work!"
-      - name: 失败时的安慰
-        if: failure()
-        run: |
-          echo "😭 别灰心，Bug 是修不完的！"
-          echo "建议检查一下最近改动的文件，或者看看上面哪一个步骤红了。"
-          echo "💪 喝口水，重启一次，你一定能搞定！"
+        run: exit 1

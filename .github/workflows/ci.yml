@@ -3,8 +3,16 @@ name: CI
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
+      - '.gitignore'
   pull_request:
     branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
+      - '.gitignore'
 
 # ── 最小权限：只需要读代码 ──
 permissions:
@@ -20,7 +28,7 @@ jobs:
   #  红线层：必须通过才能合并
   # ══════════════════════════════════════════════════════════════
 
-  # ── 快速静态检查（秒级，最先跑）──
+  # ── 代码规范（秒级）──
   lint:
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -29,37 +37,35 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.14"
+          allow-prereleases: true
           cache: pip
       - name: Install ruff
-        run: pip install ruff
+        run: pip install ruff==0.8.0
       - name: Ruff check
         run: ruff check src/ tests/
 
-  # ── 单元测试（不碰外部服务）──
+  # ── 单元测试（不碰外部服务，开启并行）──
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.14"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.14"
+          allow-prereleases: true
           cache: pip
       - name: Install
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
       - name: Pytest (unit)
-        run: pytest tests/ -q
+        # 💡 已引入 pytest-xdist (-n auto)，需确保 pyproject.toml 的 dev 依赖里有 pytest-xdist
+        run: pytest tests/ -q -n auto
         env:
           USE_MOCK_LLM: "true"
 
   # ── 集成测试（起真 MongoDB + Redis）──
-  # 这是 CI 不可替代的部分：验证"代码在新环境里能不能起来"
   integration:
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -87,6 +93,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.14"
+          allow-prereleases: true
           cache: pip
       - name: Install
         run: |
@@ -98,12 +105,13 @@ jobs:
           MONGO_HOST: localhost
           MONGO_PORT: "27017"
           MONGO_DB: task_planner_test
+          MONGODB_URI: mongodb://localhost:27017/task_planner_test # 👈 补充兜底 URI
           REDIS_HOST: localhost
           REDIS_PORT: "6379"
           USE_MOCK_LLM: "true"
 
   # ══════════════════════════════════════════════════════════════
-  #  黄线层：希望过，暂不阻塞——但目标是把它们转成红线
+  #  黄线层：希望过，暂不阻塞——用红叉警示，但不进 needs
   # ══════════════════════════════════════════════════════════════
 
   # ── 格式检查（黄线）──
@@ -115,13 +123,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.14"
+          allow-prereleases: true
           cache: pip
       - name: Install ruff
-        run: pip install ruff
+        run: pip install ruff==0.8.0
       - name: Ruff format check
         run: ruff format --check src/ tests/
-        # TODO(2026-11-01): 跑一遍 ruff format 后移除 continue-on-error
-        continue-on-error: true
+        # 去掉了 continue-on-error，让失败显红，但因为它不在 checks-passed 的 needs 里，所以不阻断合并
 
   # ── 类型检查（黄线，严格模式）──
   pyright:
@@ -132,6 +140,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.14"
+          allow-prereleases: true
           cache: pip
       - name: Install
         run: |
@@ -139,16 +148,15 @@ jobs:
           pip install -e ".[dev]"
       - name: Pyright
         run: pyright src/
-        # TODO(2026-11-01): 清零 error 后移除 continue-on-error
-        continue-on-error: true
+        # 去掉了 continue-on-error，同上，显红但不卡合并
 
   # ══════════════════════════════════════════════════════════════
   #  门禁：分支保护规则绑在 checks-passed 上
-  #  黄线 job（format / pyright）故意不放进 needs——
-  #  这样黄线的失败不会阻断合并，但错误依然在日志里可见
   # ══════════════════════════════════════════════════════════════
   checks-passed:
     if: always()
+    # ⚠️ 核心逻辑：这里只依赖红线 job。
+    # 黄线（format / pyright）怎么红都不会卡在这里。
     needs: [lint, test, integration]
     runs-on: ubuntu-latest
     timeout-minutes: 2
@@ -158,4 +166,14 @@ jobs:
         run: |
           echo "❌ 红线检查未通过"
           exit 1
-      - run: echo "✅ 红线检查全部通过"
+      - name: Pass
+        run: |
+          sudo apt-get install -y cowsay
+          echo "✅ 红线检查全部通过" | cowsay -f tux
+          echo "🚀 Ready to work!"
+      - name: 失败时的安慰
+        if: failure()
+        run: |
+          echo "😭 别灰心，Bug 是修不完的！"
+          echo "建议检查一下最近改动的文件，或者看看上面哪一个步骤红了。"
+          echo "💪 喝口水，重启一次，你一定能搞定！"

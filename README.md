@@ -100,46 +100,20 @@ ______________________________________________________________________
 
 ## 📁 项目结构
 
-> 本树严格按实际目录编排，并套用 `.gitignore` 规则隐去不入库内容：
-> `__pycache__/`、`*.py[cod]`、`*.so`、`build/`、`dist/`、`*.egg-info/`、`.eggs/`、
-> `.pytest_cache/`、`.ruff_cache/`、`.mypy_cache/`、`.coverage`、`htmlcov/`、`tox/`、`.nox/`、
-> `.venv/`、`venv/`、`env/`、`ENV/`、`logs/`、`*.log`、`exports/`、`eval_reports/`、`reviews/`、
-> `tmp/`、`*.tmp`、`*.bak`、`*.swp`、`*~/checkpoints.db*`、`.idea/`、`.vscode/`（保留 `settings.json`）、
-> `*.sublime-*`、`*.code-workspace`、`.DS_Store`、`.Spotlight-V100`、`.Trashes`、`Thumbs.db`、`desktop.ini`、
-> `data/blocked_words/_local/`（若存在）、`.compat_removal_backup/`、`.env`、`.env.*`（`!.env.example`）、
-> `config/user.yaml`。
-> `abandon/`（含 `src/task_planner/abandon/` 与 `tests/abandon/`）与 `data/blocked_words/` 主体**不忽略**。
-
 ```text
 new_task_planner/
 ├── CHANGELOG.md                   # 各模块变更历史（per-module changelog）
 ├── .github/
 │   └── workflows/
 │       └── ci.yml                # CI action
-├── config/                       # 🔴 配置数据（外部，可挂载）
+├── config/                       # 配置数据（外部，可挂载）
 │   ├── schema.yaml               # 开发者声明（value / purpose / scope / secret / from_env）
 │   ├── schema.yaml.example       # 模板示例
 │   ├── user.yaml                 # 用户覆盖（仅 scope=user 生效，不入库）
 │   └── user.yaml.example         # 模板示例
-├── data/                         # 🔴 数据（外部）
+├── data/                         # 数据（外部）
 │   ├── blocked_words/            # 违禁词库（17 个 txt，扁平）
-│   │   ├── COVID-19词库.txt      # → tier=review
-│   │   ├── GFW补充词库.txt       # → tier=review
-│   │   ├── 其他词库.txt
-│   │   ├── 反动词库.txt          # → tier=block
-│   │   ├── 广告类型.txt
-│   │   ├── 政治类型.txt
-│   │   ├── 新思想启蒙.txt
-│   │   ├── 暴恐词库.txt          # → tier=block
-│   │   ├── 民生词库.txt
-│   │   ├── 涉枪涉爆.txt          # → tier=block
-│   │   ├── 网易前端过滤敏感词库.txt
-│   │   ├── 色情类型.txt
-│   │   ├── 色情词库.txt          # → tier=block
-│   │   ├── 补充词库.txt
-│   │   ├── 贪腐词库.txt
-│   │   ├── 零时-Tencent.txt
-│   │   └── 非法网址.txt
+│   │   ├── 各种词库.txt      
 │   └── whitelist.txt             # 白名单（子串豁免）
 ├── docker-compose.prod.yml       # docker 生产模式
 ├── docker-compose.yml            # 只含 mongodb
@@ -152,7 +126,7 @@ new_task_planner/
 ├── LICENSE
 ├── pyproject.toml
 ├── README.md
-├── scripts/                      # 🟡 运维与检查脚本
+├── scripts/                      # 运维与检查脚本
 │   ├── audit_private_imports.py
 │   ├── bye_bye_cancle_config.sh
 │   ├── changelog_migrate.py      # Changelog 集中迁移（一次性）
@@ -172,12 +146,12 @@ new_task_planner/
 │       │   ├── agent_nah.py
 │       │   ├── config_old.py     # 旧大宗 config.py
 │       │   ├── dash_app_legacy.py
-│       │   ├── datebase_legacy.py  # ⚠️ 原拼写保留
+│       │   ├── database_legacy.py 
 │       │   ├── good_addons_old.py
 │       │   ├── llm_client_legacy.py
 │       │   ├── _nodes_legacy.py
 │       │   └── stream_manager_legacy.py
-│       ├── config_ui/            # ✅ 独立配置工具
+│       ├── config_ui/            # 独立配置工具
 │       │   ├── __init__.py       # 导出 app / main
 │       │   ├── app.py            # Dash 实例 + main()，默认端口 8051
 │       │   ├── callbacks.py      # 保存 / 重置 / 重载
@@ -383,8 +357,6 @@ new_task_planner/
 │           └── test_eval_suite_wrapper.py
 └── .gitignore
 ```
-
-**被忽略的目录/文件（不入库，按 `.gitignore`）：** `dist/`、`src/task_planner.egg-info/`、`src/logs/` 与根 `logs/`（含全部 `task_planner.log*` 旋转日志）、`eval_reports/`，以及 `.gitignore` 中列出的缓存、临时与 IDE 文件。
 
 ______________________________________________________________________
 
@@ -831,8 +803,8 @@ ______________________________________________________________________
 
 - `pytest` 全绿
 - `ruff check` 无警告
-- `pyright` 无实质影响 error
-- 新增功能附带测试
+- `pyright` 无实质影响 error （因为缺少stub或第三方库本身引入的any报错可以忽略）
+- 新增功能附带测试，保证功能可用，不影响主体运行
 
 ______________________________________________________________________
 
@@ -848,7 +820,7 @@ ______________________________________________________________________
 - [ruamel.yaml](https://pypi.org/project/ruamel.yaml/)（可选）— 配置工具保留 YAML 注释
 - [Pydantic](https://docs.pydantic.dev/) — 值对象与配置校验
 
-核心贡献者：**JiangDake**
+核心贡献者：**DakeGinger**
 
 ______________________________________________________________________
 

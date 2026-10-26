@@ -29,9 +29,6 @@ installer/
 .unifypy*
 *.spec
 
-# 个人配置文件
-config/user.yaml
-
 # ── 测试 / 类型 / Lint 缓存 ──
 .pytest_cache/
 .ruff_cache/

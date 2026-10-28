@@ -53,7 +53,7 @@ tags: []
   Pydantic 在内部构造点收益递减、复杂度递增。
 - 重审条件：LangGraph 支持 Pydantic state，或内部构造点出现反复的类型漂移 bug。
 
-## L3-04 `retry_node_cmd` 保持 dormant（有链路无入口）
+## L3-04 `retry_node_cmd` 保持 dormant（有链路无入口）(已解决，去除0004遗留)
 
 - 日期：2026-10-14（commit `8010290` 明确标注）
 - 决策：重试链路的 API、三指针裁决（retry > resume > current）、

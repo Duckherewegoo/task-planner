@@ -119,8 +119,9 @@ new_task_planner/
 ├── docker-compose.yml            # 只含 mongodb
 ├── Dockerfile                    # mongodb 模式
 ├── docs/                         # 设计文档
-│   ├── ARCHITECTURE_FUTURE.md   # UI/任务层边界 + Dash loop 实测
-│   └── DESIGN_task_context.md   # TaskSession / TaskStreamState 双轨
+│   ├── ARCHITECTURE_FUTURE.md    # UI/任务层边界 + Dash loop 实测
+│   ├── DESIGN_task_context.md    # TaskSession / TaskStreamState 双轨
+│   └── adr/                      # 架构决策记录（ADR 索引与文档）
 ├── examples/
 │   └── config_hub_usage_example.py  # cog 用法示例
 ├── LICENSE
@@ -899,6 +900,7 @@ ______________________________________________________________________
 | 2026-10-14 | `TaskSession` 死字段清理 + 双轨边界文档化 | `agent/session.py` / `docs/DESIGN_task_context.md` |
 
 完整历史：`CHANGELOG.md` + `git log`
+决策历史: `docs/adr/0000-index.md`索引
 
 ______________________________________________________________________
 

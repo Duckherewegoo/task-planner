@@ -448,6 +448,14 @@ def build_layout() -> html.Div:
                                                             "marginRight": "10px",
                                                         },
                                                     ),
+                                                    html.Button("🔄 重试选中节点", id="start-exec-btn", n_clicks=0, disabled=True, style={
+                                                                    "backgroundColor": "#f59e0b", # 橙色代表重试
+                                                                    "color": "white",
+                                                                    "border": "none", "padding": "12px 20px",
+                                                                    "borderRadius": "8px", "cursor": "pointer",
+                                                                    "fontSize": "14px", "fontWeight": "bold",
+                                                                    "marginRight": "10px",
+                                                                }),
                                                     html.Button(
                                                         "⏭️ 跳过选中节点",
                                                         id="skip-btn",

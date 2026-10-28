@@ -215,6 +215,36 @@ def register() -> None:
             time.time(),
         )
 
+    @callback(
+    Output("node-action-hint", "children", allow_duplicate=True),
+    Input("retry-btn", "n_clicks"), # 假设你用了 id="retry-btn"
+    State("dag-store", "data"),
+    State("selected-node-store", "data"),
+    State("thread-id-store", "data"), # 新建任务的 thread_id
+    prevent_initial_call=True,
+    )
+    def on_new_task_retry(n_clicks, dag_data, selected_node_id, thread_id):
+        if not n_clicks or not selected_node_id or not dag_data or not thread_id:
+            return no_update
+
+        nodes = dag_data.get("nodes", [])
+        node_id_to_index = {str(n.get("id")): i for i, n in enumerate(nodes)}
+
+        node_index = node_id_to_index.get(str(selected_node_id))
+
+        if node_index is None:
+            return "❌ 找不到该节点的索引"
+
+        try:
+            # 丢给常驻 loop
+            from task_planner.infrastructure.async_runtime import submit
+            from task_planner.services.agent.commands import retry_node_cmd
+
+            submit(retry_node_cmd(thread_id, node_index))
+            return "🔄 已提交重试请求，请留意节点状态变化..."
+        except Exception as e:
+            return f"❌ 重试提交失败: {e}"
+
     # ── 轮询 stream 进度 ──
     @callback(
         Output("flowchart", "elements", allow_duplicate=True),

@@ -1,25 +1,39 @@
 """
 conftest.py — pytest 全局配置
 
-- 设置测试环境变量（避免触发真实 LLM 客户端初始化）
-- 提供共用 fixture
+- 默认全局走 Mock，防止 CI 跑爆 Token / 报 API 错误
+- 需要真实 LLM 的测试，通过命令行参数 --use-real-llm 或 marker 动态切换
 """
 
 from __future__ import annotations
 
 import os
-import sys
-
 import pytest
 
-# 在任何 task_planner 模块被 import 之前，先固定测试环境
-# 防止 config.py 读到真实 .env，导致 USE_MOCK_LLM=False
-os.environ.setdefault("USE_MOCK_LLM", "true")
+# 异步 Client 清理，防止 Event loop closed
+from task_planner.infrastructure.llm.client import aclose_llm_client
+
+# 默认强制 Mock
+os.environ.setdefault("USE_MOCK_LLM", "true") 
 os.environ.setdefault("DEBUG", "true")
-os.environ.setdefault("DASHSCOPE_API_KEY", "")  # 空 key → 强制 mock
+os.environ.setdefault("DASHSCOPE_API_KEY", "")  # 空 key 仅作占位，Mock 模式下不请求网络
 os.environ.setdefault("CHECKPOINTER_TYPE", "memory")
 
-from task_planner.infrastructure.llm.client import aclose_llm_client
+# 动态读取命令行参数（用于评测真实能力）
+def pytest_addoption(parser):
+    parser.addoption(
+        "--use-real-llm", action="store_true", default=False,
+        help="运行真实 LLM 请求（默认为 Mock，防污染、防超支）"
+    )
+
+def pytest_configure(config):
+    # 如果命令行传了 --use-real-llm，就覆盖环境变量
+    if config.getoption("--use-real-llm"):
+        os.environ["USE_MOCK_LLM"] = "false"
+        # 这里可以安全地加载 .env 中的真实 key
+        from dotenv import load_dotenv
+        load_dotenv()
+        print("\n⚠️ [WARNING] 已启用真实 LLM，注意控制并发和 Token 消耗！")
 
 
 @pytest.fixture(autouse=True)

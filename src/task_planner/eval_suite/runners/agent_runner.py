@@ -87,6 +87,10 @@ async def run_agent(
     except TimeoutError:
         trace.error = f"超时 ({timeout}s)"
         logger.warning("[Runner] %s 超时", case_id)
+    except asyncio.CancelledError:
+        trace.error = "用户取消或系统中断 (Cancelled)"
+        logger.warning("[Runner] %s 被取消", case_id)
+        # 既然被取消了，可以选择不再抛出，或者抛出给上层
     except Exception as e:
         trace.error = str(e)
         logger.exception("[Runner] %s 执行异常", case_id)

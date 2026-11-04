@@ -14,9 +14,7 @@ for e in hub.snapshot():
     print(e.section, e.name, "=", e.value, "|", e.purpose)
 
 
-
 BLOCKED_WORDS = load_blocked_words()
-
 
 
 # ── Cytoscape ──

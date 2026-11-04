@@ -50,4 +50,5 @@ def _validate_structure(plan: dict) -> bool:
     is_valid, _ = validate_golden_plan(plan)
     return is_valid
 
+
 __all__ = ["score_deterministic"]

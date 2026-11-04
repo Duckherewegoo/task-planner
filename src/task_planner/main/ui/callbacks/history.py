@@ -311,13 +311,13 @@ def register() -> None:
         return new_states, elements, status_msg
 
     @callback(
-    Output("history-action-status", "children", allow_duplicate=True),
-    Output("stream-interval", "disabled", allow_duplicate=True),
-    Input("history-retry-btn", "n_clicks"),
-    State("history-dag-store", "data"),
-    State("history-selected-node-store", "data"),
-    State("history-node-states-store", "data"), # 用来找所有失败节点
-    prevent_initial_call=True,
+        Output("history-action-status", "children", allow_duplicate=True),
+        Output("stream-interval", "disabled", allow_duplicate=True),
+        Input("history-retry-btn", "n_clicks"),
+        State("history-dag-store", "data"),
+        State("history-selected-node-store", "data"),
+        State("history-node-states-store", "data"),  # 用来找所有失败节点
+        prevent_initial_call=True,
     )
     def on_retry_click(n_clicks, dag_data, selected_node_id, node_states):
         if not n_clicks or not dag_data:
@@ -349,7 +349,7 @@ def register() -> None:
         success_count = 0
 
         for target_id in targets_to_retry:
-        # 提取出对应的整数 index
+            # 提取出对应的整数 index
             node_index = node_id_to_index.get(str(target_id))
 
             if node_index is not None:

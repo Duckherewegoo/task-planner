@@ -20,12 +20,16 @@ os.environ.setdefault("DEBUG", "true")
 os.environ.setdefault("DASHSCOPE_API_KEY", "")  # 空 key 仅作占位，Mock 模式下不请求网络
 os.environ.setdefault("CHECKPOINTER_TYPE", "memory")
 
+
 # 动态读取命令行参数（用于评测真实能力）
 def pytest_addoption(parser):
     parser.addoption(
-        "--use-real-llm", action="store_true", default=False,
-        help="运行真实 LLM 请求（默认为 Mock，防污染、防超支）"
+        "--use-real-llm",
+        action="store_true",
+        default=False,
+        help="运行真实 LLM 请求（默认为 Mock，防污染、防超支）",
     )
+
 
 def pytest_configure(config):
     # 如果命令行传了 --use-real-llm，就覆盖环境变量
@@ -33,6 +37,7 @@ def pytest_configure(config):
         os.environ["USE_MOCK_LLM"] = "false"
         # 这里可以安全地加载 .env 中的真实 key
         from dotenv import load_dotenv
+
         load_dotenv()
         print("\n⚠️ [WARNING] 已启用真实 LLM，注意控制并发和 Token 消耗！")
 

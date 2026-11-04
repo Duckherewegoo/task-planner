@@ -216,12 +216,12 @@ def register() -> None:
         )
 
     @callback(
-    Output("node-action-hint", "children", allow_duplicate=True),
-    Input("retry-btn", "n_clicks"), # 假设你用了 id="retry-btn"
-    State("dag-store", "data"),
-    State("selected-node-store", "data"),
-    State("thread-id-store", "data"), # 新建任务的 thread_id
-    prevent_initial_call=True,
+        Output("node-action-hint", "children", allow_duplicate=True),
+        Input("retry-btn", "n_clicks"),  # 假设你用了 id="retry-btn"
+        State("dag-store", "data"),
+        State("selected-node-store", "data"),
+        State("thread-id-store", "data"),  # 新建任务的 thread_id
+        prevent_initial_call=True,
     )
     def on_new_task_retry(n_clicks, dag_data, selected_node_id, thread_id):
         if not n_clicks or not selected_node_id or not dag_data or not thread_id:

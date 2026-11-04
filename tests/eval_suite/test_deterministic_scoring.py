@@ -1,6 +1,8 @@
 import pytest
+
 from task_planner.eval_suite.scorers.deterministic import score_deterministic
 from task_planner.eval_suite.types import AgentTrace, GoldenCase
+
 
 @pytest.fixture
 def base_golden():
@@ -37,8 +39,8 @@ def test_score_intent_mismatch(base_golden):
     trace = AgentTrace(
         case_id="case-1", thread_id="t2", mock_mode=True,
         # 本来要规划，模型以为不用规划
-        intent={"needs_planning": False, "category": "chat"}, 
-        plan={} 
+        intent={"needs_planning": False, "category": "chat"},
+        plan={}
     )
     scores = score_deterministic(trace, base_golden)
     assert scores.intent_match == 0.0
@@ -52,6 +54,6 @@ def test_score_partial_nodes(base_golden):
     )
     scores = score_deterministic(trace, base_golden)
     # 期望2个，实际1个。差1个/2 = 0.5。得分应为 1 - 0.5 = 0.5
-    assert scores.node_count_accuracy == 0.5 
+    assert scores.node_count_accuracy == 0.5
     # 期望1条边，实际0条。得分应为 0.0
     assert scores.edge_count_accuracy == 0.0

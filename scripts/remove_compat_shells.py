@@ -343,7 +343,7 @@ def remove_alias_lines(source: str, patterns: list[re.Pattern]) -> tuple[str, in
     if not to_delete:
         return source, 0
 
-    new_lines = [l for i, l in enumerate(lines) if i not in to_delete]
+    new_lines = [line for i, line in enumerate(lines) if i not in to_delete]
     return "\n".join(new_lines), len(to_delete)
 
 

@@ -1,5 +1,7 @@
 import pytest
+
 from task_planner.eval_suite.golden.validator import validate_golden_plan
+
 
 @pytest.mark.parametrize("plan, expected_reason", [
     # 1. 空节点
@@ -13,16 +15,16 @@ from task_planner.eval_suite.golden.validator import validate_golden_plan
     # 5. 缺少名字
     ({"nodes": [{"id": 1}]}, "缺 name"),
     # 6. 引用不存在的节点
-    ({"nodes": [{"id": 1, "name": "A"}, {"id": 2, "name": "B"}], 
+    ({"nodes": [{"id": 1, "name": "A"}, {"id": 2, "name": "B"}],
       "edges": [{"from": 1, "to": 3}]}, "边 to=3 引用不存在的节点"),
     # 7. 自环
-    ({"nodes": [{"id": 1, "name": "A"}], 
+    ({"nodes": [{"id": 1, "name": "A"}],
       "edges": [{"from": 1, "to": 1}]}, "自环"),
     # 8. 重复边
-    ({"nodes": [{"id": 1, "name": "A"}, {"id": 2, "name": "B"}], 
+    ({"nodes": [{"id": 1, "name": "A"}, {"id": 2, "name": "B"}],
       "edges": [{"from": 1, "to": 2}, {"from": 1, "to": 2}]}, "重复边"),
     # 9. 环检测（A->B->C->A）
-    ({"nodes": [{"id": 1, "name": "A"}, {"id": 2, "name": "B"}, {"id": 3, "name": "C"}], 
+    ({"nodes": [{"id": 1, "name": "A"}, {"id": 2, "name": "B"}, {"id": 3, "name": "C"}],
       "edges": [{"from": 1, "to": 2}, {"from": 2, "to": 3}, {"from": 3, "to": 1}]}, "检测到环"),
 ])
 

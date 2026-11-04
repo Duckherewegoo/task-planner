@@ -141,7 +141,7 @@ jobs:
 
   # 新增：每天定时跑真实 LLM 评测，监控模型漂移
   eval-live:
-    if: github.event_name == 'schedule' && secrets.DASHSCOPE_API_KEY != ''
+    if: github.event_name == 'schedule' 
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:

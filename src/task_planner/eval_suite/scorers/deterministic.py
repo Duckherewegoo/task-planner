@@ -1,7 +1,8 @@
 """deterministic.py — 确定性评分（无需 LLM）"""
 
-from ..types import AgentTrace, DeterministicScores, GoldenCase
 from ..golden.validator import validate_golden_plan
+from ..types import AgentTrace, DeterministicScores, GoldenCase
+
 
 def score_deterministic(trace: AgentTrace, golden: GoldenCase) -> DeterministicScores:
     s = DeterministicScores()

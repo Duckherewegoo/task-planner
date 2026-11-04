@@ -8,13 +8,14 @@ conftest.py — pytest 全局配置
 from __future__ import annotations
 
 import os
+
 import pytest
 
 # 异步 Client 清理，防止 Event loop closed
 from task_planner.infrastructure.llm.client import aclose_llm_client
 
 # 默认强制 Mock
-os.environ.setdefault("USE_MOCK_LLM", "true") 
+os.environ.setdefault("USE_MOCK_LLM", "true")
 os.environ.setdefault("DEBUG", "true")
 os.environ.setdefault("DASHSCOPE_API_KEY", "")  # 空 key 仅作占位，Mock 模式下不请求网络
 os.environ.setdefault("CHECKPOINTER_TYPE", "memory")

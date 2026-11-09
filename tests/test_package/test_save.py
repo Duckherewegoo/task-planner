@@ -2,7 +2,6 @@
 
 from unittest.mock import AsyncMock
 
-import pytest
 
 from task_planner.core.graph.nodes.save import save_node
 

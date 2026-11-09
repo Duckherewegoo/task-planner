@@ -4,10 +4,6 @@ state.py — LangGraph 状态定义
 目标运行时：Python 3.14+（StrEnum / NotRequired / PEP 649 / PEP 695 全部原生）
 
 ── v8 ──
-  Patch A：needs_planning 默认值改为 False。
-              与 workflow.py 的 _route_start 契约对齐——新任务默认走
-              intent 由意图节点判断，避免 create_initial_state 后
-              直接跳 direct_answer、intent 永不执行。
   P7-1：导入分组按 PEP 8 整理（stdlib / 第三方空行分隔）。
   P7-2：三指针优先级 docstring 补"消费方"说明——当前
            execute.py / route_after_execute 均未消费该字段，
@@ -91,18 +87,25 @@ class TaskState(MessagesState):
        已通过 Annotated[..., _replace_list] 显式声明，机制化保证。
        所有节点必须返回"完整列表"，而非"增量"。
 
-    ⚠️ 执行指针优先级：
+    ⚠️ 执行指针优先级（已实现于 execute.py::_resolve_target_index）：
        retry_node_index > resume_from_node_index > current_node_index
-       - retry_node_index 非空：用户手动重试某节点，直接跳转该节点。
-       - resume_from_node_index 非空：从历史 checkpoint 恢复，从该索引继续。
+       - retry_node_index 非空：用户手动重试某节点。
+           * 先按 index 语义（0..len-1）解释；
+           * 越界或非 int 时，尝试按 node["id"] 匹配（int/str 双兼容）；
+           * 都不命中，降级 current_node_index 并 warn。
+           * 语义歧义提醒：若节点 id 与 index 不同（LLM 可漂移），
+             本字段优先按 index 解释——想精确按 id 重试请确保传入值
+             不会同时命中一个有效 index。
+       - resume_from_node_index 非空：从历史 checkpoint 恢复，只按
+         index 解释。越界降级 current 并 warn。
        - 两者皆空：按 current_node_index 自然续传。
-       三个字段不应同时被不同来源写入；执行器入口负责裁决。
-       ⚠️ 此优先级在此处声明，实现必须在 executor 里与之保持一致——
-          文档与实现不一致比没有文档更危险。
-       ⚠️ 当前状态：execute.py 只读取 current_node_index，
-          retry_node_index / resume_from_node_index 从未被消费——
-          本优先级声明尚未在任何实现层兑现。下一轮迭代必须在
-          execute.py 或 route_after_execute 中补齐裁决逻辑。
+
+       ⚠️ 指针消费后必须清空——execute.py 的 updates 字典在所有分支
+          （成功 / RETRY_NODE / MODIFY / LLM 取消）都会把两个指针置 None，
+          避免跨轮次残留导致“幽灵重试”。
+
+       ⚠️ 本 docstring 是实现契约的一部分。修改 execute.py 的裁决逻辑时
+          必须同步更新本节；修改本节时必须同步更新 execute.py。
 
     ⚠️ 初始化建议：
        所有 NotRequired 字段在 graph invoke 时若不传，节点访问会 KeyError。

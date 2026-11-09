@@ -1,3 +1,5 @@
+from typing import Any
+
 from task_planner.infrastructure.logger_setup import get_logger
 
 logger = get_logger(__name__)
@@ -63,4 +65,62 @@ def validate_edge_elements(edges: list, rid: str) -> None:
             raise ValueError(f"规划失败：edges[{i}] 缺少 from/to 字段 (req={rid})")
 
 
-__all__ = ["validate_node_elements", "validate_edge_elements"]
+def coerce_node_id(raw: Any, fallback: int) -> int | str:
+    """
+    与 _executor.py 的 _coerce_node_id 同策略——保证 NodeResult.node_id
+    契约成立。非 int/str 时回落到 idx（合法 int）。
+    """
+    if isinstance(raw, (int, str)) and not isinstance(raw, bool):
+        return raw
+    return fallback
+
+
+def coerce_pointer(raw: Any) -> int | str | None:
+    """把外部传入的指针值归一化到 int | str | None。
+
+    动机：workflow.py 的 target_node_index 可能来自 URL query / 前端 JSON，
+    运行时类型不受 TypedDict 静态契约保证。
+
+    归一化规则（显式，无 passthrough）：
+      - None         → None（无指针）
+      - bool         → None（bool 是 int 子类，但业务上不是合法指针；
+                     按 int 处理会让 True 变成 index=1，静默错误）
+      - int          → int
+      - str          → 能 int() 则转 int，不能转则保留原 str（供 node["id"] 匹配）
+      - float/其他   → None（降级，不 passthrough——下游 nodes[3.0] 会炸）
+
+    返回类型严格限定为 int | str | None，下游 Pyright 可精确推导。
+    """
+    if raw is None:
+        return None
+    if isinstance(raw, bool):  # 必须在 int 之前——bool ⊂ int
+        return None
+    if isinstance(raw, int):
+        return raw
+    if isinstance(raw, str):
+        try:
+            return int(raw)
+        except ValueError:
+            return raw
+    # float / list / dict / object → 无法作为指针，降级
+    return None
+
+
+def ids_equal(a: Any, b: Any) -> bool:
+    """node["id"] 与用户传入指针是否等价（int/str 双兼容）。
+
+    动机：_executor.py 里 node["id"] 来自 LLM 输出，可能为 int 或 str；
+    用户指针同样可能是两者之一。"3" == 3 为 False，需归一化比较。
+    """
+    if a == b:
+        return True
+    return str(a) == str(b)
+
+
+__all__ = [
+    "validate_node_elements",
+    "validate_edge_elements",
+    "coerce_node_id",
+    "coerce_pointer",
+    "ids_equal",
+]

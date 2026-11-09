@@ -27,6 +27,7 @@ NODES_1_2_3 = [
 
 # ── 基础优先级 ───────────────────────────────────────────────
 
+
 def test_defaults_to_current_when_no_pointer():
     state = _state(current_node_index=1)
     assert _resolve_target_index(state, NODES_1_2_3, "req") == 1
@@ -60,7 +61,9 @@ def test_resume_float_pointer_falls_back_to_current():
     state = _state(current_node_index=0, resume_from_node_index=1.0)
     assert _resolve_target_index(state, NODES_1_2_3, "req") == 0
 
+
 # ── retry_node_index：index 语义 ───────────────────────────────
+
 
 @pytest.mark.parametrize("retry_idx", [0, 1, 2])
 def test_retry_valid_index(retry_idx):
@@ -69,6 +72,7 @@ def test_retry_valid_index(retry_idx):
 
 
 # ── Bug 1 回归：字符串数字必须归一化 ──────────────────────────
+
 
 @pytest.mark.parametrize("retry_str", ["0", "1", "2"])
 def test_retry_string_number_is_normalized(retry_str):
@@ -83,6 +87,7 @@ def test_resume_string_number_is_normalized():
 
 
 # ── Bug 2 回归：node["id"] int/str 双兼容 ─────────────────────
+
 
 def test_retry_out_of_range_matches_node_id_int():
     """retry=100 超出 index 范围，但 nodes[2]["id"] == 100，应匹配 index=2。"""
@@ -100,9 +105,9 @@ def test_retry_out_of_range_matches_node_id_str():
     nodes = [
         {"id": 1, "name": "a"},
         {"id": 2, "name": "b"},
-        {"id": "100", "name": "c"},   # ← 漂移成 str
+        {"id": "100", "name": "c"},  # ← 漂移成 str
     ]
-    state = _state(retry_node_index=100)   # ← 用户传 int
+    state = _state(retry_node_index=100)  # ← 用户传 int
     assert _resolve_target_index(state, nodes, "req") == 2
 
 
@@ -118,6 +123,7 @@ def test_retry_str_matches_int_node_id():
 
 
 # ── 降级路径 ──────────────────────────────────────────────────
+
 
 @pytest.mark.parametrize("bad_retry", [True, False, "not-a-number", -1, 999])
 def test_retry_invalid_pointer_falls_back_to_current(bad_retry):
@@ -138,6 +144,7 @@ def test_resume_bool_falls_back_to_current():
 
 # ── index vs id 双语义的设计决策（文档化行为）────────────────
 
+
 def test_retry_index_wins_over_id_when_both_valid():
     """设计决策：retry_node_index 优先按 index 解释。
     若 nodes[1]["id"] == 100 且用户传 retry=1，返回 index=1 而非 id=100 所在位置。
@@ -145,7 +152,7 @@ def test_retry_index_wins_over_id_when_both_valid():
     """
     nodes = [
         {"id": 1, "name": "a"},
-        {"id": 100, "name": "b"},    # ← index=1，id=100
+        {"id": 100, "name": "b"},  # ← index=1，id=100
         {"id": 3, "name": "c"},
     ]
     state = _state(retry_node_index=1)
@@ -153,6 +160,7 @@ def test_retry_index_wins_over_id_when_both_valid():
 
 
 # ── 空 nodes 防御 ─────────────────────────────────────────────
+
 
 def test_empty_nodes_returns_zero():
     state = _state()

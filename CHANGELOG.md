@@ -202,6 +202,10 @@
   ✅ graph 单例懒加载（线程安全）
   ✅ _LazyGraphProxy 支持同步/异步 API
 
+  --FIX 1--
+  needs_planning 默认值改为 False,默认应当是不规划，防止用户输入简单问题且不要求规划时，程序会错意。
+
+
 ---
 
 ## `src/task_planner/infrastructure/logger_setup.py`

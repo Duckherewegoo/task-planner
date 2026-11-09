@@ -41,8 +41,7 @@ EXCLUDE_PATHS: set[str] = {
 # ── v2（KISS 加固，不影响功能）──
 # 使用 U+2500（BOX DRAWINGS LIGHT HORIZONTAL）——项目里就是这个字符
 VERSION_RE = re.compile(
-    r"^[ \t]*──[ \t]*(v\d+(?:\.\d+)?"
-    r"(?:[ \t]*[（(][^）)\n]*[）)])?)[ \t]*──[ \t]*$",
+    r"^[ \t]*──[ \t]*(v\d+(?:\.\d+)?" r"(?:[ \t]*[（(][^）)\n]*[）)])?)[ \t]*──[ \t]*$",
     re.MULTILINE,
 )
 

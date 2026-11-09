@@ -48,9 +48,11 @@ SENSITIVE_PATTERNS_CONFIG = [
 
 SENSITIVE_PATTERNS = [
     (
-        re.compile(cfg["pattern"])
-        if isinstance(cfg["pattern"], str)
-        else re.compile(*cfg["pattern"]),
+        (
+            re.compile(cfg["pattern"])
+            if isinstance(cfg["pattern"], str)
+            else re.compile(*cfg["pattern"])
+        ),
         cfg["replacement"],
     )
     for cfg in SENSITIVE_PATTERNS_CONFIG

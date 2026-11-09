@@ -115,19 +115,23 @@ def make_plan_data(
     return {
         "task_name": task_name,
         "description": "用于集成测试",
-        "nodes": nodes
-        if nodes is not None
-        else [
-            {"id": 0, "name": "步骤一", "details": "第一步"},
-            {"id": 1, "name": "步骤二", "details": "第二步"},
-            {"id": 2, "name": "步骤三", "details": "第三步"},
-        ],
-        "edges": edges
-        if edges is not None
-        else [
-            {"from": 0, "to": 1},
-            {"from": 1, "to": 2},
-        ],
+        "nodes": (
+            nodes
+            if nodes is not None
+            else [
+                {"id": 0, "name": "步骤一", "details": "第一步"},
+                {"id": 1, "name": "步骤二", "details": "第二步"},
+                {"id": 2, "name": "步骤三", "details": "第三步"},
+            ]
+        ),
+        "edges": (
+            edges
+            if edges is not None
+            else [
+                {"from": 0, "to": 1},
+                {"from": 1, "to": 2},
+            ]
+        ),
     }
 
 

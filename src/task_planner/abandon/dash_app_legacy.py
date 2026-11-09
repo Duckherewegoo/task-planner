@@ -1363,10 +1363,13 @@ def on_node_hover(over_data, out_data):
 )
 def on_tap_node(node_data, dag, node_states):
     if not node_data or not node_data.get("id"):
-        return dcc.Markdown(
-            "👆 **点击流程图中的节点查看详情并操作**",
-            style={"fontSize": "14px", "color": "#94a3b8"},
-        ), no_update
+        return (
+            dcc.Markdown(
+                "👆 **点击流程图中的节点查看详情并操作**",
+                style={"fontSize": "14px", "color": "#94a3b8"},
+            ),
+            no_update,
+        )
     nid = str(node_data["id"])
     node_states = node_states or {}
     st = str(node_states.get(nid, "pending"))

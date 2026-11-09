@@ -879,9 +879,11 @@ SENSITIVE_PATTERNS_CONFIG = [
 # nodes.py 初始化时编译 (此处预编译以提升性能)
 SENSITIVE_PATTERNS = [
     (
-        re.compile(cfg["pattern"])
-        if isinstance(cfg["pattern"], str)
-        else re.compile(*cfg["pattern"]),
+        (
+            re.compile(cfg["pattern"])
+            if isinstance(cfg["pattern"], str)
+            else re.compile(*cfg["pattern"])
+        ),
         cfg["replacement"],
     )
     for cfg in SENSITIVE_PATTERNS_CONFIG

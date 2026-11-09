@@ -4,7 +4,7 @@ state.py — LangGraph 状态定义
 目标运行时：Python 3.14+（StrEnum / NotRequired / PEP 649 / PEP 695 全部原生）
 
 ── v8 ──
-  Patch A：needs_planning 默认值改为 True。
+  Patch A：needs_planning 默认值改为 False。
               与 workflow.py 的 _route_start 契约对齐——新任务默认走
               intent 由意图节点判断，避免 create_initial_state 后
               直接跳 direct_answer、intent 永不执行。

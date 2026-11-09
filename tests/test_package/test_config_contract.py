@@ -20,9 +20,9 @@ class TestStatusContract:
         from task_planner.infrastructure.constants import NODE_STATUS_CODE_MAP, TASK_STATUS
 
         for name, code in TASK_STATUS.items():
-            assert code in NODE_STATUS_CODE_MAP, (
-                f"P0-2 回归：status code {code} ({name}) 不在 NODE_STATUS_CODE_MAP"
-            )
+            assert (
+                code in NODE_STATUS_CODE_MAP
+            ), f"P0-2 回归：status code {code} ({name}) 不在 NODE_STATUS_CODE_MAP"
 
     def test_timeout_maps_to_timeout(self):
         """⚠️ 关键回归：status=4 必须映射为 timeout，不是 skipped"""
@@ -59,9 +59,9 @@ class TestIntentContract:
         """P1-1：prompt schema 必须列出 consultation"""
         from task_planner.infrastructure.prompts.loader import INTENT_PROMPT
 
-        assert "consultation" in INTENT_PROMPT.template, (
-            "P1-1 回归：prompt 里没列 consultation，LLM 不会输出该分类"
-        )
+        assert (
+            "consultation" in INTENT_PROMPT.template
+        ), "P1-1 回归：prompt 里没列 consultation，LLM 不会输出该分类"
 
 
 class TestSecurityDefault:

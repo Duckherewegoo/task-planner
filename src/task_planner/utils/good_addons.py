@@ -1896,17 +1896,20 @@ def _enhance_web_app(app: Any, csp_policy: str | None = None) -> None:
             try:
                 from flask import jsonify
 
-                return jsonify(
-                    {
-                        "error": {
-                            "type": type(exc).__name__,
-                            "message": str(exc) if status < 500 else "Internal Server Error",
-                            "request_id": tid,
-                            "fingerprint": info.get("fingerprint"),
-                            "hint": f"Check server logs for request_id={tid}",
+                return (
+                    jsonify(
+                        {
+                            "error": {
+                                "type": type(exc).__name__,
+                                "message": str(exc) if status < 500 else "Internal Server Error",
+                                "request_id": tid,
+                                "fingerprint": info.get("fingerprint"),
+                                "hint": f"Check server logs for request_id={tid}",
+                            }
                         }
-                    }
-                ), status
+                    ),
+                    status,
+                )
             except ImportError:
                 raise exc from None
 

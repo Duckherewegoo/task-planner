@@ -52,6 +52,7 @@ import sys
 import threading
 from collections.abc import Callable, Coroutine
 from typing import Any
+from pathlib import Path
 
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import Command
@@ -175,12 +176,49 @@ def _build_checkpointer():
     logger.info("[Workflow] Checkpointer: MemorySaver（仅进程内，重启即丢）")
     return MemorySaver()
 
+def _should_enable_retrieve() -> bool:
+    """三层降级的第一层：env + 路径存在 + 有 json 三者都满足才挂节点。
+
+    - TP_ENABLE_RETRIEVAL 未设置或不为 "1" → 关闭（零开销，不 import retrieve）
+    - 路径解析交给 retrieve.resolve_golden_path（单一真相源）
+    - 路径不存在 / 目录为空 → 关闭并 warn
+    """
+    if os.environ.get("TP_ENABLE_RETRIEVAL") != "1":
+        return False
+
+    # 延迟 import：关闭状态零开销，且 retrieve 模块异常也不会波及主图
+    try:
+        from task_planner.core.graph.nodes.retrieve import resolve_golden_path
+    except Exception:
+        logger.exception(
+            "[Workflow] import retrieve 模块失败，跳过 retrieve 节点（主流程不受影响）"
+        )
+        return False
+
+    golden_path = resolve_golden_path()
+
+    if not golden_path.exists():
+        logger.warning(
+            "[Workflow] TP_ENABLE_RETRIEVAL=1 但 golden 路径不存在: %s，跳过 retrieve 节点",
+            golden_path,
+        )
+        return False
+
+    # 目录形态：必须至少有 1 个 *.json
+    if golden_path.is_dir() and not list(golden_path.glob("*.json")):
+        logger.warning(
+            "[Workflow] TP_ENABLE_RETRIEVAL=1 但 %s 里没有 json，跳过 retrieve 节点",
+            golden_path,
+        )
+        return False
+
+    return True
 
 # ══════════════════════════════════════════════════
 # 图构建
 # ══════════════════════════════════════════════════
 def _build_graph():
-    """构建并编译 LangGraph（所有节点为异步）"""
+    """构建并编译 LangGraph（所有节点为异步）。"""
     builder = StateGraph(TaskState)
 
     builder.add_node("intent", intent_node)
@@ -192,9 +230,14 @@ def _build_graph():
     builder.add_node("direct_answer", direct_answer_node)
     builder.add_node("cancel", cancel_node)
 
+    # ── 可选：retrieve 节点（受 TP_ENABLE_RETRIEVAL 控制）──
+    enable_retrieve = _should_enable_retrieve()
+    if enable_retrieve:
+        from task_planner.core.graph.nodes.retrieve import retrieve_node
+        builder.add_node("retrieve", retrieve_node)
+        logger.info("[Workflow] retrieve 节点已挂载（TP_ENABLE_RETRIEVAL=1）")
+
     def _route_start(state: TaskState) -> str:
-        # Patch A 后 needs_planning 默认 True，新任务必进 intent。
-        # fallback 也用 True 保持一致。
         if not state.get("needs_planning", True):
             return "direct_answer"
         return "intent"
@@ -205,11 +248,23 @@ def _build_graph():
         {"direct_answer": "direct_answer", "intent": "intent"},
     )
 
-    builder.add_conditional_edges(
-        "intent",
-        route_after_intent,
-        {"plan": "plan", "direct_answer": "direct_answer", "cancel": "cancel"},
-    )
+    if enable_retrieve:
+        def _route_intent_with_retrieve(state: TaskState) -> str:
+            target = route_after_intent(state)
+            return "retrieve" if target == "plan" else target
+
+        builder.add_conditional_edges(
+            "intent",
+            _route_intent_with_retrieve,
+            {"retrieve": "retrieve", "direct_answer": "direct_answer", "cancel": "cancel"},
+        )
+        builder.add_edge("retrieve", "plan")
+    else:
+        builder.add_conditional_edges(
+            "intent",
+            route_after_intent,
+            {"plan": "plan", "direct_answer": "direct_answer", "cancel": "cancel"},
+        )
 
     builder.add_edge("plan", "refine")
     builder.add_edge("refine", "save")
@@ -237,7 +292,6 @@ def _build_graph():
 
     checkpointer = _build_checkpointer()
     return builder.compile(checkpointer=checkpointer)
-
 
 def get_graph() -> Any:
     """同步获取 graph 实例（线程安全懒加载）。

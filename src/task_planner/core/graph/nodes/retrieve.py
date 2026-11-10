@@ -43,7 +43,7 @@ _DETAIL_MAX_LEN = 200
 _DESC_MAX_LEN = 120
 _NAME_MAX_LEN = 60
 
-_DEFAULT_GOLDEN_REL = "eval_reports/golden.json"
+_DEFAULT_GOLDEN_DIR_REL = "eval_data"
 
 
 # ---------- 工具函数 ----------
@@ -69,16 +69,21 @@ def _truncate(text: Any, limit: int) -> str:
     return s if len(s) <= limit else s[: limit - 1] + "…"
 
 
-def _resolve_golden_path() -> Path:
-    """按 env → CWD 相对路径 的顺序解析。找不到就返回默认路径（调用方会看到 not exists）。"""
+def resolve_golden_path() -> Path:
+    """按 env → CWD 相对路径 的顺序解析 golden 路径。
+
+    公开接口：workflow.py 用它在图构建阶段判断 retrieve 节点是否应启用。
+    路径解析逻辑的单一真相源——修改默认目录只需改 _DEFAULT_GOLDEN_DIR_REL。
+    """
     env = os.environ.get("TP_GOLDEN_PATH")
     if env:
         p = Path(env).expanduser()
-        if p.exists():
-            return p
-        logger.warning("[Retrieve] TP_GOLDEN_PATH 指向不存在: %s", p)
-    return (Path.cwd() / _DEFAULT_GOLDEN_REL).resolve()
-
+        if not p.exists():
+            logger.error(
+                "[Retrieve] TP_GOLDEN_PATH 显式配置但不存在: %s（检索将返回空）", p
+            )
+        return p
+    return (Path.cwd() / _DEFAULT_GOLDEN_DIR_REL).resolve()
 
 # ---------- 案例裁剪 ----------
 def _slim_case(case: dict) -> dict | None:
@@ -153,8 +158,7 @@ class ExampleRetriever:
     ):
         self.top_k = max(1, int(top_k))
         self.enforce_category = bool(enforce_category)
-        self.golden_path = golden_path or _resolve_golden_path()
-        self._examples: list[dict] = []
+        self.golden_path = golden_path or resolve_golden_path()
         self._tokens: list[set[str]] = []
         self._categories: list[str] = []
         self._plan_names: list[str] = []
@@ -165,17 +169,47 @@ class ExampleRetriever:
             logger.warning("[Retrieve] golden 不存在: %s（检索将返回空）", self.golden_path)
 
     def _load(self, path: Path) -> None:
+        """兼容两种 golden 存储形态：
+        - 目录（eval_suite.cli generate 的默认产物）：每个 case 一个 .json
+        - 单文件 JSON 数组（手工整理或老格式）
+        """
+        cases: list[dict] = []
         try:
-            raw = json.loads(path.read_text(encoding="utf-8"))
+            if path.is_dir():
+                files = sorted(path.glob("*.json"))
+                if not files:
+                    logger.warning("[Retrieve] golden 目录为空: %s", path)
+                    return
+                for f in files:
+                    try:
+                        data = json.loads(f.read_text(encoding="utf-8"))
+                    except Exception:
+                        logger.exception("[Retrieve] 跳过损坏的 golden 文件: %s", f)
+                        continue
+                    if isinstance(data, dict):
+                        cases.append(data)
+                    elif isinstance(data, list):
+                        cases.extend(d for d in data if isinstance(d, dict))
+            elif path.is_file():
+                raw = json.loads(path.read_text(encoding="utf-8"))
+                if isinstance(raw, list):
+                    cases = [d for d in raw if isinstance(d, dict)]
+                elif isinstance(raw, dict):
+                    cases = [raw]
+                else:
+                    logger.warning(
+                        "[Retrieve] golden 顶层不是 dict/list，忽略：%s",
+                        type(raw).__name__,
+                    )
+                    return
+            else:
+                logger.warning("[Retrieve] golden 路径不存在: %s", path)
+                return
         except Exception:
-            logger.exception("[Retrieve] golden 解析失败: %s", path)
+            logger.exception("[Retrieve] golden 加载失败: %s", path)
             return
 
-        if not isinstance(raw, list):
-            logger.warning("[Retrieve] golden 顶层不是 list，忽略：%s", type(raw).__name__)
-            return
-
-        for item in raw:
+        for item in cases:
             slim = _slim_case(item)
             if slim is None:
                 continue
@@ -185,7 +219,6 @@ class ExampleRetriever:
             self._plan_names.append(slim["expected_plan"]["task_name"])
 
         logger.info("[Retrieve] 载入 %d 条 golden（源：%s）", len(self._examples), path)
-
     # ---------- 核心 ----------
     def search(
         self,
@@ -307,16 +340,20 @@ async def retrieve_node(
        首次调用会同步加载 golden（毫秒级）；若日后 golden 大到几十 MB，
        可把 r.search 包进 asyncio.to_thread 避免短暂阻塞事件循环。
     """
-    r = get_retriever()
-    if r is None:
+    try:
+        r = get_retriever()
+        if r is None:
+            return {"retrieved_examples": []}
+
+        intent = state.get("intent")
+        category = intent.get("category") if isinstance(intent, dict) else None
+
+        hits = r.search(
+            query=state.get("user_input", ""),
+            category=category,
+        )
+        return {"retrieved_examples": hits}
+    except Exception:
+        # 检索是可选增强，任何异常都降级为空，绝不阻断主流程
+        logger.exception("[Retrieve] retrieve_node 异常，降级为空")
         return {"retrieved_examples": []}
-
-    # intent 来自 LLM，防御性读取（理论上 TaskState 声明为 dict，但 LLM 输出不可信）
-    intent = state.get("intent")
-    category = intent.get("category") if isinstance(intent, dict) else None
-
-    hits = r.search(
-        query=state.get("user_input", ""),
-        category=category,
-    )
-    return {"retrieved_examples": hits}

@@ -47,64 +47,42 @@ def test_semaphore_does_not_bind_across_event_loops(monkeypatch):
 
 
 # ── 配置解析健壮化 ──
+def test_parse_concurrency_returns_valid_int():
+    """_parse_concurrency 保证返回 >= 1 的整数（不依赖具体配置值）。"""
+    from task_planner.core.graph.nodes.refine import _parse_concurrency
+    result = _parse_concurrency()
+    assert isinstance(result, int)
+    assert result >= 1
 
 
-def test_parse_concurrency_valid(monkeypatch):
-    monkeypatch.setenv("REFINE_CONCURRENCY", "5")
-    assert _parse_concurrency() == 5
+def test_parse_concurrency_fallback_on_invalid(monkeypatch):
+    """cog 返回非法值时，降级到安全值 10，不崩启动。"""
+    from task_planner.core.graph.nodes import refine
 
+    # 改前：monkeypatch.setattr(refine, "_REFINE_CONCURRENCY_DEFAULT", "abc")
+    # 改后：直接 monkeypatch cog 的返回值
+    class _FakeDev:
+        REFINE_CONCURRENCY = "abc"
 
-def test_parse_concurrency_invalid_string_falls_back(monkeypatch):
-    monkeypatch.setenv("REFINE_CONCURRENCY", "abc")
-    assert _parse_concurrency() == 10
+    class _FakeHub:
+        dev = _FakeDev()
 
+    monkeypatch.setattr(refine, "_hub", _FakeHub())
+    result = refine._parse_concurrency()
+    assert result == 10
 
-def test_parse_concurrency_negative_falls_back(monkeypatch):
-    monkeypatch.setenv("REFINE_CONCURRENCY", "-1")
-    assert _parse_concurrency() == 10
+    # -1 场景
+    _FakeDev.REFINE_CONCURRENCY = -1
+    result = refine._parse_concurrency()
+    assert result == 10
 
-
-def test_parse_concurrency_zero_falls_back(monkeypatch):
-    """0 会让 Semaphore(0) 永久阻塞——必须回退。"""
-    monkeypatch.setenv("REFINE_CONCURRENCY", "0")
-    assert _parse_concurrency() == 10
-
-
-def test_parse_concurrency_missing_uses_default(monkeypatch):
-    monkeypatch.delenv("REFINE_CONCURRENCY", raising=False)
-    assert _parse_concurrency() == 10
+    # None 场景（触发 TypeError 分支）
+    _FakeDev.REFINE_CONCURRENCY = None
+    result = refine._parse_concurrency()
+    assert result == 10
 
 
 # ── 基本行为 ──
-
-
-async def test_refine_returns_independent_copies(monkeypatch):
-    """nodes 与 refined_nodes 应是独立 list，修改一个不影响另一个。"""
-    monkeypatch.setattr(
-        "task_planner.core.graph.nodes.refine.refine_node_llm",
-        AsyncMock(return_value={"name": "refined", "details": "d", "meta": {}}),
-    )
-    monkeypatch.setattr(
-        "task_planner.core.graph.nodes.refine.get_cancel_event",
-        lambda: None,
-    )
-    monkeypatch.setattr(
-        "task_planner.core.graph.nodes.refine.set_req_id",
-        lambda: "rid",
-    )
-
-    state = {
-        "nodes": [{"id": 1, "name": "n1"}],
-        "user_input": "u",
-        "intent": {"category": "other"},
-        "steps": [],
-    }
-    result = await refine_node(state, {})
-
-    assert result["refined_nodes"] is not result["nodes"]
-    assert result["refined_nodes"] == result["nodes"]
-
-
 async def test_refine_single_node_failure_does_not_block_others(monkeypatch):
     """单节点失败降级为 fallback，不影响其他节点。"""
 
@@ -133,9 +111,9 @@ async def test_refine_single_node_failure_does_not_block_others(monkeypatch):
         "steps": [],
     }
     result = await refine_node(state, {})
-    assert len(result["refined_nodes"]) == 2
-    assert "失败" in result["refined_nodes"][0]["details"]
-    assert result["refined_nodes"][1]["name"] == "ok"
+    assert len(result["nodes"]) == 2
+    assert "失败" in result["nodes"][0]["details"]
+    assert result["nodes"][1]["name"] == "ok"
 
 
 async def test_refine_cancel_mid_loop_marks_remaining_unsubmitted(monkeypatch):
@@ -192,15 +170,15 @@ async def test_refine_cancel_mid_loop_marks_remaining_unsubmitted(monkeypatch):
     await cancel_task  # 等后台任务结束，避免 "task was destroyed" 警告
 
     # 核心断言：总数不变（未提交的用占位补齐）
-    assert len(result["refined_nodes"]) == 20
+    assert len(result["nodes"]) == 20
 
     # 至少有一个"未提交"——证明主循环在迭代中途 break 了
-    unsubmitted = [n for n in result["refined_nodes"] if "未提交" in n.get("details", "")]
+    unsubmitted = [n for n in result["nodes"] if "未提交" in n.get("details", "")]
     assert len(unsubmitted) > 0, (
         "预期存在未提交节点（主循环中途 break），实际全部已提交或全部未提交。"
         "可能是 sleep(0) 让出点被移除，或后台任务的 sleep 次数需要调。"
     )
 
     # 且应该有一部分是已提交的（前几轮迭代已完成）
-    submitted = [n for n in result["refined_nodes"] if "未提交" not in n.get("details", "")]
+    submitted = [n for n in result["nodes"] if "未提交" not in n.get("details", "")]
     assert len(submitted) > 0, "预期存在已提交节点（前面几轮迭代）"

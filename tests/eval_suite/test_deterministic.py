@@ -2,7 +2,7 @@
 
 from dataclasses import replace
 
-from task_planner.eval_suite.scorers.deterministic import score_deterministic
+from tools.eval_suite.scorers.deterministic import score_deterministic
 
 
 def test_perfect(fake_trace, fake_golden):

@@ -2,11 +2,7 @@
 
 import pytest
 
-from task_planner.eval_suite.types import (
-    AgentTrace,
-    Difficulty,
-    GoldenCase,
-)
+from tools.eval_suite.types import AgentTrace, Difficulty, GoldenCase
 
 
 @pytest.fixture

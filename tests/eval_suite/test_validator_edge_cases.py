@@ -1,6 +1,6 @@
 import pytest
 
-from task_planner.eval_suite.golden.validator import validate_golden_plan
+from tools.eval_suite.golden.validator import validate_golden_plan
 
 
 @pytest.mark.parametrize(

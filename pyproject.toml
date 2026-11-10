@@ -197,8 +197,8 @@ reportMissingTypeStubs = false
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 asyncio_default_test_loop_scope = "function"
+pythonpath = [".", "src"]
 testpaths = ["tests"]
-pythonpath = ["."]
 #  v3.2.3：废弃代码目录不参与 pytest collection。
 #    原因：abandon 下的模块级副作用（如 dataset_manager.py 的
 #    get_logger("eval.xxx")）会在 collection 阶段直接执行，一旦失败

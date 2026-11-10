@@ -2,7 +2,7 @@
 dash_app.py — 独立的 HIL 人工审查 Dash 前端。
 
 不 import main UI 的任何模块。只读 eval_suite 生成的 JSON。
-启动：python -m task_planner.eval_suite.hil.dash_app
+启动：python -m tools.eval_suite.hil.dash_app
 """
 
 import json
@@ -12,7 +12,7 @@ from pathlib import Path
 import dash
 from dash import Input, Output, State, callback, dcc, html
 
-from task_planner.eval_suite.types import CaseStatus
+from ..types import CaseStatus
 
 
 def build_layout(review_path: Path) -> html.Div:

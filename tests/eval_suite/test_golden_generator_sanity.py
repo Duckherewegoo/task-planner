@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from task_planner.eval_suite.golden.generator import generate_dataset, generate_golden_case
+from tools.eval_suite.golden.generator import generate_dataset, generate_golden_case
 
 
 def _format_plan_fixture(sample_plan: dict) -> str:
@@ -13,7 +13,7 @@ def _format_plan_fixture(sample_plan: dict) -> str:
 @pytest.mark.asyncio
 async def test_generator_success_first_try(sample_plan):
     valid_json = _format_plan_fixture(sample_plan)
-    with patch("task_planner.eval_suite.golden.generator.async_call_llm", return_value=valid_json):
+    with patch("tools.eval_suite.golden.generator.async_call_llm", return_value=valid_json):
         case = await generate_golden_case(user_input="做番茄炒蛋")
         assert case is not None
         assert case.validated is True
@@ -30,7 +30,7 @@ async def test_generator_rejects_cyclic_dag_and_retries(sample_plan):
     # 用 AsyncMock 替换全局 asyncio.sleep，避免递归和真实等待
     with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
         with patch(
-            "task_planner.eval_suite.golden.generator.async_call_llm", side_effect=side_effects
+            "tools.eval_suite.golden.generator.async_call_llm", side_effect=side_effects
         ) as mock_llm:
             case = await generate_golden_case(user_input="生成一个图", max_retries=2)
 
@@ -49,7 +49,7 @@ async def test_generator_handles_malformed_json(sample_plan):
 
     with patch("asyncio.sleep", new_callable=AsyncMock):
         with patch(
-            "task_planner.eval_suite.golden.generator.async_call_llm", side_effect=side_effects
+            "tools.eval_suite.golden.generator.async_call_llm", side_effect=side_effects
         ):
             case = await generate_golden_case(user_input="测试乱码", max_retries=2)
             assert case is not None
@@ -63,7 +63,7 @@ async def test_generator_handles_llm_exception(sample_plan):
 
     with patch("asyncio.sleep", new_callable=AsyncMock):
         with patch(
-            "task_planner.eval_suite.golden.generator.async_call_llm", side_effect=side_effects
+            "tools.eval_suite.golden.generator.async_call_llm", side_effect=side_effects
         ):
             case = await generate_golden_case(user_input="测试异常", max_retries=2)
             assert case is not None
@@ -76,7 +76,7 @@ async def test_generator_fails_after_max_retries():
 
     with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
         with patch(
-            "task_planner.eval_suite.golden.generator.async_call_llm", return_value=invalid_json
+            "tools.eval_suite.golden.generator.async_call_llm", return_value=invalid_json
         ):
             case = await generate_golden_case(user_input="必定失败", max_retries=3)
 
@@ -101,7 +101,7 @@ async def test_generate_dataset_writes_files(tmp_path):
 
     with patch("asyncio.sleep", new_callable=AsyncMock):
         with patch(
-            "task_planner.eval_suite.golden.generator.async_call_llm", side_effect=side_effect_llm
+            "tools.eval_suite.golden.generator.async_call_llm", side_effect=side_effect_llm
         ):
             cases = await generate_dataset(specs, output_dir=tmp_path, model="test-model")
 

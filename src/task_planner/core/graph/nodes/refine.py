@@ -7,7 +7,6 @@
   约定：
     - 单节点失败不阻塞其他节点（降级为 fallback dict）
     - 取消时尽量少提交任务，已提交的让 LLM 层感知 cancel_event
-    - 输出 refined_nodes 与 nodes 内容一致但为独立副本
 
 ⚠️ 关于 asyncio.CancelledError：
    它是 BaseException 子类（Python 3.8+），不是 Exception 子类。
@@ -27,7 +26,8 @@
    本节点**只防御自己的 LLM 边界**（refine_node 返回值）。
    上游写入 state 的字段（state["intent"] 等）由写入方负责保证类型。
    这不是"信任上游"，而是"每个节点守好自己的边界"。
-   state["intent"] 的 dict 保证在 intent_node 里做（见跨文件待办）。
+   state["intent"] 的 dict 保证在 intent_node 里做
+   (TODO: 目前依赖上游 intent_node 的 Pydantic 校验，已保障)。
 """
 
 import asyncio
@@ -36,6 +36,7 @@ from typing import Any
 
 from langchain_core.runnables import RunnableConfig
 
+from task_planner.infrastructure.cog import hub as _hub
 from task_planner.core.graph.state import TaskState
 from task_planner.infrastructure.llm import refine_node as refine_node_llm
 from task_planner.infrastructure.logger_setup import get_logger, set_req_id
@@ -43,46 +44,63 @@ from task_planner.utils.context import get_cancel_event
 
 logger = get_logger(__name__)
 
-# 默认并发上限。真实值由 _parse_concurrency() 从环境变量解析。
-# 默认 10 是保守值——不会打爆主流 LLM API，也能让大 DAG 受益。
-_REFINE_CONCURRENCY_DEFAULT = 10
+# 硬编码安全回退值。
+# 与 _hub.dev.REFINE_CONCURRENCY 的区别：
+#   - _hub.dev.REFINE_CONCURRENCY 是"用户配置值"，可能是任何类型/非法值
+#   - _FALLBACK_SAFE_CONCURRENCY 是本模块"已知安全值"，永远是合法的 int
+# 当配置值非法时回退到这个安全值，而不是回退到配置值本身。
+_FALLBACK_SAFE_CONCURRENCY = 10
 
 
 def _parse_concurrency() -> int:
     """
-    解析 REFINE_CONCURRENCY；非法值回退默认，不炸启动。
+    解析 cog 配置 REFINE_CONCURRENCY，返回一个合法的并发上限整数。
 
-    三种非法值：
-      - "abc"：int() 抛 ValueError → 若直接 int() 会让模块 import 失败
-      - "-1"：asyncio.Semaphore(-1) 抛 ValueError → 同上
-      - "0"：asyncio.Semaphore(0) 永久阻塞 → 不报错、不崩，图静静卡在 refine
-              （最阴险——运维会误以为 LLM 慢，不会想到环境变量配错）
+    处理策略：
+      - 配置值可转换为 >= 1 的整数 → 返回该整数
+      - 配置值非法 → 返回 _FALLBACK_SAFE_CONCURRENCY，并打 warning
 
-    处理哲学：配置错误时"能跑"比"不跑"好，尤其这只是性能调优参数，
-    不是功能开关。但要留痕（warning 日志）。
+    非法值分类：
+      - "abc" / "1.5"：int() 抛 ValueError
+      - None / list / dict：int() 抛 TypeError
+        （必须同时捕 TypeError——此前只捕 ValueError 时 None 会直接冒泡，
+         导致整个 refine.py 在 import 阶段就崩溃）
+      - "-1" / "0"：int() 成功但 < 1
+        （asyncio.Semaphore(0) 会永久阻塞——最阴险的失效模式：
+         运维会误以为 LLM 慢，实际是图卡死在 refine）
+
+    设计哲学：配置错误时"能跑"比"不跑"好，尤其这只是性能调优参数，
+    不是功能开关。但必须留痕（warning 日志），且日志格式化本身不能抛异常
+    ——所以原始值用 %r 打印（不受类型约束），而非 %d（会因非整数抛 TypeError）。
+
+    热重载语义说明：
+      本函数在模块 import 时求值一次，此后 _REFINE_CONCURRENCY 是常量。
+      即使 cog 热重载了配置，本模块不会感知——除非上层显式重新 import
+      refine.py。如果需要热重载语义，调用方应改为"每次 refine_node 时
+      重新读取 _hub.dev.REFINE_CONCURRENCY"，而非缓存到模块级常量。
     """
-    raw = os.getenv("REFINE_CONCURRENCY", str(_REFINE_CONCURRENCY_DEFAULT))
+    raw = _hub.dev.REFINE_CONCURRENCY
     try:
         n = int(raw)
-    except ValueError:
+    except (ValueError, TypeError) as exc:
         logger.warning(
-            "[Refine] REFINE_CONCURRENCY=%r 不是整数，回退 %d",
+            "[Refine] REFINE_CONCURRENCY=%r 无法转换为整数 (%s)，回退安全值 %d",
             raw,
-            _REFINE_CONCURRENCY_DEFAULT,
+            type(exc).__name__,
+            _FALLBACK_SAFE_CONCURRENCY,
         )
-        return _REFINE_CONCURRENCY_DEFAULT
+        return _FALLBACK_SAFE_CONCURRENCY
     if n < 1:
         logger.warning(
-            "[Refine] REFINE_CONCURRENCY=%d < 1，回退 %d",
+            "[Refine] REFINE_CONCURRENCY=%d < 1，回退安全值 %d",
             n,
-            _REFINE_CONCURRENCY_DEFAULT,
+            _FALLBACK_SAFE_CONCURRENCY,
         )
-        return _REFINE_CONCURRENCY_DEFAULT
+        return _FALLBACK_SAFE_CONCURRENCY
     return n
 
 
 _REFINE_CONCURRENCY = _parse_concurrency()
-
 
 async def refine_node(state: TaskState, config: RunnableConfig) -> dict[str, Any]:
     """
@@ -91,9 +109,7 @@ async def refine_node(state: TaskState, config: RunnableConfig) -> dict[str, Any
     契约：
       - 输入：state["nodes"] / state["user_input"] / state["intent"]
       - 输出：
-          * refined_nodes：细化后的节点列表（独立对象）
-          * nodes：与 refined_nodes 内容一致的**独立副本**
-            （避免下游就地修改污染另一个字段）
+          * nodes：细化后的节点列表（独立对象）
           * steps：追加一条"节点细化完成"
       - 单节点失败：降级为 fallback dict，details 记录原因，不阻塞其他节点
       - 取消：cancel_event 设置后不再提交新任务；已提交的由 LLM 层感知
@@ -116,7 +132,7 @@ async def refine_node(state: TaskState, config: RunnableConfig) -> dict[str, Any
     层边界：
       本节点防御的是**自己的 LLM 边界**（refine_node 返回值可能非 dict）。
       上游写入 state 的字段（state["intent"] 的类型）由写入方保证——
-      intent_node 负责 recognize_intent 返回值的契约（见跨文件待办）。
+      intent_node 负责 recognize_intent 返回值的契约。
     """
     rid = set_req_id()
     logger.info("[Graph] refine_node (req=%s)", rid)
@@ -130,11 +146,27 @@ async def refine_node(state: TaskState, config: RunnableConfig) -> dict[str, Any
     # 每次 refine_node 调用创建一个——绑定当前 loop，服务于本次所有任务。
     # 注意粒度：不是每个 _refine_one 创建（那会让并发上限失效），
     # 而是每次 refine_node 创建（本次内所有任务共享同一个）。
-    semaphore = asyncio.Semaphore(_REFINE_CONCURRENCY)
+    concurrency = _parse_concurrency()  # 每次调用重新读
+    semaphore = asyncio.Semaphore(concurrency)
 
     async def _refine_one(n: dict[str, Any]) -> dict[str, Any]:
         """
-        细化单个节点。
+           节点细化（异步并发）。
+
+        契约：
+          - 输入：state["nodes"] / state["user_input"] / state["intent"]
+          - 输出：
+              * nodes：细化后的节点列表（覆盖 state["nodes"]）
+          * steps：追加一条"节点细化完成"
+          - 单节点失败：降级为 fallback dict，details 记录原因，不阻塞其他节点
+          - 取消：cancel_event 设置后不再提交新任务；已提交的由 LLM 层感知
+    
+        关于 refined_nodes：
+          v8 移除了 refined_nodes 字段。原设计意图是保留"细化前 vs 细化后"
+          的对比快照，但实际执行链路（save / render / execute）都只消费
+          state["nodes"]，refined_nodes 无任何读取方，深拷贝纯属浪费。
+          如需对比，应在 DB 里保留 plan 与 refined 两个版本快照
+          （见 save.py 的 task_doc / plan_doc）。
 
         入参 n 是浅拷贝（由调用方 `dict(n)` 保证）——就地修改后返回，
         不影响 nodes_raw 中的原始元素。
@@ -206,14 +238,9 @@ async def refine_node(state: TaskState, config: RunnableConfig) -> dict[str, Any
             break
 
         tasks.append(_refine_one(dict(n)))
+        
         # 让出控制权：给事件循环一个调度点，让外部取消信号
-        # （session.cancel_event.set() 由 commands.cancel_task 触发）
         # 有机会在循环迭代之间被感知。
-        # 不加这行：主循环是同步的——1000 个协程对象瞬间创建完毕，
-        # 中途任何外部 set 都无法被 break 检测到。
-        # 加了之后：每次迭代让出 → 外部任务可运行 → set →
-        # 下一轮检测到 → break。
-        # 代价：每节点一次事件循环调度（微秒级）。
         await asyncio.sleep(0)
 
     results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -263,10 +290,7 @@ async def refine_node(state: TaskState, config: RunnableConfig) -> dict[str, Any
             refined.append(fallback)
 
     return {
-        "refined_nodes": refined,
-        # 独立副本：避免下游对 nodes 的就地修改污染 refined_nodes（或反之）。
-        # 两个字段共享引用会退化成一个字段的语义，且这个隐式契约未在
-        # 代码里声明——未来下游若做了 append/pop/sort，refined_nodes 会跟着变。
-        "nodes": list(refined),
+        # 如果只用 list(refined)，内外层 dict 依然是同一个引用，违背“独立副本”契约。
+        "nodes": [dict(n) for n in refined],
         "steps": state.get("steps", []) + ["节点细化完成"],
     }

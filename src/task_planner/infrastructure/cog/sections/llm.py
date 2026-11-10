@@ -17,5 +17,5 @@ class LLMSection(ConfigSection):
                 purpose="是否启用流式返回（暂未实现，预留）",
                 scope=Scope.DEVELOPER,
                 type=bool,
-            ),
+            ), 
         )

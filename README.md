@@ -2,7 +2,7 @@
 
 [![Python 3.14+](https://img.shields.io/badge/python-3.14+-blue.svg)](https://www.python.org/downloads/)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
-[![Tests: 261 passed](https://img.shields.io/badge/tests-261%20passed-green.svg)](#-%E5%BC%80%E5%8F%91%E4%B8%8E%E6%B5%8B%E8%AF%95)
+[![Tests: 274 passed](https://img.shields.io/badge/tests-274%20passed-green.svg)](#-%E5%BC%80%E5%8F%91%E4%B8%8E%E6%B5%8B%E8%AF%95)
 [![Pydantic v2](https://img.shields.io/badge/pydantic-v2-E92063.svg)](https://docs.pydantic.dev/)
 [![Async](https://img.shields.io/badge/async-ready-green.svg)](#%E5%85%B3%E4%BA%8E%E5%BC%82%E6%AD%A5%E8%BE%B9%E7%95%8C)
 

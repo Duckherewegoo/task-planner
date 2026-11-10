@@ -146,8 +146,23 @@ async def generate_plan(
     intent_info: dict[str, Any],
     req_id: str,
     cancel_event: asyncio.Event | None = None,
+    few_shot_text: str = "",
 ) -> dict[str, Any]:
-    """异步生成执行计划"""
+    """异步生成执行计划。
+
+    Args:
+        user_input:    用户原始输入
+        intent_info:   意图识别输出（category / summary 等）
+        req_id:        请求 ID
+        cancel_event:  取消信号，透传给 LLM 层
+        few_shot_text: retrieve 节点产出的 few-shot 案例文本。空字符串表示
+                       不注入（retrieve 未启用 / 无命中 / plan_node 上游异常）。
+                       非空时在基础 prompt 之后追加"相似历史案例"段落。
+
+    Returns:
+        plan dict，包含 task_name / description / nodes / edges。
+        失败时返回占位 dict（task_name="规划失败"），不抛异常。
+    """
     if not isinstance(intent_info, dict):
         logger.error(
             "[Planner] intent_info 类型非法: %s (req=%s)",
@@ -164,6 +179,12 @@ async def generate_plan(
     if _hub.dev.USE_MOCK_LLM:
         if cancel_event and cancel_event.is_set():
             raise LLMCancelledError("Mock: cancelled by event", req_id)
+        if few_shot_text:
+            logger.info(
+                "[Planner] Mock 模式忽略 few-shot（%d 字符） (req=%s)",
+                len(few_shot_text),
+                req_id,
+            )
         return mock_plan(req_id)
 
     error_msg = "规划生成异常"
@@ -175,6 +196,24 @@ async def generate_plan(
             category=intent_info.get("category", "other"),
             summary=intent_info.get("summary", ""),
         )
+
+        # ── few-shot 注入 ──
+        # 不依赖 PLANNER_PROMPT 模板里的占位符；few_shot_text 为空时
+        # prompt 与改动前逐字节一致。
+        if few_shot_text:
+            prompt = (
+                prompt
+                + "\n\n## 相似历史案例（few-shot 参考）\n"
+                + "以下案例展示了类似任务的规划方式，请参考其节点粒度和结构，"
+                + "但不要照搬，需根据当前需求灵活调整：\n\n"
+                + few_shot_text
+            )
+            logger.info(
+                "[Planner] 注入 few-shot（%d 字符） (req=%s)",
+                len(few_shot_text),
+                req_id,
+            )
+
         raw = await async_call_llm(
             model=_hub.dev.LLM_PLANNER_MODEL,
             prompt=prompt,
@@ -214,7 +253,6 @@ async def generate_plan(
         "nodes": [],
         "edges": [],
     }
-
 
 # ═══════════════════════════════════════════════════════════════
 # 节点细化

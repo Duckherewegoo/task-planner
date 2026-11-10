@@ -9,10 +9,10 @@ def validate_node_elements(nodes: list, rid: str) -> None:
     """
     校验每个 node 是 dict 且有 id 字段。
 
-    ⚠️ 为什么需要：plan.get("nodes") 的外层 list 校验通过后，
-       元素仍可能是 str / None / list——refine_node 里 n.get("id")
-       会在非 dict 元素上抛 AttributeError，错误信息与"规划失败"无关。
-       在入口处 Fail Fast，让问题在 plan_node 就暴露。
+    为什么需要：plan.get("nodes") 的外层 list 校验通过后，
+    元素仍可能是 str / None / list。refine_node 里 n.get("id")
+    会在非 dict 元素上抛 AttributeError，错误信息与"规划失败"无关。
+    在入口处 Fail Fast，让问题在 plan_node 就暴露。
     """
     for i, n in enumerate(nodes):
         if not isinstance(n, dict):
@@ -40,8 +40,8 @@ def validate_edge_elements(edges: list, rid: str) -> None:
     """
     校验每个 edge 是 dict 且有 from/to 字段。
 
-    ⚠️ from/to 的语义：节点 id，在节点集合内应存在——但"存在性"
-       校验留给 render/save 层（它们更清楚节点集合）。这里只做形状校验。
+    from/to 的语义：节点 id，在节点集合内应存在。但"存在性"
+    校验留给 render/save 层（它们更清楚节点集合）。这里只做形状校验。
     """
     for i, e in enumerate(edges):
         if not isinstance(e, dict):
@@ -78,22 +78,22 @@ def coerce_node_id(raw: Any, fallback: int) -> int | str:
 def coerce_pointer(raw: Any) -> int | str | None:
     """把外部传入的指针值归一化到 int | str | None。
 
-    动机：workflow.py 的 target_node_index 可能来自 URL query / 前端 JSON，
+    动机：workflow.py 的 retry_node_id 可能来自 URL query / 前端 JSON，
     运行时类型不受 TypedDict 静态契约保证。
 
     归一化规则（显式，无 passthrough）：
-      - None         → None（无指针）
-      - bool         → None（bool 是 int 子类，但业务上不是合法指针；
+      - None         -> None（无指针）
+      - bool         -> None（bool 是 int 子类，但业务上不是合法指针；
                      按 int 处理会让 True 变成 index=1，静默错误）
-      - int          → int
-      - str          → 能 int() 则转 int，不能转则保留原 str（供 node["id"] 匹配）
-      - float/其他   → None（降级，不 passthrough——下游 nodes[3.0] 会炸）
+      - int          -> int
+      - str          -> 能 int() 则转 int，不能转则保留原 str（供 node["id"] 匹配）
+      - float/其他   -> None（降级，不 passthrough——下游 nodes[3.0] 会炸）
 
     返回类型严格限定为 int | str | None，下游 Pyright 可精确推导。
     """
     if raw is None:
         return None
-    if isinstance(raw, bool):  # 必须在 int 之前——bool ⊂ int
+    if isinstance(raw, bool):
         return None
     if isinstance(raw, int):
         return raw
@@ -102,7 +102,6 @@ def coerce_pointer(raw: Any) -> int | str | None:
             return int(raw)
         except ValueError:
             return raw
-    # float / list / dict / object → 无法作为指针，降级
     return None
 
 

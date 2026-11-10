@@ -1,18 +1,24 @@
 """intent.py — 意图识别节点
 
 契约：
-  - 输入：state["user_input"]（已由上游 sanitize_input 脱敏过的版本）
-  - 输出：更新 state["intent"] / state["needs_planning"] / state["steps"]
-  - 本节点不做原始输入的二次脱敏——sanitize 责任在 API 层，
-    本节点只负责在写回时**保持脱敏后的值**，不引入未脱敏内容。
+  - 输入：state["user_input"]（可能是脱敏版，也可能是旧 Checkpoint 的原始版）
+  - 输出：更新 state["intent"] / state["needs_planning"] / state["steps"]，
+          并且**强制将脱敏后的安全版本覆盖写回** state["user_input"]。
+
+⚠️ 安全防线（关于脱敏）：
+   尽管 API 层在入口处已做过一次脱敏，但 State 的数据来源不可控（如
+   历史 Checkpoint 恢复、内部服务直调）。本节点作为调用 LLM 前的
+   最后一道防线，必须在此处再次调用 sanitize_input。
+   
+   这是典型的防御性编程（Defensive Programming）：
+   1. sanitize_input 是幂等的，重复调用无副作用。
+   2. 覆盖写回 state["user_input"]，确保一旦流经本节点，State 中
+      绝不再留存任何原始未脱敏的敏感信息。
 
 ⚠️ Pydantic 边界校验：
    本节点是 intent 数据的**唯一入口**。recognize_intent 的返回是
    LLM 输出——不可信。用 IntentModel 在边界处 model_validate，
    校验通过后 model_dump 落 state（消费方零改动）。
-
-   schema 定义在 core/graph/schemas.py，与 infrastructure/prompts/intent.txt
-   的 prompt 输出格式严格对齐——改 prompt 时同步改 schema。
 """
 
 from typing import Any
@@ -37,12 +43,13 @@ async def intent_node(state: TaskState, config: RunnableConfig) -> dict[str, Any
 
     Args:
         state:  全局状态。读 state["user_input"]（脱敏版）、state["steps"]。
-        config: LangGraph 节点签名约定保留，当前透传给 get_cancel_event 读取
-                运行时取消信号。未来若签名变化，此参数已在位。
+        config: LangGraph 节点签名约定保留。当前本节点未消费该参数。
+                取消信号通过 utils.context.get_cancel_event() 从 contextvars 
+                中获取，与 config 无关。
 
     返回：
         {
-            "user_input": str,        # 脱敏后的版本（覆盖写回，见 state.py 契约）
+            "user_input": str,        # 脱敏后的版本（覆盖写回）
             "intent": dict,           # IntentModel.model_dump() 的结果
             "needs_planning": bool,
             "steps": list[str],       # 完整列表（覆盖语义）
@@ -55,7 +62,9 @@ async def intent_node(state: TaskState, config: RunnableConfig) -> dict[str, Any
        也不把复杂需求当寒暄处理掉）。
     """
     rid = set_req_id()
-    logger.info("[Graph] intent_node (req=%s)", rid)
+    # 从 config 中提取 thread_id，增强日志上下文
+    thread_id = config.get("configurable", {}).get("thread_id", "unknown")
+    logger.info("[Graph] intent_node (req=%s, thread=%s)", rid, thread_id)
 
     user_input = sanitize_input(state["user_input"])
     cancel_event = get_cancel_event()
@@ -91,8 +100,9 @@ async def intent_node(state: TaskState, config: RunnableConfig) -> dict[str, Any
     intent = intent_model.model_dump()
 
     return {
-        # ⚠️ 覆盖 state["user_input"]：本字段在 state.py 契约中即"脱敏后版本"。
-        # 原始输入不留存于 state，审计靠 sanitize_input 的 audit 日志（hash）。
+        # ⚠️ 强制覆盖 state["user_input"]：
+        # 这是最后一道脱敏防线。即使上游漏脱、或从旧 Checkpoint 恢复，
+        # 只要进了本节点，后续所有节点读到的绝对是安全版本。
         "user_input": user_input,
         "intent": intent,
         "needs_planning": intent_model.needs_planning,

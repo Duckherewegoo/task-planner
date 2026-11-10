@@ -38,7 +38,7 @@ workflow.py — LangGraph 工作流定义（异步优化版）
 
 ⚠️ 与 execute.py 的契约变更：
    resume_graph_async 传出的 feedback 键名从 "action" / "target_node_index"
-   改为 "user_action" / "retry_node_index" / "resume_from_node_index"。
+   改为 "user_action" / "retry_node_id" / "resume_from_node_index"。
    execute.py 里 `feedback.get("action")` 必须同步改为
    `feedback.get("user_action")`。
 
@@ -54,6 +54,7 @@ from collections.abc import Callable, Coroutine
 from typing import Any
 
 from langgraph.graph import END, START, StateGraph
+from langgraph.types import Command
 
 from task_planner.core.graph.nodes import (
     cancel_node,
@@ -253,15 +254,6 @@ def get_graph() -> Any:
     return _graph_instance
 
 
-def build_graph():
-    """
-    兼容旧名。语义已是单例：多次调用返回同一实例。
-    ⚠️ Patch I：名字误导，新代码请用 get_graph()。未来版本将删除。
-    如需强制重建（测试场景），用 _force_rebuild_graph()。
-    """
-    return get_graph()
-
-
 def _force_rebuild_graph():
     """
     强制重建 graph。仅用于测试/诊断。
@@ -324,66 +316,52 @@ async def resume_graph_async(
     thread_id: str,
     user_action: str = "continue",
     modified_input: str | None = None,
-    target_node_index: int | None = None,
+    retry_node_id: int | str | None = None,
     resume_from_node_index: int | None = None,
     as_node: str | None = None,
 ) -> dict[str, Any]:
     """
     更新 thread 的状态，为"续跑"做准备。
 
-    ⚠️ Patch J：本函数**只更新状态，不续跑图**。
-       函数名"resume"容易让人以为一调就恢复——但 LangGraph 的
-       `update_state` 语义是"只写状态、不推进图"。本函数返回后，
-       图仍停在原来的 interrupt / checkpoint 处。
+    注意：本函数只更新状态，不续跑图。
+    函数名"resume"容易让人以为一调就恢复——但 LangGraph 的
+    `update_state` 语义是"只写状态、不推进图"。本函数返回后，
+    图仍停在原来的 interrupt / checkpoint 处。
 
-       调用方拿到返回值后，**必须再执行一次**：
-           async for _ in g.astream(None, config, stream_mode="values"):
-               ...
-       或：
-           await g.ainvoke(None, config)
-       才能让图真正续跑。
-
-       为什么不做自动续跑：调用方需要自己控制 stream_mode、
-       错误处理、进度回调——自动续跑会把这些责任抢过来，
-       反而降低灵活性。
+    调用方拿到返回值后，必须再执行一次：
+        async for _ in g.astream(None, config, stream_mode="values"):
+            ...
+    或：
+        await g.ainvoke(None, config)
+    才能让图真正续跑。
 
     Args:
         thread_id:               会话 ID
         user_action:             用户动作 "continue" / "modify" / "cancel" / "retry_node"
         modified_input:          action=modify 时携带的新输入
-        target_node_index:       action=retry_node 时指定要重试的节点索引
-        resume_from_node_index:  从 checkpoint 恢复时指定起始节点索引
+        retry_node_id:           action=retry_node 时指定要重试的节点 ID（int | str）
+        resume_from_node_index:  从 checkpoint 恢复时指定起始节点索引（int）
         as_node:                 指定"这次状态更新由哪个节点产生"。
                                  None（推荐）时由 LangGraph 自动从 checkpoint.next 推断。
 
     Returns:
         {
             "thread_id": str,
-            "state": dict,        # 更新后的 state 快照
-            "next_nodes": list,   # 待执行节点（供调用方决定是否续跑）
+            "state": dict,
+            "next_nodes": list,
         }
-
-    Raises:
-        ValueError: thread_id 无历史状态 / user_action 非法 /
-                    target_node_index 与 resume_from_node_index 同时非空
     """
-    # Patch F：校验入口，非法值立即报错
     action = validate_user_action(user_action)
 
-    # Patch F-补：与 state.py 三指针优先级保持一致，拒绝模糊调用
-    if target_node_index is not None and resume_from_node_index is not None:
+    if retry_node_id is not None and resume_from_node_index is not None:
         raise ValueError(
-            "target_node_index（retry_node）与 resume_from_node_index 语义冲突，"
-            "二者只能传一个。按 state.py 声明，retry_node_index 优先级更高，"
-            "请调用方明确意图后只传一个。"
+            "retry_node_id（按节点 ID 重试）与 resume_from_node_index（按索引断点续传）"
+            "语义冲突，二者只能传一个。"
         )
 
-    # Patch F-补：首次调用可能 build 图，走 to_thread 避免阻塞 loop
     g = await asyncio.to_thread(get_graph)
     config = {"configurable": {"thread_id": thread_id}}
 
-    # Patch F：同步 checkpointer 用 to_thread 避免阻塞事件循环。
-    # 未来 checkpointer 异步化后，机械替换为 await g.aget_state(config)
     snapshot = await asyncio.to_thread(g.get_state, config)
     if not snapshot or not snapshot.values:
         raise ValueError(f"未找到 thread_id={thread_id} 的历史状态")
@@ -395,31 +373,24 @@ async def resume_graph_async(
         as_node or "<auto>",
     )
 
-    # Patch F：键名与 TaskState 字段对齐
-    # Patch L：显式 str(action)——checkpointer 反序列化不保证还原枚举，
-    # 下游 routes.py 的 isinstance(UserAction) 断言可能失败。
-    # StrEnum 的 str() 返回值本身就是 .value（'modify' 等），语义无损。
     feedback: dict[str, Any] = {"user_action": str(action)}
     if action == UserAction.MODIFY and modified_input:
         feedback["modified_input"] = modified_input
-    if target_node_index is not None:
-        feedback["retry_node_index"] = target_node_index
+    if retry_node_id is not None:
+        feedback["retry_node_id"] = retry_node_id
     if resume_from_node_index is not None:
         feedback["resume_from_node_index"] = resume_from_node_index
 
-    if as_node is None:
-        await asyncio.to_thread(g.update_state, config, feedback)
-    else:
-        await asyncio.to_thread(g.update_state, config, feedback, as_node=as_node)
+    # 核心修改：用 Command(resume=feedback) 恢复图，它会自动推进图，不需要再调 astream(None)
+    async for _ in g.astream(Command(resume=feedback), config, stream_mode="values"):
+        pass
 
     new_snapshot = await asyncio.to_thread(g.get_state, config)
     return {
         "thread_id": thread_id,
         "state": new_snapshot.values if new_snapshot else {},
-        # Patch G：snapshot.next 是 tuple，返回前转 list
         "next_nodes": list(new_snapshot.next) if new_snapshot else [],
     }
-
 
 async def get_thread_state_async(thread_id: str) -> dict[str, Any] | None:
     """
@@ -508,7 +479,6 @@ def get_thread_state(thread_id: str) -> dict[str, Any] | None:
 # 公开 API
 # ══════════════════════════════════════════════════
 __all__ = [
-    "build_graph",
     "get_graph",
     "resume_graph",
     "resume_graph_async",

@@ -11,6 +11,7 @@ state.py — LangGraph 状态定义
 
 ⚠️ 完整变更历史见 CHANGELOG.md。
 """
+
 from enum import StrEnum
 from typing import Annotated, Any, NotRequired, TypedDict, cast
 
@@ -19,6 +20,7 @@ from langgraph.graph import MessagesState
 
 class UserAction(StrEnum):
     """用户对 interrupt 的响应动作。"""
+
     CONTINUE = "continue"
     CANCEL = "cancel"
     MODIFY = "modify"
@@ -29,6 +31,7 @@ class NodeStatus(StrEnum):
     """
     单个节点的执行状态。公共契约，供执行器 / 前端状态栏使用。
     """
+
     PENDING = "pending"
     RUNNING = "running"
     DONE = "done"
@@ -41,6 +44,7 @@ class NodeResult(TypedDict):
     node_results 列表里每个元素的形状。
     node_id 是 int | str 而非 int，因为 LLM 输出可能漂移。
     """
+
     node_id: int | str
     success: bool
     detail: str
@@ -83,7 +87,6 @@ class TaskState(MessagesState):
     # ── 经验检索（few-shot）──
     # retrieve_node 写入的相似案例，供 planner 做 few-shot。未启用时为空列表。
     retrieved_examples: NotRequired[list[dict[str, Any]]]
-
 
     # ── 数据库关联 ──
     task_id: str
@@ -167,7 +170,7 @@ def create_initial_state(
         "schema_version": schema_version,
         **kwargs,
     }
-    
+
     # 核心修复：使用 cast 告诉 Pyright，这是一个完美符合 TaskState 的字典
     return cast(TaskState, state)
 

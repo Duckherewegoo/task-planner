@@ -1,5 +1,4 @@
 import pytest
-
 from tools.eval_suite.golden.validator import validate_golden_plan
 
 

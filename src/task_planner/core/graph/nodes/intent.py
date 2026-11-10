@@ -9,7 +9,7 @@
    尽管 API 层在入口处已做过一次脱敏，但 State 的数据来源不可控（如
    历史 Checkpoint 恢复、内部服务直调）。本节点作为调用 LLM 前的
    最后一道防线，必须在此处再次调用 sanitize_input。
-   
+
    这是典型的防御性编程（Defensive Programming）：
    1. sanitize_input 是幂等的，重复调用无副作用。
    2. 覆盖写回 state["user_input"]，确保一旦流经本节点，State 中
@@ -44,7 +44,7 @@ async def intent_node(state: TaskState, config: RunnableConfig) -> dict[str, Any
     Args:
         state:  全局状态。读 state["user_input"]（脱敏版）、state["steps"]。
         config: LangGraph 节点签名约定保留。当前本节点未消费该参数。
-                取消信号通过 utils.context.get_cancel_event() 从 contextvars 
+                取消信号通过 utils.context.get_cancel_event() 从 contextvars
                 中获取，与 config 无关。
 
     返回：

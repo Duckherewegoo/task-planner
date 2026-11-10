@@ -31,13 +31,12 @@
 """
 
 import asyncio
-import os
 from typing import Any
 
 from langchain_core.runnables import RunnableConfig
 
-from task_planner.infrastructure.cog import hub as _hub
 from task_planner.core.graph.state import TaskState
+from task_planner.infrastructure.cog import hub as _hub
 from task_planner.infrastructure.llm import refine_node as refine_node_llm
 from task_planner.infrastructure.logger_setup import get_logger, set_req_id
 from task_planner.utils.context import get_cancel_event
@@ -102,6 +101,7 @@ def _parse_concurrency() -> int:
 
 _REFINE_CONCURRENCY = _parse_concurrency()
 
+
 async def refine_node(state: TaskState, config: RunnableConfig) -> dict[str, Any]:
     """
     节点细化（异步并发）。
@@ -160,7 +160,7 @@ async def refine_node(state: TaskState, config: RunnableConfig) -> dict[str, Any
           * steps：追加一条"节点细化完成"
           - 单节点失败：降级为 fallback dict，details 记录原因，不阻塞其他节点
           - 取消：cancel_event 设置后不再提交新任务；已提交的由 LLM 层感知
-    
+
         关于 refined_nodes：
           v8 移除了 refined_nodes 字段。原设计意图是保留"细化前 vs 细化后"
           的对比快照，但实际执行链路（save / render / execute）都只消费
@@ -238,7 +238,7 @@ async def refine_node(state: TaskState, config: RunnableConfig) -> dict[str, Any
             break
 
         tasks.append(_refine_one(dict(n)))
-        
+
         # 让出控制权：给事件循环一个调度点，让外部取消信号
         # 有机会在循环迭代之间被感知。
         await asyncio.sleep(0)

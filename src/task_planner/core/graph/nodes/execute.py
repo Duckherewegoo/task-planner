@@ -1,7 +1,7 @@
 """execute.py — 单节点执行节点（含 interrupt + MODIFY 重置）"""
 
 from collections.abc import Awaitable, Callable
-from typing import Any, cast
+from typing import Any
 
 from langchain_core.runnables import RunnableConfig
 from langgraph.types import interrupt

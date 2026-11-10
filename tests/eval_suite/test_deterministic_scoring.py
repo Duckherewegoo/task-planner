@@ -1,5 +1,4 @@
 import pytest
-
 from tools.eval_suite.scorers.deterministic import score_deterministic
 from tools.eval_suite.types import AgentTrace, GoldenCase
 

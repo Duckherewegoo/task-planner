@@ -16,7 +16,6 @@ import pytest
 
 from task_planner.infrastructure.llm import generate_plan
 
-
 # ══════════════════════════════════════════════════
 # 辅助：构造可控的 hub + LLM 返回
 # ══════════════════════════════════════════════════
@@ -24,6 +23,7 @@ from task_planner.infrastructure.llm import generate_plan
 
 class _FakeDev:
     """替换 _hub.dev 的最小实现，让 generate_plan 走真实 LLM 分支。"""
+
     USE_MOCK_LLM = False
     LLM_PLANNER_MODEL = "fake-model"
     LLM_PLANNER_ENABLE_THINKING = False
@@ -33,21 +33,18 @@ class _FakeHub:
     dev = _FakeDev()
 
 
-_VALID_PLAN_JSON = (
-    '{"task_name":"t","description":"","nodes":[{"id":1,"name":"a"}],"edges":[]}'
-)
+_VALID_PLAN_JSON = '{"task_name":"t","description":"","nodes":[{"id":1,"name":"a"}],"edges":[]}'
 
 
 def _patch_llm(monkeypatch, captured: dict, response: str = _VALID_PLAN_JSON):
     """公共 patch：拦 async_call_llm 捕获 prompt，让 _hub 走真实分支。"""
+
     async def _fake_call_llm(*, model, prompt, enable_thinking, req_id, cancel_event=None):
         captured["prompt"] = prompt
         captured["model"] = model
         return response
 
-    monkeypatch.setattr(
-        "task_planner.infrastructure.llm.api.async_call_llm", _fake_call_llm
-    )
+    monkeypatch.setattr("task_planner.infrastructure.llm.api.async_call_llm", _fake_call_llm)
     monkeypatch.setattr("task_planner.infrastructure.llm.api._hub", _FakeHub())
 
 
@@ -114,9 +111,7 @@ async def test_generate_plan_mock_mode_ignores_few_shot(monkeypatch):
         called["count"] += 1
         return _VALID_PLAN_JSON
 
-    monkeypatch.setattr(
-        "task_planner.infrastructure.llm.api.async_call_llm", _should_not_be_called
-    )
+    monkeypatch.setattr("task_planner.infrastructure.llm.api.async_call_llm", _should_not_be_called)
 
     class _MockDev:
         USE_MOCK_LLM = True
@@ -150,9 +145,7 @@ async def test_generate_plan_few_shot_does_not_mask_llm_error(monkeypatch):
     async def _fail(**kwargs):
         raise LLMClientError("simulated client error", "rid")
 
-    monkeypatch.setattr(
-        "task_planner.infrastructure.llm.api.async_call_llm", _fail
-    )
+    monkeypatch.setattr("task_planner.infrastructure.llm.api.async_call_llm", _fail)
     monkeypatch.setattr("task_planner.infrastructure.llm.api._hub", _FakeHub())
 
     plan = await generate_plan(

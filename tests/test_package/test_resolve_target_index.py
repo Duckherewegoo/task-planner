@@ -28,7 +28,6 @@ import pytest
 from task_planner.core.graph.nodes.execute import _resolve_target_index
 from task_planner.core.graph.state import create_initial_state
 
-
 # ══════════════════════════════════════════════════
 # 辅助构造
 # ══════════════════════════════════════════════════

@@ -52,7 +52,6 @@ import sys
 import threading
 from collections.abc import Callable, Coroutine
 from typing import Any
-from pathlib import Path
 
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import Command
@@ -176,6 +175,7 @@ def _build_checkpointer():
     logger.info("[Workflow] Checkpointer: MemorySaver（仅进程内，重启即丢）")
     return MemorySaver()
 
+
 def _should_enable_retrieve() -> bool:
     """三层降级的第一层：env + 路径存在 + 有 json 三者都满足才挂节点。
 
@@ -214,6 +214,7 @@ def _should_enable_retrieve() -> bool:
 
     return True
 
+
 # ══════════════════════════════════════════════════
 # 图构建
 # ══════════════════════════════════════════════════
@@ -234,6 +235,7 @@ def _build_graph():
     enable_retrieve = _should_enable_retrieve()
     if enable_retrieve:
         from task_planner.core.graph.nodes.retrieve import retrieve_node
+
         builder.add_node("retrieve", retrieve_node)
         logger.info("[Workflow] retrieve 节点已挂载（TP_ENABLE_RETRIEVAL=1）")
 
@@ -249,6 +251,7 @@ def _build_graph():
     )
 
     if enable_retrieve:
+
         def _route_intent_with_retrieve(state: TaskState) -> str:
             target = route_after_intent(state)
             return "retrieve" if target == "plan" else target
@@ -292,6 +295,7 @@ def _build_graph():
 
     checkpointer = _build_checkpointer()
     return builder.compile(checkpointer=checkpointer)
+
 
 def get_graph() -> Any:
     """同步获取 graph 实例（线程安全懒加载）。
@@ -445,6 +449,7 @@ async def resume_graph_async(
         "state": new_snapshot.values if new_snapshot else {},
         "next_nodes": list(new_snapshot.next) if new_snapshot else [],
     }
+
 
 async def get_thread_state_async(thread_id: str) -> dict[str, Any] | None:
     """

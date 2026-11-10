@@ -79,11 +79,10 @@ def resolve_golden_path() -> Path:
     if env:
         p = Path(env).expanduser()
         if not p.exists():
-            logger.error(
-                "[Retrieve] TP_GOLDEN_PATH 显式配置但不存在: %s（检索将返回空）", p
-            )
+            logger.error("[Retrieve] TP_GOLDEN_PATH 显式配置但不存在: %s（检索将返回空）", p)
         return p
     return (Path.cwd() / _DEFAULT_GOLDEN_DIR_REL).resolve()
+
 
 # ---------- 案例裁剪 ----------
 def _slim_case(case: dict) -> dict | None:
@@ -219,6 +218,7 @@ class ExampleRetriever:
             self._plan_names.append(slim["expected_plan"]["task_name"])
 
         logger.info("[Retrieve] 载入 %d 条 golden（源：%s）", len(self._examples), path)
+
     # ---------- 核心 ----------
     def search(
         self,

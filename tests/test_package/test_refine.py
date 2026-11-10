@@ -50,6 +50,7 @@ def test_semaphore_does_not_bind_across_event_loops(monkeypatch):
 def test_parse_concurrency_returns_valid_int():
     """_parse_concurrency 保证返回 >= 1 的整数（不依赖具体配置值）。"""
     from task_planner.core.graph.nodes.refine import _parse_concurrency
+
     result = _parse_concurrency()
     assert isinstance(result, int)
     assert result >= 1

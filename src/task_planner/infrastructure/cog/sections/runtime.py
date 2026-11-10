@@ -18,7 +18,7 @@ class RuntimeSection(ConfigSection):
                 scope=Scope.DEVELOPER,
                 type=int,
             ),
-               ConfigEntry(
+            ConfigEntry(
                 name="REFINE_CONCURRENCY",
                 value=True,
                 purpose="默认并发上限",

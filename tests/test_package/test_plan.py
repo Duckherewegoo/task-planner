@@ -13,7 +13,6 @@ import pytest
 
 from task_planner.core.graph.nodes.plan import _format_few_shot, plan_node
 
-
 # ══════════════════════════════════════════════════
 # _format_few_shot 纯函数测试
 # ══════════════════════════════════════════════════
@@ -31,17 +30,19 @@ def test_format_few_shot_none():
 
 def test_format_few_shot_single_example():
     """单条案例包含关键字段。"""
-    text = _format_few_shot([
-        {
-            "user_input": "写周报",
-            "expected_plan": {
-                "task_name": "周报",
-                "description": "总结本周",
-                "nodes": [{"id": 1, "name": "汇总"}],
-                "edges": [],
-            },
-        }
-    ])
+    text = _format_few_shot(
+        [
+            {
+                "user_input": "写周报",
+                "expected_plan": {
+                    "task_name": "周报",
+                    "description": "总结本周",
+                    "nodes": [{"id": 1, "name": "汇总"}],
+                    "edges": [],
+                },
+            }
+        ]
+    )
     assert "示例 1" in text
     assert "写周报" in text
     assert "周报" in text
@@ -56,10 +57,12 @@ def test_format_few_shot_missing_fields():
 
 def test_format_few_shot_multiple_examples():
     """多条案例都有标签。"""
-    text = _format_few_shot([
-        {"user_input": "a", "expected_plan": {}},
-        {"user_input": "b", "expected_plan": {}},
-    ])
+    text = _format_few_shot(
+        [
+            {"user_input": "a", "expected_plan": {}},
+            {"user_input": "b", "expected_plan": {}},
+        ]
+    )
     assert "示例 1" in text
     assert "示例 2" in text
 
@@ -78,13 +81,9 @@ def _patch_generate_plan(monkeypatch, captured: dict):
         captured["few_shot_text"] = few_shot_text
         return {"nodes": [{"id": 1, "name": "a"}], "edges": []}
 
-    monkeypatch.setattr(
-        "task_planner.core.graph.nodes.plan.generate_plan", _fake_generate_plan
-    )
+    monkeypatch.setattr("task_planner.core.graph.nodes.plan.generate_plan", _fake_generate_plan)
     monkeypatch.setattr("task_planner.core.graph.nodes.plan.set_req_id", lambda: "rid")
-    monkeypatch.setattr(
-        "task_planner.core.graph.nodes.plan.get_cancel_event", lambda: None
-    )
+    monkeypatch.setattr("task_planner.core.graph.nodes.plan.get_cancel_event", lambda: None)
 
 
 async def test_plan_node_without_examples(monkeypatch):

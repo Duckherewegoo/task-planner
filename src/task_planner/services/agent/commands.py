@@ -14,14 +14,17 @@
 
        user_action       ← 动作（UserAction 枚举或等值字符串）
        modified_input    ← MODIFY 时的新输入（仅 MODIFY 携带）
-       retry_node_index     ← RETRY_NODE 时的节点标识（仅 RETRY_NODE 携带）
+       retry_node_id     ← RETRY_NODE 时的目标节点 ID（仅 RETRY_NODE 携带）
+                          注意：是节点 ID 而非索引。execute._resolve_target_index
+                          只按 node["id"] 匹配（int/str 双兼容），不走 index 语义。
 
-   这些键名与 state.py 的 TaskState 字段名一致——因为 interrupt 的
-   返回契约与 state 字段共享同一套命名。任何一处漂移都会让对应命令
-   静默失效（被当成 CONTINUE 处理，用户点击无效果）。
+   这些键名与 state.py 的 TaskState 字段名一致。任何一处漂移都会让
+   对应命令静默失效（被当成 CONTINUE 处理，用户点击无效果）。
 
-   对称通道见 workflow.resume_graph_async——它走 update_state，
-   键名规则与本模块相同。
+⚠️ 跨模块通道：
+   - commands.py 直接 graph.ainvoke(Command(resume=...)) —— 面向 API / UI
+   - workflow.resume_graph_async 用 astream(Command(resume=...)) —— 面向 stream 层
+   两者都是 Command 路径，feedback 键名规则一致。
 
 ⚠️ 跨文件依赖：
    - execute.execute_node 读 feedback 的键名规则（上面已列）
@@ -67,7 +70,7 @@ async def _resume_with_command(
 
     ⚠️ resume_data 的键名契约：
        见模块 docstring。写入方（本函数调用者）必须严格遵守
-       user_action / modified_input / retry_node_index 三个键名。
+       user_action / modified_input / retry_node_id 三个键名。
 
     Args:
         session:     任务会话（含 config / cancel_event）
@@ -182,28 +185,26 @@ async def resume_task(thread_id: str) -> bool:
     return True
 
 
-async def retry_node_cmd(thread_id: str, node_index: int) -> bool:
-    """
-    重试指定节点（异步）。
+async def retry_node_cmd(thread_id: str, node_id: int | str) -> bool:
+    """重试指定节点（异步）。
 
     语义：用户对某节点结果不满意，让图重新执行该节点。
-    执行路径：走 resume 通道，feedback 携带 RETRY_NODE 动作与目标标识。
+    执行路径：走 resume 通道，feedback 携带 RETRY_NODE 动作与目标节点 ID。
+
     execute.execute_node 读到 RETRY_NODE 后：
-      - 保持 current_node_index 不变（不前进）
-      - 由 _resolve_target_index 按 retry_node_index 裁决本轮执行的目标
+      - 从 feedback 读取 retry_node_id
+      - 遍历 nodes 按 node["id"] 匹配，找到目标节点的 index
+      - 设置 current_node_index = 目标 index（下一轮 _resolve_target_index
+        会基于 current_node_index 定位）
+      - 未找到目标 id 时降级为原地重试当前节点
 
-    ⚠️ node_index 的实际语义取决于 execute._resolve_target_index 的裁决规则：
-       优先按 **index** 解释（0..len(nodes)-1），越界时尝试按
-       **node["id"]** 匹配，都失败则降级 current_node_index。
-       调用方（API / UI）需明确传的是哪一种——当前 UI 传的是
-       用户在列表里点击的位置（index 语义）。
-
-       TODO: 统一语义——要么 UI 传 id，execute 优先按 id 解释；
-             要么 UI 传 index，参数名改 node_index。当前是混合状态。
+    ⚠️ node_id 的语义：节点 ID，不是列表索引。
+       execute._resolve_target_index 只按 node["id"] 匹配（int/str 双兼容）。
+       调用方（API / UI）需传节点实际的 id 值，而非在列表中的位置。
 
     Args:
         thread_id: 会话 ID
-        node_index:   目标节点标识（见上，当前 UI 用 index 语义）
+        node_id:   目标节点的 ID（int 或 str）
 
     Returns:
         True  — 命令已接受
@@ -216,15 +217,11 @@ async def retry_node_cmd(thread_id: str, node_index: int) -> bool:
     await _resume_with_command(
         session,
         {
-            # 键名对齐 execute.execute_node 的 feedback.get("user_action")
             "user_action": UserAction.RETRY_NODE,
-            # 键名对齐 state.TaskState 的 retry_node_index 字段
-            # （原写法 "node_index" 永远读不到——execute 读的是 retry_node_index）
-            "retry_node_index": node_index,
+            "retry_node_id": node_id,
         },
     )
     return True
-
 
 __all__ = [
     "cancel_task",

@@ -3,13 +3,12 @@ workflow.py — LangGraph 工作流定义（异步优化版）
 ═══════════════════════════════════════════════════════════════════════
 目标运行时：Python 3.14+
 
-── v4 ──
-  Patch J：resume_graph_async docstring 明确契约——
-              本函数**只更新状态，不续跑图**。调用方拿到 next_nodes 后
-              必须自行 `g.astream(None, config)` 让图继续执行。
-              这是当前最容易被误解的点：函数名"resume"暗示"一调就恢复"，
-              但 LangGraph 的 update_state 语义是"只写状态不推进"。
-              不改名（会破坏现有调用方），但把隐含契约显式化。
+── v5 ──
+  Patch J（修订）：resume_graph_async 语义变更为「推进图到下一个暂停点」。
+              旧实现用 update_state（只写状态、不推进图），调用方需自行
+              astream(None) 才能继续。新实现用 Command(resume=feedback)，
+              会真正从当前 interrupt 恢复，推进到下一个 interrupt 或 END。
+              两者语义完全不同，docstring 已同步更新。
   Patch K：顶部 checkpointer 迁移说明补一句——异步 checkpointer
               的资源释放需要 await，atexit 无法 await。迁移时必须在
               ASGI lifespan shutdown 里 await _cleanup_checkpointers_async()。
@@ -378,20 +377,33 @@ async def resume_graph_async(
     resume_from_node_index: int | None = None,
     as_node: str | None = None,
 ) -> dict[str, Any]:
-    """
-    更新 thread 的状态，为"续跑"做准备。
+    """恢复图执行：从当前 interrupt 推进到下一个暂停点或图结束。
 
-    注意：本函数只更新状态，不续跑图。
-    函数名"resume"容易让人以为一调就恢复——但 LangGraph 的
-    `update_state` 语义是"只写状态、不推进图"。本函数返回后，
-    图仍停在原来的 interrupt / checkpoint 处。
+    ⚠️ 函数名 "resume" 的语义陷阱：
+       早期实现用 update_state，只写状态不推进图，调用方需自行 astream。
+       当前实现用 Command(resume=...)，会真正推进图——两者语义完全不同。
 
-    调用方拿到返回值后，必须再执行一次：
-        async for _ in g.astream(None, config, stream_mode="values"):
-            ...
-    或：
-        await g.ainvoke(None, config)
-    才能让图真正续跑。
+    实际行为：
+      1. 从当前 interrupt() 暂停点恢复，把 feedback 作为 interrupt() 的返回值
+      2. 图继续执行，直到：
+         a) 遇到下一个 interrupt() → 再次暂停，astream 停在这里
+         b) 图执行到 END      → 正常结束
+         c) 图内部抛异常       → astream 中断，异常向上冒泡
+      3. 返回当前状态快照
+
+    ⚠️ 返回值 next_nodes 的语义：
+       - 非空：图停在下一个 interrupt() 处，next_nodes 是「下一个待执行节点」。
+                调用方应进入「等待用户交互」状态。
+       - 空：  图已执行到 END，任务完成。
+                调用方应进入「最终结果展示」流程。
+       - 异常：astream 内部抛异常会向上冒泡，本函数不捕获——
+                调用方需 try/except 处理（如 AgentExecutionError）。
+
+    ⚠️ 与 stream 层的契约：
+       services/stream/launcher.py 调用本函数后，必须检查 next_nodes：
+       - 非空 → 图停在下一个 pause，等待用户交互
+       - 空   → 图结束，进入最终状态展示
+       若 stream 层不区分这两种情况，UI 会把「图停在暂停点」误判为「任务完成」。
 
     Args:
         thread_id:               会话 ID
@@ -399,15 +411,22 @@ async def resume_graph_async(
         modified_input:          action=modify 时携带的新输入
         retry_node_id:           action=retry_node 时指定要重试的节点 ID（int | str）
         resume_from_node_index:  从 checkpoint 恢复时指定起始节点索引（int）
-        as_node:                 指定"这次状态更新由哪个节点产生"。
-                                 None（推荐）时由 LangGraph 自动从 checkpoint.next 推断。
+        as_node:                 已废弃。旧 update_state 路径用，Command 路径不需要。
+                                 保留签名仅向后兼容，当前实现忽略该参数。
 
     Returns:
         {
             "thread_id": str,
-            "state": dict,
-            "next_nodes": list,
+            "state": dict,        # 更新后的 state 快照
+            "next_nodes": list,   # 图停在哪里：
+                                  # 非空 → 下一个待执行节点（图停在新的 interrupt）
+                                  # 空   → 图已结束
         }
+
+    Raises:
+        ValueError: thread_id 无历史状态 / user_action 非法 /
+                    retry_node_id 与 resume_from_node_index 同时非空
+        Exception:  astream 内部异常（如 AgentExecutionError）向上冒泡
     """
     action = validate_user_action(user_action)
 
@@ -415,6 +434,12 @@ async def resume_graph_async(
         raise ValueError(
             "retry_node_id（按节点 ID 重试）与 resume_from_node_index（按索引断点续传）"
             "语义冲突，二者只能传一个。"
+        )
+
+    if as_node is not None:
+        logger.warning(
+            "[Workflow] resume_graph_async: as_node=%r 已废弃，Command 路径不使用",
+            as_node,
         )
 
     g = await asyncio.to_thread(get_graph)
@@ -425,10 +450,9 @@ async def resume_graph_async(
         raise ValueError(f"未找到 thread_id={thread_id} 的历史状态")
 
     logger.info(
-        "[Workflow] resume_graph_async: thread=%s, action=%s, as_node=%s",
+        "[Workflow] resume_graph_async: thread=%s, action=%s",
         thread_id,
         action,
-        as_node or "<auto>",
     )
 
     feedback: dict[str, Any] = {"user_action": str(action)}
@@ -439,17 +463,27 @@ async def resume_graph_async(
     if resume_from_node_index is not None:
         feedback["resume_from_node_index"] = resume_from_node_index
 
-    # 核心修改：用 Command(resume=feedback) 恢复图，它会自动推进图，不需要再调 astream(None)
+    # 用 Command(resume=feedback) 恢复图：
+    # - 从当前 interrupt 恢复，feedback 作为 interrupt() 的返回值
+    # - astream 在图再次暂停（下一个 interrupt）或结束时退出
+    # - 子任务异常（如 AgentExecutionError）会向上冒泡，本函数不捕获
     async for _ in g.astream(Command(resume=feedback), config, stream_mode="values"):
         pass
 
     new_snapshot = await asyncio.to_thread(g.get_state, config)
+    next_nodes = list(new_snapshot.next) if new_snapshot else []
+
+    logger.info(
+        "[Workflow] resume_graph_async 完成: thread=%s, next_nodes=%s",
+        thread_id,
+        next_nodes or "<图已结束>",
+    )
+
     return {
         "thread_id": thread_id,
         "state": new_snapshot.values if new_snapshot else {},
-        "next_nodes": list(new_snapshot.next) if new_snapshot else [],
+        "next_nodes": next_nodes,
     }
-
 
 async def get_thread_state_async(thread_id: str) -> dict[str, Any] | None:
     """

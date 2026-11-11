@@ -176,6 +176,7 @@ async def execute_node(state: TaskState, config: RunnableConfig) -> dict[str, An
 
     action: UserAction
     modified_input: str | None
+    target_retry_id: int | str | None = None
 
     if not isinstance(feedback, dict):
         logger.warning(
@@ -197,6 +198,7 @@ async def execute_node(state: TaskState, config: RunnableConfig) -> dict[str, An
             )
             action = UserAction.CONTINUE
         modified_input = feedback.get("modified_input", None)
+        target_retry_id = feedback.get("retry_node_id", None)
 
     updates: dict[str, Any] = {
         "node_results": node_results,
@@ -207,17 +209,41 @@ async def execute_node(state: TaskState, config: RunnableConfig) -> dict[str, An
     }
 
     if action == UserAction.RETRY_NODE:
-        updates["current_node_index"] = idx
-        logger.info(
-            "[Graph] execute_node: user_action=RETRY_NODE，"
-            "保持 current_node_index=%d 重试 (req=%s)",
-            idx,
-            rid,
-        )
+        if target_retry_id is not None:
+            # 显式指定了目标节点 → 遍历 nodes 找 idx
+            target_idx: int | None = None
+            for i, n in enumerate(nodes):
+                if _ids_equal(n.get("id"), target_retry_id):
+                    target_idx = i
+                    break
+            if target_idx is not None:
+                updates["current_node_index"] = target_idx
+                logger.info(
+                    "[Graph] execute_node: RETRY_NODE 目标 id=%r → index=%d (req=%s)",
+                    target_retry_id,
+                    target_idx,
+                    rid,
+                )
+            else:
+                updates["current_node_index"] = idx
+                logger.warning(
+                    "[Graph] execute_node: RETRY_NODE 目标 id=%r 未找到，原地重试 idx=%d (req=%s)",
+                    target_retry_id,
+                    idx,
+                    rid,
+                )
+        else:
+            updates["current_node_index"] = idx
+            logger.info(
+                "[Graph] execute_node: RETRY_NODE（无目标 id），原地重试 idx=%d (req=%s)",
+                idx,
+                rid,
+            )
     else:
         updates["current_node_index"] = idx + 1
 
     if action == UserAction.MODIFY and modified_input:
+        # 以下原样保留
         if state.get("task_id"):
             await _safe_db_update(
                 lambda: mark_task_failed(state["task_id"], error="用户修改需求，重新规划"),

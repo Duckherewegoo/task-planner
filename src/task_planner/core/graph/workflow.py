@@ -485,6 +485,7 @@ async def resume_graph_async(
         "next_nodes": next_nodes,
     }
 
+
 async def get_thread_state_async(thread_id: str) -> dict[str, Any] | None:
     """
     异步获取指定 thread 的 checkpoint 状态。

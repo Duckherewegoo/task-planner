@@ -115,6 +115,7 @@ async def test_resume_task_sends_correct_feedback_key(monkeypatch):
 
 # ── retry_node_cmd ──
 
+
 async def test_retry_node_cmd_sends_correct_feedback_key(monkeypatch):
     """核心回归：retry 必须传 user_action / retry_node_id，不是 action / node_index。"""
     session = _make_session()
@@ -132,6 +133,7 @@ async def test_retry_node_cmd_sends_correct_feedback_key(monkeypatch):
     assert "action" not in resume
     assert "node_index" not in resume
     assert "retry_node_index" not in resume
+
 
 # ── cancel_task ──
 

@@ -46,9 +46,7 @@ async def _run_worker(
                         thread_id,
                         snapshot.get("next_nodes"),
                     )
-                    await state.mark_paused(
-                        next_nodes=snapshot.get("next_nodes", [])
-                    )
+                    await state.mark_paused(next_nodes=snapshot.get("next_nodes", []))
                     return
                 if snap_type in ("complete", "cancelled", "timeout", "error"):
                     err = snapshot.get("message") or snapshot.get("error")
@@ -122,8 +120,7 @@ async def resume_stream(
     if existing and not existing.finished:
         logger.warning("[StreamMgr] resume_stream: 任务仍在运行中 %s", thread_id)
         raise RuntimeError(
-            f"任务 {thread_id} 仍在运行中，无法 resume。"
-            "请先调用 cancel_stream() 或等待其完成。"
+            f"任务 {thread_id} 仍在运行中，无法 resume。" "请先调用 cancel_stream() 或等待其完成。"
         )
 
     # 构造 feedback dict——键名规则见 commands.py 顶部 docstring
@@ -142,7 +139,7 @@ async def resume_stream(
 
     run_fn = run_task_stream_fn or _default_run
     run_kwargs = {
-        "user_input": "",       # resume 模式忽略
+        "user_input": "",  # resume 模式忽略
         "thread_id": thread_id,
         "enable_refine": False,  # resume 模式忽略
         "resume": True,

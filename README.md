@@ -17,7 +17,7 @@
 - **可选依赖全走优雅降级** — `pyahocorasick` / `ruamel.yaml` / `orjson` / `psutil`
 - **后台常驻 event loop** — `async_runtime` 解决 Dash WSGI 一次性 loop 问题
 - **Pydantic 值对象** — `IntentModel` / `NodeExecResult`，边界校验 + IDE 补全
-- **测试护栏** — 183 单元测试 + 43 MongoDB 集成测试 + 全绿 CI（红黄线分离）
+- **测试护栏** — 230 单元测试 + 43 MongoDB 集成测试 + redis 集成测试 + 全绿 CI（红黄线分离）
 
 ______________________________________________________________________
 
@@ -101,263 +101,234 @@ ______________________________________________________________________
 ## 📁 项目结构
 
 ```text
-new_task_planner/
-├── CHANGELOG.md                   # 各模块变更历史（per-module changelog）
-├── .github/
-│   └── workflows/
-│       └── ci.yml                # CI action
-├── config/                       # 配置数据（外部，可挂载）
-│   ├── schema.yaml               # 开发者声明（value / purpose / scope / secret / from_env）
-│   ├── schema.yaml.example       # 模板示例
-│   ├── user.yaml                 # 用户覆盖（仅 scope=user 生效，不入库）
-│   └── user.yaml.example         # 模板示例
-├── data/                         # 数据（外部）
-│   ├── blocked_words/            # 违禁词库（17 个 txt，扁平）
-│   │   ├── 各种词库.txt      
-│   └── whitelist.txt             # 白名单（子串豁免）
-├── docker-compose.prod.yml       # docker 生产模式
-├── docker-compose.yml            # 只含 mongodb
-├── Dockerfile                    # mongodb 模式
-├── docs/                         # 设计文档
-│   ├── ARCHITECTURE_FUTURE.md    # UI/任务层边界 + Dash loop 实测
-│   ├── DESIGN_task_context.md    # TaskSession / TaskStreamState 双轨
-│   └── adr/                      # 架构决策记录（ADR 索引与文档）
+task-planner/
+├── CHANGELOG.md
+├── .github/workflows/ci.yml
+├── config/
+│   ├── schema.yaml
+│   ├── schema.yaml.example
+│   ├── user.yaml
+│   └── user.yaml.example
+├── data/
+│   ├── blocked_words/          # 17 个词库 txt（COVID-19 / GFW / 政治 / 色情 / 暴恐 / 广告 ...）
+│   └── whitelist.txt
+├── docker-compose.yml
+├── docker-compose.prod.yml
+├── Dockerfile
+├── docs/
+│   ├── ARCH_FUTURE.md          # 🔥 改名（原 ARCHITECTURE_FUTURE.md）
+│   ├── DESIGN_task_context.md
+│   └── adr/
+│       ├── 0000-index.md
+│       ├── 0001-async-boundary.md
+│       ├── 0002-full-chain-async.md
+│       ├── 0003-gradio-to-dash.md
+│       ├── 0004-langgraph.md
+│       ├── 0005-mongodb.md
+│       ├── 0006-cog-config.md
+│       ├── 0007-python-314.md
+│       └── 0008-small-decisions-log.md
 ├── examples/
-│   └── config_hub_usage_example.py  # cog 用法示例
+│   └── config_hub_usage_example.py
 ├── LICENSE
+├── logs/                        # 🔥 新增：运行时日志
+│   ├── task_planner.log
+│   └── task_planner.log.{2026-10-25, 10-28, 11-04, 11-09, 11-10}
 ├── pyproject.toml
 ├── README.md
-├── scripts/                      # 运维与检查脚本
+├── scripts/
 │   ├── audit_private_imports.py
 │   ├── bye_bye_cancle_config.sh
-│   ├── changelog_migrate.py      # Changelog 集中迁移（一次性）
-│   ├── check_bad_words_len.py    # 违禁词长度分布诊断
-│   ├── check_config_drift.py     # 配置漂移检测
+│   ├── changelog_migrate.py
+│   ├── check_bad_words_len.py
+│   ├── check_config_drift.py
 │   ├── dev_up.sh
-│   ├── find_cyto_configs.py      # Cytoscape 配置搜索
+│   ├── find_cyto_configs.py
 │   ├── make_future_be_now.py
-│   ├── migrate_config_imports.py # 旧 config 引用迁移
+│   ├── migrate_config_imports.py
 │   ├── remove_compat_shells.py
-│   └── test_block_words.py       # 词库加载 + 匹配测试
+│   └── test_block_words.py
 ├── src/
-│   └── task_planner/
-│       ├── abandon/              # 🗄️ 归档（不参与运行，10 文件）
-│       │   ├── __init__.py
-│       │   ├── agent_legacy.py
-│       │   ├── agent_nah.py
-│       │   ├── config_old.py     # 旧大宗 config.py
-│       │   ├── dash_app_legacy.py
-│       │   ├── database_legacy.py 
-│       │   ├── good_addons_old.py
-│       │   ├── llm_client_legacy.py
-│       │   ├── _nodes_legacy.py
-│       │   └── stream_manager_legacy.py
-│       ├── config_ui/            # 独立配置工具
-│       │   ├── __init__.py       # 导出 app / main
-│       │   ├── app.py            # Dash 实例 + main()，默认端口 8051
-│       │   ├── callbacks.py      # 保存 / 重置 / 重载
-│       │   ├── form_builder.py   # 从 cog.hub 自动生成表单
-│       │   ├── layout.py         # 页面布局
-│       │   └── writer.py         # 原子写 user.yaml / .env
-│       ├── core/
-│       │   ├── __init__.py
-│       │   ├── db/               # MongoDB 数据层（同步 pymongo）
-│       │   │   ├── __init__.py
-│       │   │   ├── client.py     # 同步 pymongo 连接生命周期 + 索引
-│       │   │   ├── _helpers.py
-│       │   │   ├── nodes.py      # nodes 数组操作
-│       │   │   ├── plans.py      # Plan CRUD
-│       │   │   ├── schema.py     # 数据清洗 / status 辅助 / validate_plan
-│       │   │   └── tasks.py      # Task CRUD + 4 状态更新
-│       │   └── graph/
-│       │       ├── __init__.py
-│       │       ├── nodes/
-│       │       │   ├── __init__.py
-│       │       │   ├── cancel.py
-│       │       │   ├── direct.py
-│       │       │   ├── execute.py
-│       │       │   ├── _executor.py
-│       │       │   ├── _helpers.py
-│       │       │   ├── intent.py
-│       │       │   ├── plan.py
-│       │       │   ├── refine.py
-│       │       │   ├── render.py
-│       │       │   ├── retrieve.py
-│       │       │   ├── routes.py           # 路由函数（纯计算）
-│       │       ├── sanitize.py      # 横切：脱敏 / 视图过滤
-│       │       └── save.py
-│       │       ├── schemas.py      # Pydantic 值对象（IntentModel / NodeExecResult）
-│       │       ├── state.py        # TaskState
-│       │       └── workflow.py     # 图拓扑 + Checkpointer + 单例
-│       ├── eval_suite/
-│       │   ├── __init__.py
-│       │   ├── cli.py             # 命令行入口
-│       │   ├── errors.py
-│       │   ├── golden/
-│       │   │   ├── __init__.py
-│       │   │   ├── generator.py   # LLM 合成黄金标准
-│       │   │   └── validator.py   # 程序化验证 DAG 结构
-│       │   ├── hil/
-│       │   │   ├── __init__.py
-│       │   │   ├── dash_app.py    # 独立 HIL Dash 前端
-│       │   │   └── sheet.py       # 生成待审清单
-│       │   ├── jury/
-│       │   │   ├── __init__.py
-│       │   │   └── calibrated_judge.py
-│       │   ├── report/
-│       │   │   ├── __init__.py
-│       │   │   ├── html_report.py
-│       │   │   └── json_report.py
-│       │   ├── runners/
-│       │   │   ├── __init__.py
-│       │   │   ├── agent_runner.py  # 运行 Agent，收集轨迹
-│       │   │   └── trace.py         # 轨迹数据结构
-│       │   ├── scorers/
-│       │   │   ├── __init__.py
-│       │   │   ├── deterministic.py # 确定性评分（结构、节点数、边数）
-│       │   │   └── llm_judge.py     # LLM 评委评分
-│       │   └── types.py           # 所有数据类型（dataclass / TypedDict）
-│       ├── infrastructure/
-│       │   ├── __init__.py
-│       │   ├── async_runtime.py   # 进程级常驻 loop（后台任务入口）
-│       │   ├── assets/            # Cytoscape 资源
-│       │   │   ├── __init__.py
-│       │   │   ├── cytoscape_js.py    # 3 个 JS 模板 + GRAPH_CONFIGS
-│       │   │   └── cytoscape_styles.py # 30+ 规则样式表
-│       │   ├── blocked_words.py   # 违禁词库（AC 自动机 + 白名单）
-│       │   ├── cog/               # 配置中枢（拆分包）
-│       │   │   ├── __init__.py    # 组装 + reload_hub()
-│       │   │   ├── entry.py       # ConfigEntry + Scope + Role
-│       │   │   ├── guard.py       # 权限规则
-│       │   │   ├── hub.py         # 门面 + reload()
-│       │   │   ├── loader.py      # YAML → ConfigEntry（支持 from_env）
-│       │   │   ├── registry.py    # @register_section 装饰器
-│       │   │   ├── section.py     # ConfigSection 抽象基类
-│       │   │   ├── sections/      # 7 个内置 section
-│       │   │   │   ├── __init__.py
-│       │   │   │   ├── base.py
-│       │   │   │   ├── dashscope.py
-│       │   │   │   ├── llm.py
-│       │   │   │   ├── mongo.py
-│       │   │   │   ├── render.py
-│       │   │   │   ├── runtime.py
-│       │   │   │   └── security.py
-│       │   │   ├── session.py     # 按角色代理 CRUD
-│       │   │   └── store.py       # CRUD（增删改查）+ clear
-│       │   ├── constants.py       # 枚举 / 状态码 / 颜色
-│       │   ├── llm/               # LLM 调用（7 文件）
-│       │   │   ├── __init__.py
-│       │   │   ├── api.py         # 5 个业务接口
-│       │   │   ├── client.py      # AsyncOpenAI 单例
-│       │   │   ├── core.py        # 单次调用（重试 / 超时 / 流式）
-│       │   │   ├── errors.py
-│       │   │   ├── json_utils.py
-│       │   │   ├── mocks.py
-│       │   │   └── validator.py
-│       │   ├── logger_setup.py    # 异步日志（队列 + 线程）
-│       │   ├── prompts/           # Prompt 资源
-│       │   │   ├── __init__.py
-│       │   │   ├── execute_node.txt
-│       │   │   ├── intent.txt
-│       │   │   ├── planner.txt
-│       │   │   ├── loader.py      # 加载 .txt → Template + render_template
-│       │   │   └── node_refine.txt
-│       │   ├── regexes.py         # 预编译正则
-│       │   ├── session_store/     # 会话存储（可插拔）
-│       │   │   ├── __init__.py
-│       │   │   ├── in_memory_session_store.py
-│       │   │   ├── protocol.py
-│       │   │   └── redis_session_store.py
-│       │   └── ui_styles.py       # Dash 内联样式
-│       ├── main/
-│       │   ├── __init__.py
-│       │   ├── assets/
-│       │   │   └── custom.css
-│       │   └── ui/                # Dash UI（拆分包）
-│       │       ├── __init__.py
-│       │       ├── app.py         # Dash 实例 + main()
-│       │       ├── callbacks/     # 4 个分组回调
-│       │       │   ├── __init__.py
-│       │       │   ├── export_cb.py
-│       │       │   ├── graph_js.py
-│       │       │   ├── history.py
-│       │       │   └── new_task.py
-│       │       ├── constants.py   # HistorySelectResult / 缓存
-│       │       ├── data_ops.py    # 数据解析 / 节点操作
-│       │       ├── export.py      # JSON / DOT / HTML / SVG / PNG
-│       │       └── layout.py      # 页面布局
-│       ├── py.typed
-│       ├── services/
-│       │   ├── __init__.py
-│       │   ├── agent/             # Agent 主入口（5 文件）
-│       │   │   ├── __init__.py
-│       │   │   ├── commands.py    # 5 个命令
-│       │   │   ├── session.py     # TaskSession + 会话池
-│       │   │   ├── state.py       # make_initial_state
-│       │   │   ├── stream.py      # run_task_stream
-│       │   │   └── view.py        # 快照提取（is_graph_finished）
-│       │   ├── stream/            # 流式任务管理（5 文件）
-│       │   │   ├── __init__.py
-│       │   │   ├── cleaner.py     # StreamStateCleaner + state_cleaner
-│       │   │   ├── control.py
-│       │   │   ├── launcher.py
-│       │   │   ├── state.py       # TaskStreamState
-│       │   │   └── view.py
-│       │   └── view_model.py      # 前端字段投影
-│       └── utils/                 # 独立工具（不拆，KISS 加固）
-│           ├── __init__.py
-│           ├── context.py         # OperationCancelled + cancel_event
-│           ├── cytoscape_adapter.py # DAG → Cytoscape 元素
-│           ├── flowchart_pro.py   # 交互式 HTML 渲染
-│           ├── good_addons.py     # 运行时增强层（drop-in）
-│           ├── presentation_utils.py # 展示辅助
-│           └── pyvis_export.py    # 静态导出（SVG/PNG/PDF/DOT）
+│   ├── logs/task_planner.log   # 🔥 新增：src 侧日志
+│   ├── task_planner/
+│   │   ├── abandon/            # 归档代码（不参与运行）
+│   │   │   ├── agent_legacy.py
+│   │   │   ├── agent_nah.py
+│   │   │   ├── config_old.py
+│   │   │   ├── dash_app_legacy.py
+│   │   │   ├── database_legacy.py
+│   │   │   ├── good_addons_old.py
+│   │   │   ├── llm_client_legacy.py
+│   │   │   ├── _nodes_legacy.py
+│   │   │   └── stream_manager_legacy.py
+│   │   ├── config_ui/
+│   │   │   ├── app.py
+│   │   │   ├── callbacks.py
+│   │   │   ├── form_builder.py
+│   │   │   ├── layout.py
+│   │   │   ├── standalone_app.py    # 🔥 新增
+│   │   │   └── writer.py
+│   │   ├── core/
+│   │   │   ├── db/
+│   │   │   │   ├── client.py
+│   │   │   │   ├── _helpers.py
+│   │   │   │   ├── nodes.py
+│   │   │   │   ├── plans.py
+│   │   │   │   ├── schema.py
+│   │   │   │   └── tasks.py
+│   │   │   └── graph/
+│   │   │       ├── nodes/
+│   │   │       │   ├── cancel.py
+│   │   │       │   ├── direct.py
+│   │   │       │   ├── execute.py
+│   │   │       │   ├── _executor.py
+│   │   │       │   ├── _helpers.py
+│   │   │       │   ├── intent.py
+│   │   │       │   ├── plan.py
+│   │   │       │   ├── refine.py
+│   │   │       │   ├── render.py
+│   │   │       │   ├── retrieve.py     # 🔥 新增（三层降级）
+│   │   │       │   ├── routes.py
+│   │   │       │   ├── sanitize.py
+│   │   │       │   └── save.py
+│   │   │       ├── schemas.py
+│   │   │       ├── state.py
+│   │   │       └── workflow.py
+│   │   ├── infrastructure/
+│   │   │   ├── assets/
+│   │   │   │   ├── cytoscape_js.py
+│   │   │   │   └── cytoscape_styles.py
+│   │   │   ├── async_runtime.py
+│   │   │   ├── blocked_words.py
+│   │   │   ├── cog/
+│   │   │   │   ├── entry.py
+│   │   │   │   ├── guard.py
+│   │   │   │   ├── hub.py
+│   │   │   │   ├── loader.py
+│   │   │   │   ├── registry.py
+│   │   │   │   ├── section.py
+│   │   │   │   ├── sections/
+│   │   │   │   │   ├── base.py
+│   │   │   │   │   ├── dashscope.py
+│   │   │   │   │   ├── llm.py
+│   │   │   │   │   ├── mongo.py
+│   │   │   │   │   ├── render.py
+│   │   │   │   │   ├── runtime.py
+│   │   │   │   │   └── security.py
+│   │   │   │   ├── session.py
+│   │   │   │   └── store.py
+│   │   │   ├── constants.py
+│   │   │   ├── llm/
+│   │   │   │   ├── api.py
+│   │   │   │   ├── client.py
+│   │   │   │   ├── core.py
+│   │   │   │   ├── errors.py
+│   │   │   │   ├── json_utils.py
+│   │   │   │   ├── mocks.py
+│   │   │   │   └── validator.py
+│   │   │   ├── logger_setup.py
+│   │   │   ├── prompts/
+│   │   │   │   ├── execute_node.txt
+│   │   │   │   ├── intent.txt
+│   │   │   │   ├── loader.py
+│   │   │   │   ├── node_refine.txt
+│   │   │   │   └── planner.txt
+│   │   │   ├── regexes.py
+│   │   │   ├── session_store/
+│   │   │   │   ├── in_memory_session_store.py
+│   │   │   │   ├── protocol.py
+│   │   │   │   └── redis_session_store.py
+│   │   │   └── ui_styles.py
+│   │   ├── main/
+│   │   │   ├── app.py
+│   │   │   ├── assets/custom.css
+│   │   │   └── ui/
+│   │   │       ├── callbacks/
+│   │   │       │   ├── export_cb.py
+│   │   │       │   ├── graph_js.py
+│   │   │       │   ├── history.py
+│   │   │       │   └── new_task.py
+│   │   │       ├── constants.py
+│   │   │       ├── data_ops.py
+│   │   │       ├── export.py
+│   │   │       └── layout.py
+│   │   ├── py.typed
+│   │   ├── services/
+│   │   │   ├── agent/
+│   │   │   │   ├── commands.py
+│   │   │   │   ├── session.py
+│   │   │   │   ├── state.py
+│   │   │   │   ├── stream.py
+│   │   │   │   └── view.py
+│   │   │   ├── stream/
+│   │   │   │   ├── cleaner.py
+│   │   │   │   ├── control.py
+│   │   │   │   ├── launcher.py
+│   │   │   │   ├── state.py
+│   │   │   │   └── view.py
+│   │   │   └── view_model.py
+│   │   └── utils/
+│   │       ├── context.py
+│   │       ├── cytoscape_adapter.py
+│   │       ├── flowchart_pro.py
+│   │       ├── good_addons.py
+│   │       ├── presentation_utils.py
+│   │       └── pyvis_export.py
+│   └── task_planner.egg-info/
 ├── tests/
-│   ├── __init__.py
-│   ├── conftest.py               # 共享 fixture
-│   ├── test_eval_suite.py
-│   ├── test_package/             # 单元 + 集成（18 文件）
-│   │   ├── test_commands_contract.py   # commands feedback 键名契约
-│   │   ├── test_config_contract.py
-│   │   ├── test_evaluators.py
-│   │   ├── test_execute.py            # execute.py 冒烟（DB 降级 / RETRY / 三指针）
-│   │   ├── test_executor_coerce.py    # _executor.py 归一化测试
-│   │   ├── test_graph_finished.py
-│   │   ├── test_initial_state.py
-│   │   ├── test_json_extraction.py
-│   │   ├── test_mongodb.py            # 43 个 MongoDB 集成测试
-│   │   ├── test_normalize_output.py
-│   │   ├── test_redis_session_store.py
-│   │   ├── test_refine.py             # refine.py 冒烟（Semaphore / 取消）
-│   │   ├── test_routes.py             # routes.py 路由函数
-│   │   ├── test_save.py               # save.py 降级路径
-│   │   ├── test_session_store.py
-│   │   └── test_state_defaults.py     # state.py 默认值契约
-│   ├── eval_suite/               # 与 src 分离的测试包
-│   │   ├── __init__.py
-│   │   ├── conftest.py           # 共享 fixture
-│   │   ├── test_deterministic.py # 确定性评分测试
-│   │   ├── test_golden_generator.py
-│   │   ├── test_jury.py          # 评委团聚合测试
-│   │   ├── test_llm_judge.py     # LLM 评委测试（Mock）
-│   │   └── test_cli.py           # CLI 集成测试
-│   └── abandon/                  # 🗄️ 归档（旧 Crucible 套件，不参与运行）
-│       ├── __init__.py
-│       └── old_eval_suite/
-│           ├── crucible_eval.py
-│           ├── data/
-│           ├── dataset_manager.py
-│           ├── harness/
-│           │   ├── __init__.py
-│           │   ├── agent_harness.py
-│           │   ├── evaluators.py
-│           │   └── reporters.py
-│           ├── hitl_reviewer.py
-│           ├── __init__.py
-│           ├── run_evaluation.py
-│           └── test_eval_suite_wrapper.py
-└── .gitignore
-```
+│   ├── conftest.py
+│   ├── eval_suite/
+│   │   ├── conftest.py
+│   │   ├── test_deterministic.py
+│   │   ├── test_deterministic_scoring.py
+│   │   ├── test_golden_generator_sanity.py
+│   │   ├── test_jury.py
+│   │   ├── test_runner_resilience.py
+│   │   └── test_validator_edge_cases.py
+│   ├── evaluation/evaluators.py
+│   └── test_package/
+│       ├── test_commands_contract.py
+│       ├── test_config_contract.py
+│       ├── test_evaluators.py
+│       ├── test_execute.py
+│       ├── test_executor_coerce.py
+│       ├── test_generate_plan.py       # 🔥 新增
+│       ├── test_graph_finished.py
+│       ├── test_initial_state.py
+│       ├── test_json_extraction.py
+│       ├── test_mongodb.py
+│       ├── test_normalize_output.py
+│       ├── test_plan.py                # 🔥 新增
+│       ├── test_redis_session_store.py
+│       ├── test_refine.py
+│       ├── test_resolve_target_index.py # 🔥 新增
+│       ├── test_routes.py
+│       ├── test_save.py
+│       ├── test_session_store.py
+│       └── test_state_defaults.py
+└── tools/                              # 🔥 新增顶层目录
+    ├── __init__.py
+    └── eval_suite/
+        ├── cli.py
+        ├── errors.py
+        ├── __main__.py                 # 🔥 支持 `python -m tools.eval_suite`
+        ├── types.py
+        ├── golden/
+        │   ├── generator.py
+        │   └── validator.py
+        ├── hil/
+        │   ├── dash_app.py
+        │   └── sheet.py
+        ├── jury/
+        │   └── calibrated_judge.py
+        ├── report/
+        │   ├── html_report.py
+        │   └── json_report.py
+        ├── runners/
+        │   └── agent_runner.py
+        └── scorers/
+            ├── deterministic.py
+            └── llm_judge.py```
 
 ______________________________________________________________________
 

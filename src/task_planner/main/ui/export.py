@@ -1,12 +1,24 @@
-"""export.py — 数据/图片导出（JSON/DOT/HTML/SVG/PNG）"""
+"""export.py — 数据/图片导出（UI 适配层）
+
+职责：
+  接收 Dash 回调传进来的数据，调用底层渲染引擎（cairoviz_export），
+  或进行纯数据序列化（JSON/HTML），最终统一封装成 Dash 的 send_string / send_bytes。
+
+⚠️ 本模块不负责底层图形渲染——渲染全部委托给 utils.cairoviz_export。
+"""
 
 import json
 import textwrap
+from collections.abc import Callable
 
 from dash import dcc
 
 from task_planner.infrastructure.logger_setup import get_logger
-from task_planner.utils.pyvis_export import export_dag_to_png, export_dag_to_svg
+from task_planner.utils.cairoviz_export import (
+    export_dag_to_dot,
+    export_dag_to_png,
+    export_dag_to_svg,
+)
 
 from .data_ops import make_filename
 
@@ -14,15 +26,10 @@ logger = get_logger(__name__)
 
 
 # ═══════════════════════════════════════════════════════════════════
-# DOT / JSON / HTML
+# 纯数据导出：JSON / HTML
 # ═══════════════════════════════════════════════════════════════════
-def _escape_dot_label(text: str) -> str:
-    if not text:
-        return ""
-    return str(text).replace("\\", "\\\\").replace('"', '\\"')
-
-
-def export_json(nodes, edges, task_id_str):
+def export_json(nodes, edges, task_id_str, **kwargs):
+    """导出原始 JSON 数据"""
     content = json.dumps({"nodes": nodes, "edges": edges}, ensure_ascii=False, indent=2)
     return dcc.send_string(
         content,
@@ -31,31 +38,8 @@ def export_json(nodes, edges, task_id_str):
     )
 
 
-def export_dot(nodes, edges, task_id_str):
-    lines = [
-        "digraph G {",
-        "  rankdir=TB;",
-        '  node [shape=box, style="rounded,filled", fillcolor="#E8F4FD"];',
-    ]
-    for n in nodes:
-        node_id = _escape_dot_label(n.get("id", ""))
-        label = _escape_dot_label(n.get("name") or n.get("node_name", ""))
-        lines.append(f'  "{node_id}" [label="{label}"];')
-    for e in edges:
-        from_id = _escape_dot_label(e.get("from", ""))
-        to_id = _escape_dot_label(e.get("to", ""))
-        label = _escape_dot_label(e.get("label", ""))
-        label_attr = f' [label="{label}"]' if label else ""
-        lines.append(f'  "{from_id}" -> "{to_id}"{label_attr};')
-    lines.append("}")
-    return dcc.send_string(
-        "\n".join(lines),
-        filename=make_filename("dag", task_id_str, "dot"),
-        type="text/vnd.graphviz",
-    )
-
-
 def generate_html_export(nodes, edges, task_id) -> str:
+    """生成内嵌 Cytoscape 的独立 HTML（交互式，依赖 CDN JS）"""
     elements_list = []
     for i, n in enumerate(nodes):
         nid = str(n.get("id", i))
@@ -129,7 +113,7 @@ def generate_html_export(nodes, edges, task_id) -> str:
     """)
 
 
-def export_html(nodes, edges, task_id_str):
+def export_html(nodes, edges, task_id_str, **kwargs):
     html_content = generate_html_export(nodes, edges, task_id_str)
     return dcc.send_string(
         html_content,
@@ -138,43 +122,101 @@ def export_html(nodes, edges, task_id_str):
     )
 
 
+# ═══════════════════════════════════════════════════════════════════
+# 图形导出（全部委托给 cairoviz_export）
+# ═══════════════════════════════════════════════════════════════════
+def _safe_graphviz_export(
+    fmt: str,
+    export_fn: Callable,
+    nodes: list,
+    edges: list,
+    node_states: dict | None,
+    task_id_str: str,
+    **kwargs,
+):
+    """统一处理底层渲染的异常捕获和 Dash 封装。
+
+    原因：cairosvg / pydot / graphviz 缺失时，底层会抛 ImportError / ValueError。
+    如果不在这里兜住，Dash 前端会直接白屏或报 500。
+    """
+    try:
+        data_bytes = export_fn(
+            nodes=nodes,
+            edges=edges,
+            node_states=node_states,
+            title=f"流程图 {task_id_str}",
+            **kwargs,
+        )
+        return dcc.send_bytes(
+            data_bytes,
+            filename=make_filename("dag", task_id_str, fmt),
+        )
+    except ImportError as e:
+        logger.error("[Export] 缺失依赖: %s", e)
+        return dcc.send_string(
+            f"导出失败：系统缺失依赖。\n{e}",
+            filename="error.txt",
+        )
+    except Exception as e:
+        logger.exception("[Export] 渲染 %s 失败", fmt)
+        return dcc.send_string(
+            f"导出失败：{type(e).__name__} - {e}",
+            filename="error.txt",
+        )
+
+
+def export_dot(nodes, edges, task_id_str, node_states=None, **kwargs):
+    """导出 DOT（复用底层引擎，保证样式与 SVG/PNG 一致）"""
+    try:
+        dot_str = export_dag_to_dot(
+            nodes=nodes,
+            edges=edges,
+            node_states=node_states,
+            title=f"流程图 {task_id_str}",
+            **kwargs,
+        )
+        return dcc.send_string(
+            dot_str,
+            filename=make_filename("dag", task_id_str, "dot"),
+            type="text/vnd.graphviz",
+        )
+    except Exception as e:
+        logger.exception("[Export] DOT 渲染失败")
+        return dcc.send_string(f"导出 DOT 失败：{e}", filename="error.txt")
+
+
+def export_svg(nodes, edges, task_id_str, node_states=None, **kwargs):
+    """导出 SVG（支持透传 dpi 等参数）"""
+    return _safe_graphviz_export(
+        "svg", export_dag_to_svg, nodes, edges, node_states, task_id_str, **kwargs
+    )
+
+
+def export_png(nodes, edges, task_id_str, node_states=None, **kwargs):
+    """导出 PNG（支持透传 width/height/dpi 等参数）"""
+    return _safe_graphviz_export(
+        "png", export_dag_to_png, nodes, edges, node_states, task_id_str, **kwargs
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════
+# 策略路由（供 Dash 回调调用）
+# ═══════════════════════════════════════════════════════════════════
 DATA_EXPORT_STRATEGIES = {
     "json": export_json,
     "dot": export_dot,
     "html": export_html,
+    "svg": export_svg,
+    "png": export_png,
 }
-
-
-# ═══════════════════════════════════════════════════════════════════
-# SVG / PNG
-# ═══════════════════════════════════════════════════════════════════
-def export_svg_bytes(nodes, edges, node_states, title):
-    return export_dag_to_svg(
-        nodes=nodes,
-        edges=edges,
-        output_path=None,
-        node_states=node_states,
-        title=title,
-        dpi=200,
-    )
-
-
-def export_png_bytes(nodes, edges, node_states, title):
-    return export_dag_to_png(
-        nodes=nodes,
-        edges=edges,
-        output_path=None,
-        node_states=node_states,
-        title=title,
-        width=1600,
-        height=1200,
-        dpi=200,
-    )
 
 
 __all__ = [
     "DATA_EXPORT_STRATEGIES",
-    "export_svg_bytes",
-    "export_png_bytes",
     "generate_html_export",
+    "export_json",
+    "export_dot",
+    "export_html",
+    "export_svg",
+    "export_png",
 ]

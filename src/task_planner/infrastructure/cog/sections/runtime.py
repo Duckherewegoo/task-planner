@@ -20,7 +20,7 @@ class RuntimeSection(ConfigSection):
             ),
             ConfigEntry(
                 name="REFINE_CONCURRENCY",
-                value=True,
+                value=10,
                 purpose="默认并发上限",
                 scope=Scope.DEVELOPER,
                 type=int,

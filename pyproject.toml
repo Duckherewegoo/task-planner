@@ -43,6 +43,7 @@ dependencies = [
     "pydot>=3.0.0",
     "Pillow>=11.0.0",
     "wcwidth>=0.2.14",
+    "jieba>=0.42.1",
 ]
 
 classifiers = [

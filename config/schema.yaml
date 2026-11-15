@@ -34,13 +34,19 @@ base:
     type: str
     default: INFO
     scope: developer
-    purpose: "控制台日志级别：DEBUG/INFO/WARNING/ERROR"
+    purpose: 控制台日志级别：DEBUG/INFO/WARNING/ERROR
 
   DASH_DISABLE_VERSION_CHECK:
     type: bool
     default: true
     scope: developer
     purpose: 关闭 Dash 版本检查，避免联网
+
+  MOCK_RESPONSE_PREFIX:
+    type: str
+    default: "[MOCK_LLM_RESPONSE]"
+    scope: developer
+    purpose: MOCK前缀，如果输出此前缀说明是mock模式
 
 dashscope:
   DASHSCOPE_API_KEY:

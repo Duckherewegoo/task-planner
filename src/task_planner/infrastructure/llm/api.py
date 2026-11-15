@@ -5,7 +5,6 @@ import json
 from typing import Any
 
 from task_planner.infrastructure.cog import hub as _hub
-from task_planner.infrastructure.constants import MOCK_RESPONSE_PREFIX
 from task_planner.infrastructure.logger_setup import get_logger
 from task_planner.infrastructure.prompts.loader import (
     INTENT_PROMPT,
@@ -36,7 +35,7 @@ async def direct_chat(
 ) -> str:
     """直接对话接口（异步）"""
     if _hub.dev.USE_MOCK_LLM:
-        return f"{MOCK_RESPONSE_PREFIX}{user_input}"
+        return f"{_hub.dev.MOCK_RESPONSE_PREFIX}{user_input}"
     async with get_semaphore():
         return await async_call_llm(
             model=_hub.dev.LLM_INTENT_MODEL,

@@ -1,4 +1,4 @@
-"""app.py — 配置工具 Dash 实例与启动入口"""
+"""standalone_app.py — 无法被集成独立配置工具 Dash 实例与启动入口"""
 
 import os
 import sys

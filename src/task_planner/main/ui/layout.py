@@ -450,7 +450,7 @@ def build_layout() -> html.Div:
                                                     ),
                                                     html.Button(
                                                         "🔄 重试选中节点",
-                                                        id="start-exec-btn",
+                                                        id="retry-exec-btn",
                                                         n_clicks=0,
                                                         disabled=True,
                                                         style={

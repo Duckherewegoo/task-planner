@@ -251,5 +251,3 @@ FONT_FACE = (
     "'Noto Sans CJK SC', 'WenQuanYi Zen Hei', 'Microsoft YaHei', "
     "'SimHei', 'DejaVu Sans', Arial, sans-serif"
 )
-
-MOCK_RESPONSE_PREFIX = "[MOCK_LLM_RESPONSE]"

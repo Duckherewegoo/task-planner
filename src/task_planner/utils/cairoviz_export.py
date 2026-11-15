@@ -1,12 +1,12 @@
 """
-pyvis_export.py — DAG 静态可视化导出引擎 (Graphviz Backend) v4
+cairoviz_export.py — DAG 静态可视化导出引擎 (Graphviz Backend) v4
 ═══════════════════════════════════════════════════════════════════════
 纯后端静态渲染，基于 Graphviz/pydot + cairosvg。
 输出 SVG/PNG/PDF/DOT 字节流或文件，适用于报告、邮件、PPT、CI。
 
 与 flowchart_pro.py 的关系：
   - flowchart_pro: 交互式 HTML (PyVis + vis.js)
-  - pyvis_export:  静态导出 (Graphviz + cairosvg)
+  - cairoviz_export:  静态导出 (Graphviz + cairosvg)
 
 调用方式：所有导出函数均为同步，请用 asyncio.to_thread 隔离阻塞 I/O。
 
@@ -37,7 +37,7 @@ from task_planner.infrastructure.constants import (
 )
 from task_planner.infrastructure.logger_setup import get_logger
 
-logger = get_logger("task_planner.pyvis_export")
+logger = get_logger("task_planner.cairoviz_export")
 
 # 类型别名
 PathLike = str | Path

@@ -6,7 +6,6 @@ from dash import Input, Output, State, callback, dcc, no_update
 
 from task_planner.core.db import batch_delete_tasks, list_tasks, load_task_with_plan
 from task_planner.core.graph.nodes import sanitize_node_for_user
-from task_planner.infrastructure.async_runtime import submit
 from task_planner.infrastructure.constants import NODE_OPERABLE_STATES, NODE_STATUS_CODE_MAP
 from task_planner.services.agent.commands import retry_node_cmd
 from task_planner.utils.cytoscape_adapter import (
@@ -17,6 +16,7 @@ from task_planner.utils.presentation_utils import build_history_dropdown_options
 
 from ..constants import HistorySelectResult, HistoryTapNodeResult, cytoscape_cached
 from ..data_ops import load_and_fill_query, update_node_and_render
+from ._helpers import spawn as _spawn
 
 logger = logging.getLogger(__name__)
 
@@ -316,52 +316,40 @@ def register() -> None:
         Input("history-retry-btn", "n_clicks"),
         State("history-dag-store", "data"),
         State("history-selected-node-store", "data"),
-        State("history-node-states-store", "data"),  # 用来找所有失败节点
+        State("history-node-states-store", "data"),
         prevent_initial_call=True,
     )
-    def on_retry_click(n_clicks, dag_data, selected_node_id, node_states):
+    async def on_retry_click(n_clicks, dag_data, selected_node_id, node_states):
         if not n_clicks or not dag_data:
             return no_update, no_update
 
         thread_id = dag_data.get("task_id")
         nodes = dag_data.get("nodes", [])
-
         if not thread_id:
             return "❌ 错误：找不到任务 ID", no_update
-        targets_to_retry = []
 
         if selected_node_id:
-            # 如果用户在 Cytoscape 里点选了特定节点
-            targets_to_retry.append(selected_node_id)
+            targets_to_retry = [selected_node_id]
         else:
-            # 如果没点选特定节点，就把所有 failed 状态的节点找出来（批量重试）
-            targets_to_retry = [nid for nid, state in node_states.items() if state == "failed"]
+            targets_to_retry = [
+                nid for nid, state in (node_states or {}).items() if state == "failed"
+            ]
 
         if not targets_to_retry:
             return "⚠️ 没有失败节点需要重试", no_update
 
-        # ─── 将 node_id 转换为后端需要的 node_index ───
-        # 假设 nodes 是一个列表，索引就是它在列表里的位置 (0, 1, 2...)
-        # 注意：如果你的 selected_node_id 存的是 Cytoscape 的 id (如 "node_abc")，
-        # 你需要根据节点列表匹配出它的 index。
         node_id_to_index = {str(n.get("id")): i for i, n in enumerate(nodes)}
 
-        success_count = 0
-
+        submitted = 0
         for target_id in targets_to_retry:
-            # 提取出对应的整数 index
             node_index = node_id_to_index.get(str(target_id))
+            if node_index is None:
+                logger.warning("[History] 重试目标 %s 不在 dag.nodes 中", target_id)
+                continue
+            # 多次 spawn 由 commands._resume_with_command 的 thread 锁串行化
+            _spawn(retry_node_cmd(thread_id, target_id))
+            submitted += 1
 
-            if node_index is not None:
-                try:
-                    submit(retry_node_cmd(thread_id, node_index))
-                    success_count += 1
-                except Exception as e:
-                    logger.error(f"[History] 提交重试任务失败 index={node_index}: {e}")
-
-        if success_count > 0:
-            msg = f"⏳ 已提交 {success_count} 个节点的重试请求，请留意状态更新..."
-            # 启动前端轮询（假设 Interval 的 id 是 stream-interval）
-            return msg, False
-        else:
-            return "❌ 重试任务提交失败，请检查控制台日志", no_update
+        if submitted:
+            return f"⏳ 已提交 {submitted} 个重试请求（后台按顺序执行）...", False
+        return "❌ 没有可提交的重试目标", no_update

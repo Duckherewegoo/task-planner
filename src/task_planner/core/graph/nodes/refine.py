@@ -36,70 +36,12 @@ from typing import Any
 from langchain_core.runnables import RunnableConfig
 
 from task_planner.core.graph.state import TaskState
-from task_planner.infrastructure.cog import hub as _hub
+from task_planner.infrastructure.config_helpers import get_dev_int as _get_dev_int
 from task_planner.infrastructure.llm import refine_node as refine_node_llm
 from task_planner.infrastructure.logger_setup import get_logger, set_req_id
 from task_planner.utils.context import get_cancel_event
 
 logger = get_logger(__name__)
-
-# 硬编码安全回退值。
-# 与 _hub.dev.REFINE_CONCURRENCY 的区别：
-#   - _hub.dev.REFINE_CONCURRENCY 是"用户配置值"，可能是任何类型/非法值
-#   - _FALLBACK_SAFE_CONCURRENCY 是本模块"已知安全值"，永远是合法的 int
-# 当配置值非法时回退到这个安全值，而不是回退到配置值本身。
-_FALLBACK_SAFE_CONCURRENCY = 10
-
-
-def _parse_concurrency() -> int:
-    """
-    解析 cog 配置 REFINE_CONCURRENCY，返回一个合法的并发上限整数。
-
-    处理策略：
-      - 配置值可转换为 >= 1 的整数 → 返回该整数
-      - 配置值非法 → 返回 _FALLBACK_SAFE_CONCURRENCY，并打 warning
-
-    非法值分类：
-      - "abc" / "1.5"：int() 抛 ValueError
-      - None / list / dict：int() 抛 TypeError
-        （必须同时捕 TypeError——此前只捕 ValueError 时 None 会直接冒泡，
-         导致整个 refine.py 在 import 阶段就崩溃）
-      - "-1" / "0"：int() 成功但 < 1
-        （asyncio.Semaphore(0) 会永久阻塞——最阴险的失效模式：
-         运维会误以为 LLM 慢，实际是图卡死在 refine）
-
-    设计哲学：配置错误时"能跑"比"不跑"好，尤其这只是性能调优参数，
-    不是功能开关。但必须留痕（warning 日志），且日志格式化本身不能抛异常
-    ——所以原始值用 %r 打印（不受类型约束），而非 %d（会因非整数抛 TypeError）。
-
-    热重载语义说明：
-      本函数在模块 import 时求值一次，此后 _REFINE_CONCURRENCY 是常量。
-      即使 cog 热重载了配置，本模块不会感知——除非上层显式重新 import
-      refine.py。如果需要热重载语义，调用方应改为"每次 refine_node 时
-      重新读取 _hub.dev.REFINE_CONCURRENCY"，而非缓存到模块级常量。
-    """
-    raw = _hub.dev.REFINE_CONCURRENCY
-    try:
-        n = int(raw)
-    except (ValueError, TypeError) as exc:
-        logger.warning(
-            "[Refine] REFINE_CONCURRENCY=%r 无法转换为整数 (%s)，回退安全值 %d",
-            raw,
-            type(exc).__name__,
-            _FALLBACK_SAFE_CONCURRENCY,
-        )
-        return _FALLBACK_SAFE_CONCURRENCY
-    if n < 1:
-        logger.warning(
-            "[Refine] REFINE_CONCURRENCY=%d < 1，回退安全值 %d",
-            n,
-            _FALLBACK_SAFE_CONCURRENCY,
-        )
-        return _FALLBACK_SAFE_CONCURRENCY
-    return n
-
-
-_REFINE_CONCURRENCY = _parse_concurrency()
 
 
 async def refine_node(state: TaskState, config: RunnableConfig) -> dict[str, Any]:
@@ -146,7 +88,7 @@ async def refine_node(state: TaskState, config: RunnableConfig) -> dict[str, Any
     # 每次 refine_node 调用创建一个——绑定当前 loop，服务于本次所有任务。
     # 注意粒度：不是每个 _refine_one 创建（那会让并发上限失效），
     # 而是每次 refine_node 创建（本次内所有任务共享同一个）。
-    concurrency = _parse_concurrency()  # 每次调用重新读
+    concurrency = _get_dev_int("REFINE_CONCURRENCY", 10)
     semaphore = asyncio.Semaphore(concurrency)
 
     async def _refine_one(n: dict[str, Any]) -> dict[str, Any]:
@@ -294,3 +236,8 @@ async def refine_node(state: TaskState, config: RunnableConfig) -> dict[str, Any
         "nodes": [dict(n) for n in refined],
         "steps": state.get("steps", []) + ["节点细化完成"],
     }
+
+
+__all__ = [
+    "refine_node",
+]

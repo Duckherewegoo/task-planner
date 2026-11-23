@@ -6,7 +6,7 @@ tags: []
 
 # ADR-0001: 异步边界分层——任务常驻 loop / DB 同步 / LLM 异步 / UI 假 async
 
-- Status: Accepted
+- Status: Superseded by ADR 0009
 - Date: 决策 2026-10-13（实测证伪当日）/ 落地 2026-10-14（async_runtime 合入）
 - Supersedes: ADR-0002（2026-09-28 转向全链路异步）
 - Related:
@@ -119,3 +119,9 @@ Dash 4.4.1 的 Flask WSGI backend 通过 `asgiref.async_to_sync` 驱动 async �
 `async_runtime.py`（常驻 loop）是本文 Decision 表格中"后台任务"一行的**落地手段**，
 不是独立决策。单独成篇会产生两篇互相引用的 ADR，反而增加追溯成本。
 未来若常驻 loop 本身需要被替换（如换消息队列），届时再单独开 ADR 并 supersede 本文的相关行。
+
+## 后续
+
+本 ADR 已被 **ADR 0009**（2026-11-23，FastAPI backend 统一异步边界）正式取代。
+0009 执行了本文 §Alternatives 中的方案 C，并继承了本文"假 async 签名"的设计意图。
+本文保留作为历史决策记录，不再指导实现。

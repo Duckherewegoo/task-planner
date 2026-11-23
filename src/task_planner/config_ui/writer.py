@@ -2,6 +2,7 @@
 writer.py — 配置写回（原子操作 + 保留注释优先）
 """
 
+import io
 import os
 import tempfile
 from pathlib import Path
@@ -41,6 +42,7 @@ def write_user_yaml(path: Path, updates: dict[str, Any]) -> None:
     写入 user.yaml。
     - 有 ruamel.yaml：合并更新，保留原注释
     - 没有：直接 dump，顶部加"工具管理"注释
+    两个分支都走 _atomic_write，保证原子性。
     """
     if _HAS_RUAMEL:
         y = YAML()
@@ -50,8 +52,9 @@ def write_user_yaml(path: Path, updates: dict[str, Any]) -> None:
             with path.open("r", encoding="utf-8") as f:
                 data = y.load(f) or {}
         data.update(updates)
-        with path.open("w", encoding="utf-8") as f:
-            y.dump(data, f)
+        buf = io.StringIO()
+        y.dump(data, buf)
+        _atomic_write(path, buf.getvalue())
     else:
         import yaml
 
@@ -63,7 +66,6 @@ def write_user_yaml(path: Path, updates: dict[str, Any]) -> None:
         )
         body = yaml.safe_dump(updates, allow_unicode=True, sort_keys=False)
         _atomic_write(path, header + body)
-        return
 
     logger.info("[ConfigUI] 已写入 %s (%d 项)", path, len(updates))
 

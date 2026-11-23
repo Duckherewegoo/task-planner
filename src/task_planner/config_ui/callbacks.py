@@ -152,6 +152,7 @@ def _register_form_callbacks(app) -> None:
             if ctx.triggered_id == "cfg-reload-btn":
                 try:
                     from task_planner.infrastructure.cog import reload_hub
+
                     n = await asyncio.to_thread(reload_hub)
                     logger.info("[ConfigUI] hub.reload 完成: %d 条", n)
                 except Exception as e:
@@ -195,17 +196,17 @@ def _register_form_callbacks(app) -> None:
 
             # 类型转换（Checklist 返回 list）
             if entry.type is bool:
-                    val = bool(val and "on" in val)
+                val = bool(val and "on" in val)
             elif entry.type is int:
                 try:
                     val = int(val) if val not in (None, "") else entry.default
-                except (TypeError, ValueError):
+                except TypeError, ValueError:
                     errors.append(f"{name}: 需要整数")
                     continue
             elif entry.type is float:
                 try:
                     val = float(val) if val not in (None, "") else entry.default
-                except (TypeError, ValueError):
+                except TypeError, ValueError:
                     errors.append(f"{name}: 需要小数")
                     continue
 
@@ -214,7 +215,7 @@ def _register_form_callbacks(app) -> None:
                 env_updates[entry.env_name] = str(val)
             elif entry.scope == Scope.USER:
                 user_updates[name] = val
-    
+
         if errors:
             return (
                 "❌ 校验失败：" + "; ".join(errors),

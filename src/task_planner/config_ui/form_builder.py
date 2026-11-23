@@ -107,9 +107,7 @@ def build_form(include_advanced: bool = False) -> list:
             [e.name for e in orphan_secrets],
         )
         rows.append(html.Hr())
-        rows.append(
-            html.H3("⚠️ 配置异常（schema 校验失效）", style={"color": "#dc2626"})
-        )
+        rows.append(html.H3("⚠️ 配置异常（schema 校验失效）", style={"color": "#dc2626"}))
         rows.append(
             html.P(
                 "以下字段 secret=True 但 from_env=False，entry.py 校验应已拦截。"
@@ -121,14 +119,21 @@ def build_form(include_advanced: bool = False) -> list:
             rows.append(
                 html.Div(
                     [
-                        html.Label(e.purpose or e.name, style={"fontWeight": "bold", "color": "#dc2626"}),
+                        html.Label(
+                            e.purpose or e.name, style={"fontWeight": "bold", "color": "#dc2626"}
+                        ),
                         html.Br(),
                         html.Small(
                             f"name={e.name}, scope={e.scope.value}",
                             style={"color": "#94a3b8", "fontFamily": "monospace"},
                         ),
                     ],
-                    style={"margin": "12px 0", "padding": "8px", "border": "1px solid #dc2626", "borderRadius": "4px"},
+                    style={
+                        "margin": "12px 0",
+                        "padding": "8px",
+                        "border": "1px solid #dc2626",
+                        "borderRadius": "4px",
+                    },
                 )
             )
 

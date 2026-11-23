@@ -4,7 +4,6 @@ import asyncio
 from collections.abc import Callable
 from typing import Any
 
-from task_planner.infrastructure.async_runtime import submit
 from task_planner.infrastructure.logger_setup import get_logger
 
 from .cleaner import state_cleaner
@@ -18,12 +17,15 @@ async def _run_worker(
     run_fn: Callable,
     run_kwargs: dict[str, Any],
 ) -> str:
-    """公共 worker：在常驻 loop 上创建 TaskStreamState 并跑 run_fn。
+    """公共 worker：在 uvicorn 的持久 loop 上创建 TaskStreamState 并跑 run_fn。
 
     - 流内每个 snapshot 推给 state
     - 终止事件（complete / cancelled / timeout / error / paused）触发 mark_finished
       或 mark_paused
     - 生成器正常结束（无终止事件）也视为完成，保险
+
+    ⚠️ FastAPI backend 下本协程直接 await 即可：uvicorn 持有持久 loop，
+       asyncio.create_task 创建的任务跨回调存活，不需要独立的常驻 loop。
     """
     state = TaskStreamState(thread_id)
     await state_cleaner.register(thread_id, state)
@@ -40,7 +42,6 @@ async def _run_worker(
 
                 snap_type = snapshot.get("type", "")
                 if snap_type == "paused":
-                    # 图停在 interrupt，等用户交互——标记暂停，但 session 保留
                     logger.info(
                         "[StreamMgr] 图暂停，等待用户交互 | thread=%s next=%s",
                         thread_id,
@@ -52,7 +53,6 @@ async def _run_worker(
                     err = snapshot.get("message") or snapshot.get("error")
                     await state.mark_finished(error=err or None)
                     return
-            # 无终止事件时也标记完成（保险）
             await state.mark_finished()
             logger.info("[StreamMgr] 后台协程结束（无终止事件）| thread=%s", thread_id)
         except asyncio.CancelledError:
@@ -75,7 +75,8 @@ async def start_stream(
 ) -> str:
     """启动后台流式任务，返回 thread_id。
 
-    执行模型：所有 asyncio 原语在常驻 loop 上首次创建，避免跨 loop 绑定。
+    执行模型：TaskStreamState 与 create_task 都在调用方所在的 uvicorn
+    loop 上创建，保证 Motor / asyncio 原语不跨 loop。
     """
     run_kwargs = {
         "user_input": user_input,
@@ -83,8 +84,7 @@ async def start_stream(
         "enable_refine": enable_refine,
         "resume": False,
     }
-    future = submit(_run_worker(thread_id, run_task_stream_fn, run_kwargs))
-    return await asyncio.wrap_future(future)
+    return await _run_worker(thread_id, run_task_stream_fn, run_kwargs)
 
 
 async def resume_stream(
@@ -120,10 +120,9 @@ async def resume_stream(
     if existing and not existing.finished:
         logger.warning("[StreamMgr] resume_stream: 任务仍在运行中 %s", thread_id)
         raise RuntimeError(
-            f"任务 {thread_id} 仍在运行中，无法 resume。" "请先调用 cancel_stream() 或等待其完成。"
+            f"任务 {thread_id} 仍在运行中，无法 resume。请先调用 cancel_stream() 或等待其完成。"
         )
 
-    # 构造 feedback dict——键名规则见 commands.py 顶部 docstring
     feedback: dict[str, Any] = {"user_action": user_action}
     if modified_input is not None:
         feedback["modified_input"] = modified_input
@@ -139,14 +138,13 @@ async def resume_stream(
 
     run_fn = run_task_stream_fn or _default_run
     run_kwargs = {
-        "user_input": "",  # resume 模式忽略
+        "user_input": "",
         "thread_id": thread_id,
-        "enable_refine": False,  # resume 模式忽略
+        "enable_refine": False,
         "resume": True,
-        "resume_data": feedback,  # ← Command(resume=feedback) 的载荷
+        "resume_data": feedback,
     }
-    future = submit(_run_worker(thread_id, run_fn, run_kwargs))
-    return await asyncio.wrap_future(future)
+    return await _run_worker(thread_id, run_fn, run_kwargs)
 
 
 __all__ = ["start_stream", "resume_stream"]

@@ -58,10 +58,10 @@ class StreamStateCleaner:
             if self._running:
                 return
             self._running = True
-            # ⚠️ 本方法必须在常驻 loop 上首次调用——否则 create_task 会绑
-            # Dash 回调的一次性 loop，回调返回后 _cleanup_loop 立刻被取消。
-            # 当前唯一调用方 launcher._bootstrap 在常驻 loop 上执行，满足前提。
-            # 若未来新增其他调用方，务必同样通过 async_runtime.submit 提交。
+            # ⚠️ 本方法必须在 uvicorn 的持久 loop 上首次调用——create_task
+            # 绑到当前 loop，回调返回后清理协程仍要继续跑。
+            # 当前唯一调用方 launcher._run_worker 在 uvicorn loop 上执行，
+            # 满足前提。若未来新增其他调用方，确保同样在 uvicorn loop 内。
             self._task = asyncio.create_task(self._cleanup_loop())
             logger.info(
                 "[Cleaner] 清理协程已启动 (interval=%ds)",

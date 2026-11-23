@@ -31,6 +31,10 @@ session.py — TaskSession 定义 + 会话池管理
    当前没有调用方（潜在内存泄漏）。建议在 ASGI lifespan startup
    里 create_task 一个循环。
    TODO: 加后台清理任务。
+
+TODO(hot-reload): 模块级配置缓存已全部移除，统一为每次从 _hub.dev 读取。
+如果未来引入配置本地缓存（为了性能），必须监听 hub.reload 信号并失效缓存。
+
 """
 
 import asyncio
@@ -42,8 +46,6 @@ from task_planner.infrastructure.logger_setup import get_logger
 from task_planner.infrastructure.session_store import InMemorySessionStore, SessionStore
 
 logger = get_logger(__name__)
-
-_SESSION_TTL = _hub.dev.SESSION_TTL
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -133,7 +135,7 @@ async def cleanup_stale_sessions() -> int:
        应在 ASGI lifespan startup 里 create_task 一个循环定期跑。
        见模块 docstring 的"关于会话清理"。
     """
-    return await _session_store.cleanup_stale(_SESSION_TTL)
+    return await _session_store.cleanup_stale(_hub.dev._SESSION_TTL)
 
 
 async def acquire_session(

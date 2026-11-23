@@ -33,7 +33,7 @@
    修改以上任一处，必须回来同步本模块。
 """
 
-import contextvars
+import asyncio
 from typing import Any
 
 from langgraph.types import Command
@@ -48,6 +48,27 @@ from .session import TaskSession, get_session
 
 logger = get_logger(__name__)
 
+# ═══════════════════════════════════════════════════════════════════
+# 内部：thread 级串行锁
+# ═══════════════════════════════════════════════════════════════════
+_resume_locks: dict[str, tuple[asyncio.Lock, asyncio.AbstractEventLoop]] = {}
+
+
+def _get_resume_lock(thread_id: str) -> asyncio.Lock:
+    """按 thread_id 取锁；loop 变化时重建（对齐 session.py 的 _get_sessions_lock）。"""
+    loop = asyncio.get_running_loop()
+    entry = _resume_locks.get(thread_id)
+    if entry is None or entry[1] is not loop:
+        lock = asyncio.Lock()
+        _resume_locks[thread_id] = (lock, loop)
+        return lock
+    return entry[0]
+
+
+def release_thread_lock(thread_id: str) -> None:
+    """可选：thread 彻底结束后回收锁。当前无人调用，留作扩展点。"""
+    _resume_locks.pop(thread_id, None)
+
 
 # ═══════════════════════════════════════════════════════════════════
 # 内部：resume 执行入口
@@ -59,18 +80,20 @@ async def _resume_with_command(
     """
     用 graph.ainvoke(Command(resume=...)) 恢复图执行。
 
-    两个必须做的事：
-      1. 把 session.cancel_event 绑定到 contextvar——
-         execute.intent 等节点通过 get_cancel_event() 读它。
-         取消事件从 contextvar 读，不再经过 config。
-         Command 恢复走的是一次新的 invoke，contextvar 不会自动继承——
-         必须显式 copy_context() 后 run。
-      2. 传 session.config（含 thread_id）给 ainvoke——
-         LangGraph 靠它定位 checkpoint。
+    ⚠️ 同一 thread 的调用被 _get_resume_lock 串行化——
+       并发 resume 会互相覆盖 checkpoint。
+    ⚠️ contextvar 在当前协程 set（不用 copy_context()——
+       ainvoke 内部 spawn 的子协程会继承当前 context）。
 
     ⚠️ resume_data 的键名契约：
        见模块 docstring。写入方（本函数调用者）必须严格遵守
        user_action / modified_input / retry_node_id 三个键名。
+
+    ⚠️ contextvar 语义：
+      ainvoke 内部 spawn 的子协程（asyncio.create_task）会继承当前 context，
+      因此必须在**当前协程**里 set cancel_event_var，不能放到 copy_context()
+      副本里——副本里的 set 对 ainvoke 不可见。
+      用 token + reset 保证不污染调用方的 context。
 
     Args:
         session:     任务会话（含 config / cancel_event）
@@ -81,9 +104,12 @@ async def _resume_with_command(
         当前调用方（modify / resume / retry）都不重试，
         让异常冒泡给 API 层。
     """
-    ctx = contextvars.copy_context()
-    ctx.run(cancel_event_var.set, session.cancel_event)
-    await graph.ainvoke(Command(resume=resume_data), session.config)
+    async with _get_resume_lock(session.thread_id):
+        token = cancel_event_var.set(session.cancel_event)
+        try:
+            await graph.ainvoke(Command(resume=resume_data), session.config)
+        finally:
+            cancel_event_var.reset(token)
 
 
 # ═══════════════════════════════════════════════════════════════════

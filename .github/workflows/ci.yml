@@ -7,7 +7,6 @@ on:
   pull_request:
     branches: [main]
     paths-ignore: ['docs/**', '**.md', '.gitignore']
-  # 👇 修复：暂时移除 schedule，改为手动触发，避免欠费期间每天报红
   workflow_dispatch:
 
 permissions:
@@ -50,7 +49,8 @@ jobs:
           key: ${{ runner.os }}-pytest-${{ hashFiles('**/pyproject.toml') }}
       - run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+          pip cache purge
+          pip install -e ".[dev,redis]" --no-cache-dir
       - run: sudo apt-get update && sudo apt-get install -y libxml2-dev libxslt1-dev
       - run: pytest tests/ -q -n auto --cov=src --cov-report=xml
         env:
@@ -87,7 +87,8 @@ jobs:
           cache: pip
       - run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+          pip cache purge
+          pip install -e ".[dev,redis]" --no-cache-dir
       - run: pytest tests/ -m integration -v -n auto
         env:
           MONGO_HOST: localhost
@@ -131,11 +132,11 @@ jobs:
           cache: pip
       - run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+          pip cache purge
+          pip install -e ".[dev,redis]" --no-cache-dir
       - run: pyright src/
         continue-on-error: true
 
-  # 👇 修复：改为手动触发，且加上 continue-on-error 兜底
   eval-live:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
@@ -149,9 +150,10 @@ jobs:
           cache: pip
       - run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+          pip cache purge
+          pip install -e ".[dev,redis]" --no-cache-dir
       - name: Run Live LLM Evaluation
-        continue-on-error: true  # 👈 关键：API 欠费/网络波动不阻塞 CI
+        continue-on-error: true
         run: pytest tests/eval_suite/ -m eval_live -v
         env:
           USE_MOCK_LLM: "false"

@@ -42,6 +42,13 @@ def pytest_configure(config):
         print("\n⚠️ [WARNING] 已启用真实 LLM，注意控制并发和 Token 消耗！")
 
 
+@pytest.fixture(scope="function")
+def isolated_db_name():
+    """xdist 下每个 worker 用独立 db 名，防止并发撞库。"""
+    worker = os.environ.get("PYTEST_XDIST_WORKER") or "single"
+    return f"task_planner_test_{worker}"
+
+
 @pytest.fixture(autouse=True)
 async def _close_llm_client_after_each_test():
     """

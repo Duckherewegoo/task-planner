@@ -91,7 +91,13 @@ def test_get_dev_int_fallback_on_invalid(monkeypatch):
 
 def test_refine_node_uses_get_dev_int(monkeypatch):
     """验证 refine_node 在并发配置非法时仍能正常执行（不崩）。"""
+    import asyncio
+
     from task_planner.core.graph.nodes import refine
+
+    # refine.py 现在用的是 config_helpers._get_dev_int，
+    # 它内部读 config_helpers._hub —— patch 那里
+    from task_planner.infrastructure import config_helpers
 
     class _FakeDev:
         REFINE_CONCURRENCY = "not-a-number"
@@ -99,13 +105,32 @@ def test_refine_node_uses_get_dev_int(monkeypatch):
     class _FakeHub:
         dev = _FakeDev()
 
-    monkeypatch.setattr(refine, "_hub", _FakeHub())
+    monkeypatch.setattr(config_helpers, "_hub", _FakeHub())
+    monkeypatch.setattr(
+        "task_planner.core.graph.nodes.refine.refine_node_llm",
+        AsyncMock(return_value={"name": "n", "details": "d", "meta": {}}),
+    )
+    monkeypatch.setattr(
+        "task_planner.core.graph.nodes.refine.get_cancel_event",
+        lambda: None,
+    )
+    monkeypatch.setattr(
+        "task_planner.core.graph.nodes.refine.set_req_id",
+        lambda: "rid",
+    )
 
-    # 验证 _get_dev_int 被调用时返回 fallback，不抛异常
-    from task_planner.infrastructure.config_helpers import get_dev_int
+    state = {
+        "nodes": [{"id": 1, "name": "n1"}],
+        "user_input": "u",
+        "intent": {"category": "other"},
+        "steps": [],
+    }
+    config = {}
 
-    concurrency = get_dev_int("REFINE_CONCURRENCY", 10)
-    assert concurrency == 10
+    # 真正调用 refine_node —— 验证非法配置下不崩、返回合理结果
+    result = asyncio.run(refine_node(state, config))
+    assert len(result["nodes"]) == 1
+    assert result["nodes"][0]["name"] == "n"
 
 
 # ── 基本行为 ──

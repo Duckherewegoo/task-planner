@@ -1,4 +1,4 @@
-"""callbacks.py — 保存、重新加载、预览。
+"""callbacks.py — 保存、重新加载、预览（FastAPI backend + 异步版）。
 
 本次重构：
   - register() → register_config_callbacks(app, with_drawer=...)
@@ -6,11 +6,20 @@
   - 新增 _register_drawer_callbacks：URL 驱动的 Offcanvas 开关（仅主应用）
   - 保存回调升级：写盘后调 reload_hub() 热重载，区分 user.yaml / .env 提示
   - 尝试 load_dotenv(override=True)，装了 python-dotenv 则密钥也能全热更
+
+异步改造（Dash 4.2 + FastAPI backend）：
+  - _toggle_drawer：纯内存操作，保持 def（无 I/O，改 async 无收益）
+  - _rebuild_form：涉及读盘（reload_hub）与表单构建，改 async + to_thread
+  - _save：写盘 + load_dotenv + reload_hub 全部为阻塞 I/O，改 async
+           + to_thread；并用模块级 asyncio.Lock 串行化整条保存链，
+           避免并发保存交错写盘 / 读到半写状态
+  - 修正原 except TypeError, ValueError: → except (TypeError, ValueError):
 """
 
+import asyncio
 from pathlib import Path
 
-from dash import ALL, Input, Output, State, ctx, no_update
+from dash import ALL, Dash, Input, Output, State, ctx, no_update
 
 from task_planner.config_ui.form_builder import build_form
 from task_planner.config_ui.writer import write_env, write_user_yaml
@@ -24,6 +33,13 @@ logger = get_logger("task_planner.config_ui.callbacks")
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
 _USER_YAML = _PROJECT_ROOT / "config" / "user.yaml"
 _ENV_FILE = _PROJECT_ROOT / ".env"
+
+
+# ═══════════════════════════════════════════════════════════════════
+# 保存链串行化锁（模块级，绑定到 uvicorn 的单一 event loop）
+# Python 3.10+ 的 asyncio.Lock 构造时不再绑定 loop，模块级创建安全。
+# ═══════════════════════════════════════════════════════════════════
+_SAVE_LOCK = asyncio.Lock()
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -57,7 +73,7 @@ _DRAWER_BASE_STYLE = {
 # ═══════════════════════════════════════════════════════════════════
 # 对外注册入口
 # ═══════════════════════════════════════════════════════════════════
-def register_config_callbacks(app, *, with_drawer: bool = False) -> None:
+def register_config_callbacks(app: Dash, *, with_drawer: bool = False) -> None:
     """把配置面板的所有回调注册到指定 Dash 应用。
 
     Args:
@@ -88,6 +104,9 @@ def _register_drawer_callbacks(app) -> None:
       - 直接访问 /config → 首帧即打开（可分享 URL）
 
     主页面 children 不依赖 pathname，因此开关抽屉时主页面状态零丢失。
+
+    异步说明：本回调只做 pathname 字符串判断 + 返回两个 style dict，
+    无任何 I/O，保持同步 def 反而更轻（省去一次 task 调度）。
     """
 
     @app.callback(
@@ -114,6 +133,10 @@ def _register_form_callbacks(app) -> None:
     表单字段使用 pattern-matching ID（{"type": "cfg-field", "name": ...}），
     因此保存回调可用 State({"type": "cfg-field", "name": ALL}, ...) 动态
     采集所有字段，无需硬编码字段清单——新增配置项时本文件零改动。
+
+    两个回调都改为 async def：
+      - 内部所有阻塞 I/O 走 asyncio.to_thread，不占 event loop
+      - 纯 CPU 逻辑（类型转换、文案拼接）仍在协程内直跑
     """
 
     # ── 重建表单（切 advanced / 点重新加载） ──
@@ -122,19 +145,18 @@ def _register_form_callbacks(app) -> None:
         Input("cfg-show-advanced", "value"),
         Input("cfg-reload-btn", "n_clicks"),
     )
-    def _rebuild_form(advanced, n_clicks):
+    async def _rebuild_form(advanced, n_clicks):
         # 点「重新加载」时先让 hub 从磁盘重读，再重新渲染表单
-        if ctx.triggered_id == "cfg-reload-btn":
-            try:
-                from task_planner.infrastructure.cog import reload_hub
-
-                n = reload_hub()
-                logger.info("[ConfigUI] hub.reload 完成: %d 条", n)
-            except Exception as e:
-                logger.exception("[ConfigUI] hub.reload 失败: %s", e)
-
         include = bool(advanced and "advanced" in advanced)
-        return build_form(include_advanced=include)
+        async with _SAVE_LOCK:
+            if ctx.triggered_id == "cfg-reload-btn":
+                try:
+                    from task_planner.infrastructure.cog import reload_hub
+                    n = await asyncio.to_thread(reload_hub)
+                    logger.info("[ConfigUI] hub.reload 完成: %d 条", n)
+                except Exception as e:
+                    logger.exception("[ConfigUI] hub.reload 失败: %s", e)
+            return await asyncio.to_thread(build_form, include_advanced=include)
 
     # ── 保存（写盘 + 热重载） ──
     @app.callback(
@@ -145,10 +167,11 @@ def _register_form_callbacks(app) -> None:
         State({"type": "cfg-field", "name": ALL}, "id"),
         prevent_initial_call=True,
     )
-    def _save(n_clicks, values, ids):
+    async def _save(n_clicks, values, ids):
         if not n_clicks:
             return no_update, no_update
 
+        # ── 1) 纯 CPU：字段解析与类型转换（无需 to_thread） ──
         user_updates: dict = {}
         env_updates: dict = {}
         errors: list[str] = []
@@ -160,76 +183,91 @@ def _register_form_callbacks(app) -> None:
             except KeyError:
                 continue
 
+            # ── 防线：orphan secret 拒绝写入任何存储 ──────────
+            if entry.secret and not entry.from_env:
+                logger.error(
+                    "[Config] 拒绝保存 '%s': secret=True 但 from_env=False，"
+                    "不允许写入 user.yaml 明文。",
+                    name,
+                )
+                errors.append(f"{name}: secret 字段配置异常，拒绝保存")
+                continue
+
             # 类型转换（Checklist 返回 list）
             if entry.type is bool:
-                val = bool(val and "on" in val)
+                    val = bool(val and "on" in val)
             elif entry.type is int:
                 try:
                     val = int(val) if val not in (None, "") else entry.default
-                except TypeError, ValueError:
+                except (TypeError, ValueError):
                     errors.append(f"{name}: 需要整数")
                     continue
             elif entry.type is float:
                 try:
                     val = float(val) if val not in (None, "") else entry.default
-                except TypeError, ValueError:
+                except (TypeError, ValueError):
                     errors.append(f"{name}: 需要小数")
                     continue
 
             # 按 scope 分发
             if entry.from_env and entry.secret:
-                env_updates[entry.env_name or name] = str(val)
+                env_updates[entry.env_name] = str(val)
             elif entry.scope == Scope.USER:
                 user_updates[name] = val
-
+    
         if errors:
             return (
                 "❌ 校验失败：" + "; ".join(errors),
                 {"color": "#ef4444", "marginTop": "16px", "fontWeight": "bold"},
             )
 
-        # ── 写盘（writer.py 已实现原子写 + 保留注释） ──
-        try:
-            if user_updates:
-                write_user_yaml(_USER_YAML, user_updates)
-            if env_updates:
-                write_env(_ENV_FILE, env_updates)
-        except Exception as e:
-            return (
-                f"❌ 写入失败：{e}",
-                {"color": "#ef4444", "marginTop": "16px", "fontWeight": "bold"},
-            )
-
-        # ── 热重载（关键路径） ──
-        # 分三步：
-        #   1) 若装了 python-dotenv，尝试把 .env 重新注入进程环境，
-        #      让 from_env 字段在 reload_hub() 时读到新值
-        #   2) 调 reload_hub() 让 hub 内部 store 重建
-        #   3) 根据 env_updates 是否为空，给出不同提示文案
-        env_hot_ok = False
-        if env_updates:
+        # ── 2) 阻塞 I/O 段：加锁串行化，全部走线程池 ──
+        # 加锁原因：并发保存会交错「写 user.yaml / 写 .env / reload_hub」，
+        # 导致 reload_hub 读到半写状态或两个请求互相覆盖。
+        async with _SAVE_LOCK:
+            # 2a) 写盘（writer.py 已实现原子写 + 保留注释）
             try:
-                from dotenv import load_dotenv
-
-                load_dotenv(_ENV_FILE, override=True)
-                env_hot_ok = True
-                logger.info("[ConfigUI] .env 已重新注入进程环境")
-            except ImportError:
-                logger.info("[ConfigUI] 未安装 python-dotenv，.env 需重启进程后生效")
+                if user_updates:
+                    await asyncio.to_thread(write_user_yaml, _USER_YAML, user_updates)
+                if env_updates:
+                    await asyncio.to_thread(write_env, _ENV_FILE, env_updates)
             except Exception as e:
-                logger.warning("[ConfigUI] .env 重新注入失败: %s", e)
+                return (
+                    f"❌ 写入失败：{e}",
+                    {"color": "#ef4444", "marginTop": "16px", "fontWeight": "bold"},
+                )
 
-        hot_ok = False
-        try:
-            from task_planner.infrastructure.cog import reload_hub
+            # 2b) 热重载（关键路径）
+            # 分三步：
+            #   1) 若装了 python-dotenv，尝试把 .env 重新注入进程环境，
+            #      让 from_env 字段在 reload_hub() 时读到新值
+            #   2) 调 reload_hub() 让 hub 内部 store 重建
+            #   3) 根据 env_updates 是否为空，给出不同提示文案
+            env_hot_ok = False
+            if env_updates:
+                try:
+                    from dotenv import load_dotenv
 
-            n = reload_hub()
-            hot_ok = True
-            logger.info("[ConfigUI] hub.reload 成功: %d 条", n)
-        except Exception as e:
-            logger.exception("[ConfigUI] hub.reload 失败: %s", e)
+                    # load_dotenv 会读 .env 文件并改 os.environ，丢到线程池
+                    await asyncio.to_thread(load_dotenv, _ENV_FILE, override=True)
+                    env_hot_ok = True
+                    logger.info("[ConfigUI] .env 已重新注入进程环境")
+                except ImportError:
+                    logger.info("[ConfigUI] 未安装 python-dotenv，.env 需重启进程后生效")
+                except Exception as e:
+                    logger.warning("[ConfigUI] .env 重新注入失败: %s", e)
 
-        # ── 组合提示文案 ──
+            hot_ok = False
+            try:
+                from task_planner.infrastructure.cog import reload_hub
+
+                n = await asyncio.to_thread(reload_hub)
+                hot_ok = True
+                logger.info("[ConfigUI] hub.reload 成功: %d 条", n)
+            except Exception as e:
+                logger.exception("[ConfigUI] hub.reload 失败: %s", e)
+
+        # ── 3) 组合提示文案（纯 CPU） ──
         n_u = len(user_updates)
         n_e = len(env_updates)
 

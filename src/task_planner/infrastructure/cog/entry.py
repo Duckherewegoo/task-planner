@@ -11,9 +11,9 @@ from typing import Any
 class Scope(Enum):
     """谁能改这条配置"""
 
-    USER = "user"  # 终端用户可改（UI 偏好等）
+    USER = "user"       # 终端用户可改（UI 偏好等）
     DEVELOPER = "developer"  # 仅开发者可改（超时、密钥等）
-    SYSTEM = "system"  # 运行时锁定，谁都不能改
+    SYSTEM = "system"   # 运行时锁定，谁都不能改
 
 
 class Role(Enum):
@@ -25,16 +25,16 @@ class Role(Enum):
 
 @dataclass(frozen=True, slots=True)
 class ConfigEntry:
-    name: str  # 键（点号访问 / dict key）
-    value: Any  # 当前值
-    purpose: str  # 一句话用途（必填，代替注释）
-    scope: Scope  # 修改权限档位
-    type: type  # 期望 Python 类型
-    default: Any = None  # 出厂默认（reset 用）
+    name: str               # 键（点号访问 / dict key）
+    value: Any              # 当前值
+    purpose: str            # 一句话用途（必填，代替注释）
+    scope: Scope            # 修改权限档位
+    type: type              # 期望 Python 类型
+    default: Any = None     # 出厂默认（reset 用）
     section: str = "common"
-    secret: bool = False  # True → 日志/UI 脱敏
-    from_env: bool = False  # ← 新增：值来自环境变量
-    env_name: str = ""  # ← 新增：实际读取的变量名（默认=name）
+    secret: bool = False    # True → 日志/UI 脱敏
+    from_env: bool = False  # 值来自环境变量
+    env_name: str = ""      # 实际读取的变量名（空字符串 → 自动推导）
 
     def __post_init__(self) -> None:
         if not self.name:
@@ -43,13 +43,24 @@ class ConfigEntry:
             raise ValueError(f"{self.name}: purpose 必填，别用注释糊弄")
         if not isinstance(self.scope, Scope):
             raise TypeError(f"{self.name}: scope 必须是 Scope 枚举")
+
+        # secret 字段必须走环境变量（防止明文泄漏）
         if self.secret and not self.from_env:
-            raise ValueError(f"{self.name}: secret 字段必须 from_env")
+            raise ValueError(
+                f"{self.name}: secret=True 必须配合 from_env=True。"
+                f"secret 字段不允许写入 user.yaml 明文。"
+            )
+
+        # ── env_name 自动推导（替代原先的 raise）──────────────
+        # 以前：from_env=True 且 env_name 为空 → raise ValueError
+        # 现在：自动推导为 name.upper()，消除调用方到处写 `or e.name` 的兜底
+        if self.from_env and not self.env_name:
+            object.__setattr__(self, "env_name", self.name.upper())
 
     def with_value(self, v: Any) -> ConfigEntry:
         return replace(self, value=v)
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "name": self.name,
             "value": "<secret>" if self.secret else self.value,
@@ -59,4 +70,5 @@ class ConfigEntry:
             "section": self.section,
             "secret": self.secret,
             "from_env": self.from_env,
+            "env_name": self.env_name,
         }

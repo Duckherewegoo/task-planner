@@ -9,7 +9,7 @@ loader.py — 读 YAML schema + user 覆盖 → 构建 ConfigEntry → 灌进 st
 
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import yaml
 
@@ -27,9 +27,10 @@ class ConfigLoader:
         schema = self._read_yaml(schema_path)
         overrides = self._read_yaml(user_path) if user_path else {}
 
-        for section, items in (schema or {}).items():
-            if not isinstance(items, dict):
+        for section, raw_items in (schema or {}).items():
+            if not isinstance(raw_items, dict):
                 continue
+            items = cast("dict[str, Any]", raw_items)
             for name, spec in items.items():
                 entry = self._build_entry(section, name, spec, overrides)
                 if not self._store.has(name):
@@ -43,12 +44,18 @@ class ConfigLoader:
         spec: dict[str, Any],
         overrides: dict[str, Any],
     ) -> ConfigEntry:
-        t = _TYPE_MAP[spec["type"]]
+
         scope = Scope(spec["scope"])
         default = spec["default"]
         secret = spec.get("secret", False)
         from_env = spec.get("from_env", False)
         env_name = spec.get("env", name)  # 允许自定义变量名
+        try:
+            t = _TYPE_MAP[spec["type"]]
+        except KeyError:
+            raise ValueError(
+                f"{section}.{name}: 未知类型 {spec['type']!r}，可选 {sorted(_TYPE_MAP)}"
+            ) from None
 
         # ── 优先级 1：环境变量 ──
         if from_env:
@@ -90,12 +97,12 @@ class ConfigLoader:
     # ── 类型转换 ──
     @staticmethod
     def _coerce(raw: Any, t: type) -> Any:
-        if raw is None:
-            return None
-        if isinstance(raw, t):
-            return raw
         if t is bool:
             return str(raw).strip().lower() in ("true", "1", "yes", "on", "y")
+        if t is int and isinstance(raw, bool):
+            return int(raw)
+        if isinstance(raw, t):
+            return raw
         return t(raw)
 
     @staticmethod

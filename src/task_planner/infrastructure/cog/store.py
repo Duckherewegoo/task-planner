@@ -31,7 +31,8 @@ class ConfigStore:
                 raise KeyError(f"未注册: {name}") from None
 
     def has(self, name: str) -> bool:
-        return name in self._data
+        with self._lock:
+            return name in self._data
 
     def all(self) -> tuple[ConfigEntry, ...]:
         with self._lock:
@@ -51,6 +52,11 @@ class ConfigStore:
                 raise KeyError(f"未注册: {name}")
             del self._data[name]
 
+    def replace_all(self, other: ConfigStore) -> None:
+        """原子替换内部数据。单次引用赋值，GIL 下对其他线程可见性一致。"""
+        with self._lock:
+            self._data = dict(other._data)
+
     def clear(self) -> int:
         """
         清空所有条目，返回清除数量。
@@ -62,7 +68,8 @@ class ConfigStore:
             return n
 
     def __len__(self) -> int:
-        return len(self._data)
+        with self._lock:
+            return len(self._data)
 
     def __iter__(self) -> Iterator[ConfigEntry]:
         return iter(self.all())

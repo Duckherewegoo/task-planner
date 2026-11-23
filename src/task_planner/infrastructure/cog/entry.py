@@ -11,9 +11,9 @@ from typing import Any
 class Scope(Enum):
     """谁能改这条配置"""
 
-    USER = "user"       # 终端用户可改（UI 偏好等）
+    USER = "user"  # 终端用户可改（UI 偏好等）
     DEVELOPER = "developer"  # 仅开发者可改（超时、密钥等）
-    SYSTEM = "system"   # 运行时锁定，谁都不能改
+    SYSTEM = "system"  # 运行时锁定，谁都不能改
 
 
 class Role(Enum):
@@ -25,16 +25,16 @@ class Role(Enum):
 
 @dataclass(frozen=True, slots=True)
 class ConfigEntry:
-    name: str               # 键（点号访问 / dict key）
-    value: Any              # 当前值
-    purpose: str            # 一句话用途（必填，代替注释）
-    scope: Scope            # 修改权限档位
-    type: type              # 期望 Python 类型
-    default: Any = None     # 出厂默认（reset 用）
+    name: str  # 键（点号访问 / dict key）
+    value: Any  # 当前值
+    purpose: str  # 一句话用途（必填，代替注释）
+    scope: Scope  # 修改权限档位
+    type: type  # 期望 Python 类型
+    default: Any = None  # 出厂默认（reset 用）
     section: str = "common"
-    secret: bool = False    # True → 日志/UI 脱敏
+    secret: bool = False  # True → 日志/UI 脱敏
     from_env: bool = False  # 值来自环境变量
-    env_name: str = ""      # 实际读取的变量名（空字符串 → 自动推导）
+    env_name: str = ""  # 实际读取的变量名（空字符串 → 自动推导）
 
     def __post_init__(self) -> None:
         if not self.name:

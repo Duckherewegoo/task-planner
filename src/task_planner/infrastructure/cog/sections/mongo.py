@@ -14,7 +14,8 @@ class MongoSection(ConfigSection):
             ConfigEntry(
                 name="MONGO_TIMEOUT_MS",
                 value=5000,
-                purpose="MongoDB 操作超时(毫秒)",
+                default=5000,
+                purpose="MongoDB 操作超时(毫秒)（改动需重启进程生效）",
                 scope=Scope.DEVELOPER,
                 type=int,
             ),

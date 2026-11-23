@@ -20,17 +20,6 @@ class ConfigHub:
         self._guard = ConfigGuard()
         self._sessions: dict[Role, ConfigSession] = {}
 
-    # ---------- 装配 ----------
-    def bootstrap(self, schema_path: Path, user_path: Path | None = None) -> ConfigHub:
-        # 1) YAML → store
-        ConfigLoader(self._store).load(schema_path, user_path)
-        # 2) Python @register_section → store（YAML 已存在的不覆盖）
-        for cls in get_registered_sections():
-            for entry in cls().define():
-                if not self._store.has(entry.name):
-                    self._store.create(entry)
-        return self
-
     # ---------- 角色视图 ----------
     def as_role(self, role: Role) -> ConfigSession:
         if role not in self._sessions:
@@ -49,38 +38,43 @@ class ConfigHub:
     def snapshot(self) -> tuple[ConfigEntry, ...]:
         return self._store.all()
 
-    # ---------- 重载 ----------
-    def reload(
-        self,
-        schema_path: Path,
-        user_path: Path | None = None,
-    ) -> int:
+    # ---------- 装配 ----------
+    def _populate(self, store: ConfigStore, schema_path: Path, user_path: Path | None) -> None:
+        """把磁盘 + 代码内置的配置装入 ``store``。
+
+        装配顺序（先到先得，后者不覆盖前者）：
+                  1. ``ConfigLoader`` 读 schema.yaml（+ 可选 user.yaml 覆盖）→ store
+                  2. 遍历所有 ``@register_section`` 的 section，逐个调 ``register_into``
+
+        第 2 步中，已被第 1 步装入的同名条目会被 ``register_into`` 跳过，
+        因此 YAML 中显式声明的条目（及其 ``section`` 分组、``scope`` 等）
+        优先于代码内置项。代码内置项若只在 Python 里定义，则由
+        ``register_into`` 自动注入所属 section 名。
+
+        只操作传入的 ``store``，不碰 ``self._store``——``bootstrap`` 传当前
+        store，``reload`` 传 staging store，后者成功后由 ``replace_all`` 替换。
         """
-        从磁盘重新加载配置。
-
-        - 清空 store（原地清空，不换实例，现有 session 继续可用）
-        - 重跑 ConfigLoader（读 schema.yaml + user.yaml）
-        - 重跑所有 @register_section 的 section
-        - 返回最终条目数
-
-        ⚠️ 注意：
-          - 已缓存的 ConfigEntry 实例会被替换，持有旧 entry 引用的代码
-            需要重新从 hub 读取（正常用法下没人持有 entry 引用）
-          - 不会重载 from_env 字段（那些从 os.environ 读，运行时不可改）
-        """
-        self._store.clear()
-
-        # 1) 从 YAML 重载
-        ConfigLoader(self._store).load(schema_path, user_path)
-
-        # 2) 从 @register_section 重载（YAML 已存在的不覆盖）
+        ConfigLoader(store).load(schema_path, user_path)
         for cls in get_registered_sections():
-            for entry in cls().define():
-                if not self._store.has(entry.name):
-                    self._store.create(entry)
+            cls().register_into(store)
 
-        total = len(self._store)
-        return total
+    def bootstrap(self, schema_path: Path, user_path: Path | None = None) -> ConfigHub:
+        self._populate(self._store, schema_path, user_path)
+        return self
+
+    # ---------- 重载 ----------
+    def reload(self, schema_path: Path, user_path: Path | None = None) -> int:
+        """从磁盘重新加载配置（原子：构建 staging 成功后整体替换）。
+        - 会重新读取 from_env 字段的当前环境变量值；
+          先 load_dotenv(override=True) 再 reload 即可实现密钥热更新
+        - 任何异常都不会污染当前 store
+        - 替换是单次引用赋值，其他线程要么看到旧配置、要么看到新配置
+        - 不换 store 实例，已缓存的 ConfigSession 继续有效
+        """
+        staging = ConfigStore()
+        self._populate(staging, schema_path, user_path)
+        self._store.replace_all(staging)
+        return len(self._store)
 
     def __len__(self) -> int:
         return len(self._store)

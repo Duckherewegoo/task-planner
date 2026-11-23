@@ -1,35 +1,28 @@
-"""client.py — MongoDB 连接生命周期管理（同步，适配 Dash WSGI）
+"""client.py — MongoDB 连接生命周期管理（异步，适配 Dash 4.2 + FastAPI backend）
 
-⚠️ 为什么从 Motor 异步换成 pymongo 同步：
-   Dash 4.x 的 WSGI backend（dash/backends/ws.py:570）用 asyncio.run
-   驱动每个 async 回调——每回调一个新 loop，跑完即毁。Motor 的
-   AsyncIOMotorClient 绑定 loop，无法跨回调复用 → 每回调重建 →
-   连接池爆炸或 "Event loop is closed"。
+⚠️ 为什么是 Motor 异步：
+   本项目已迁移到 Dash 4.2 + FastAPI backend，回调跑在 uvicorn 的持久
+   event loop 里，不再是旧 WSGI backend「每回调 asyncio.run 一个新 loop」
+   的模式。Motor 的 AsyncIOMotorClient 可以在同一 loop 内跨回调复用，
+   连接池不会爆炸。
 
-   Dash 的 worker 是同步线程——一个线程处理一个回调。异步在这个
-   框架里没有跨请求收益。同步 pymongo 客户端不绑 loop，一次创建
-   永久复用，在 Dash 的同步 worker 里是自然的。
-
-⚠️ 关于"假 async"：
-   core/db/ 下的业务函数（tasks.py / plans.py / nodes.py / _helpers.py）
-   **保留 async def 签名**，但函数体内是同步调用。这是为了：
-     - 调用方的 await 零改动
-     - 未来切方案 C（后台常驻 loop）时，只改函数体不动签名
-   本文件（client.py）是底层——不再需要 async，改成同步。
+   ⚠️ 前提：init_db 必须首次在 uvicorn 的 event loop 内调用。Motor 在首次
+   await 操作时把 client 绑到当前 loop；绑错 loop 后跨 loop 用会报
+   "attached to a different loop"。懒初始化（get_db 首次触发）天然满足。
 
 ⚠️ 关于清理：
-   GracefulShutdown.install() 在 debug 模式下会因 WERKZEUG_RUN_MAIN
-   守卫而不注册信号处理器——必须同时挂 atexit 兜底。
-   两处都调用 close_db()，所以它必须幂等。
+   FastAPI shutdown 事件 await close_db()；atexit 用同步的 _atexit_close()
+   兜底。两处都幂等。Motor 的 client.close() 是同步方法，不需要 await。
 """
 
+import asyncio
 import atexit
 import sys
-import threading
 import time
+from typing import Any
 
-from pymongo import ASCENDING, DESCENDING, IndexModel, MongoClient
-from pymongo.database import Database
+from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
+from pymongo import ASCENDING, DESCENDING, IndexModel
 
 from task_planner.infrastructure.cog import hub as _hub
 from task_planner.infrastructure.logger_setup import get_logger
@@ -39,57 +32,51 @@ logger = get_logger("task_planner.core.db.client")
 # ═══════════════════════════════════════════════════════════════════
 # 模块级状态
 # ═══════════════════════════════════════════════════════════════════
-_client: MongoClient | None = None
-_db: Database | None = None
 
-# 并发保护：
-# pymongo 的 MongoClient 本身线程安全，但"检查 _client + 创建"这个
-# 复合操作不是原子的。多 worker / 多线程场景下两个线程可能同时
-# 通过 if _client is None 检查 → 各自建一个 client → 一个覆盖另
-# 一个 → 旧连接泄漏。用 _init_lock 串行化初始化。
-_init_lock = threading.Lock()
+# MongoDB 文档就是 dict；用 alias 避免每处都写长串
+type DocT = dict[str, Any]
+type ClientT = AsyncIOMotorClient[DocT]
+type DatabaseT = AsyncIOMotorDatabase[DocT]
 
-# 失败冷却——全局，与线程无关
+_client: ClientT | None = None
+_db: DatabaseT | None = None
+
+# asyncio.Lock 模块级创建：Python 3.10+ 懒绑定 loop，安全。
+# 所有 init/close 的复合操作在这把锁下串行化。
+# 注意：atexit 的同步关闭不走这把锁（见 _atexit_close）。
+_init_lock = asyncio.Lock()
+
 _last_fail_time: float = 0.0
-_FAIL_COOLDOWN = 10.0  # 失败后 10 秒内不再重试，防雪崩
+_FAIL_COOLDOWN = 10.0
+timeout = _hub.dev.MONGO_TIMEOUT_MS
 
 
-def init_db() -> None:
-    """
-    同步初始化 MongoDB 连接，创建索引。
+async def init_db() -> None:
+    """异步初始化 MongoDB 连接，创建索引。
 
-    ⚠️ 从 async def 改回 def——Motor 换成 pymongo 后无 loop 依赖，
-       可以在任意上下文安全调用（包括模块 import 时、atexit 时）。
-
-    ⚠️ 幂等 + 线程安全：
-       - 已初始化时直接返回（快路径）
-       - 双检锁：慢路径进入 _init_lock 后再检查一次
-       - 异常时清理本地 new_client，不留半成品
+    ⚠️ 必须在 uvicorn 的 event loop 内首次调用（懒初始化满足）。
+    ⚠️ 幂等 + 协程安全：快路径无锁读，慢路径双检。
     """
     global _client, _db
     if _client is not None:
         return
-    with _init_lock:
-        # double-check：可能等待锁期间别的线程已经初始化完
+    async with _init_lock:
         if _client is not None:
             return
 
-        # 先构造本地变量，全部成功后再赋给全局（防半成品泄漏）
-        new_client: MongoClient | None = None
+        new_client: ClientT | None = None
         try:
-            new_client = MongoClient(
+            new_client = AsyncIOMotorClient(
                 host=_hub.dev.MONGO_HOST,
                 port=_hub.dev.MONGO_PORT,
-                # 本地工具：不预热连接（minPoolSize=0）；
-                # 生产若多 worker，每个进程独立池——20 足够。
                 maxPoolSize=20,
                 minPoolSize=0,
-                serverSelectionTimeoutMS=5000,
-                connectTimeoutMS=5000,
+                serverSelectionTimeoutMS=timeout,
+                connectTimeoutMS=timeout,
             )
             new_db = new_client[_hub.dev.MONGO_DB]
-            new_db.command("ping")
-            _create_indexes_on(new_db)
+            await new_db.command("ping")  # ← 首次 await，绑定当前 loop
+            await _create_indexes_on(new_db)
 
             _client = new_client
             _db = new_db
@@ -100,26 +87,24 @@ def init_db() -> None:
                 _hub.dev.MONGO_DB,
             )
         except Exception as e:
-            # 异常路径：显式关闭半成品 client，避免连接泄漏
             if new_client is not None:
                 try:
-                    new_client.close()
+                    new_client.close()  # Motor 的 close 是同步的
                 except Exception:
                     pass
             logger.error("[DB] ❌ MongoDB 连接失败: %s", e)
             raise
 
 
-def _create_indexes_on(db: Database) -> None:
-    """同步建索引。"""
-    db["tasks"].create_indexes(
+async def _create_indexes_on(db: DatabaseT) -> None:
+    await db["tasks"].create_indexes(
         [
             IndexModel([("task_id", ASCENDING)], unique=True),
             IndexModel([("created_at", DESCENDING)]),
             IndexModel([("status", ASCENDING)]),
         ]
     )
-    db["plans"].create_indexes(
+    await db["plans"].create_indexes(
         [
             IndexModel([("plan_id", ASCENDING)], unique=True),
             IndexModel([("created_at", DESCENDING)]),
@@ -127,22 +112,15 @@ def _create_indexes_on(db: Database) -> None:
     )
 
 
-def get_db() -> Database:
-    """
-    同步获取 db 句柄。
-
-    ⚠️ 签名从 async 改为同步——调用方（core/db/ 内部）必须去掉 await。
-       但 core/db/ 的**业务函数签名仍保持 async**——那是另一回事。
-
-    ⚠️ 失败冷却：DB 最近失败过时直接拒，不让每个请求都卡 5 秒超时。
-    """
+async def get_db() -> DatabaseT:
+    """异步获取 db 句柄。失败冷却保留，防止雪崩。"""
     global _last_fail_time
 
     if _client is None:
         if time.time() - _last_fail_time < _FAIL_COOLDOWN:
             raise RuntimeError("[DB] MongoDB 最近连接失败，冷却中")
         try:
-            init_db()
+            await init_db()
         except Exception:
             _last_fail_time = time.time()
             raise
@@ -151,23 +129,14 @@ def get_db() -> Database:
     return _db
 
 
-def close_db() -> None:
-    """
-    显式关闭连接。
-
-    ⚠️ 幂等：无连接时静默返回。
-       GracefulShutdown（SIGTERM/SIGINT）和 atexit 同时注册——
-       必须能安全重入。
-
-    ⚠️ 关闭失败只记 warning，不抛——atexit 阶段抛异常会被 Python
-       吞掉，不如自己记清楚。
-    """
+async def close_db() -> None:
+    """显式关闭连接（供 FastAPI shutdown 事件 await）。幂等。"""
     global _client, _db
-    with _init_lock:
+    async with _init_lock:
         if _client is None:
             return
         try:
-            _client.close()
+            _client.close()  # 同步方法，不 await
             logger.info("[DB] MongoDB 连接已关闭")
         except Exception as e:
             logger.warning("[DB] 关闭连接失败: %s", e)
@@ -175,14 +144,23 @@ def close_db() -> None:
         _db = None
 
 
-# ═══════════════════════════════════════════════════════════════════
-# atexit 兜底
-# ═══════════════════════════════════════════════════════════════════
-# GracefulShutdown.install() 在 debug 模式下会被 WERKZEUG_RUN_MAIN
-# 守卫跳过——atexit 是那条路径的兜底。
-# 挂 sys 抗 importlib.reload——与 workflow.py / llm/client.py 同策略。
+def _atexit_close() -> None:
+    """同步关闭，供 atexit 兜底。绕过 asyncio.Lock（进程退出无并发）。"""
+    global _client, _db
+    if _client is None:
+        return
+    try:
+        _client.close()
+        logger.info("[DB] MongoDB 连接已关闭 (atexit)")
+    except Exception as e:
+        logger.warning("[DB] atexit 关闭失败: %s", e)
+    _client = None
+    _db = None
+
+
+# atexit 兜底：防止 FastAPI shutdown 未触发（进程被 kill -9 之外的异常路径）
 if not getattr(sys, "_task_planner_db_atexit_registered", False):
-    atexit.register(close_db)
+    atexit.register(_atexit_close)
     sys._task_planner_db_atexit_registered = True
 
 

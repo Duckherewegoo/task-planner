@@ -30,9 +30,9 @@ async def update_node_status(
     if not plan_id:
         return False
 
-    db = get_db()
+    db = await get_db()
     now = datetime.now(UTC)
-    result = db["plans"].update_one(
+    result = await db["plans"].update_one(
         {"plan_id": plan_id, "nodes.id": node_id},
         {
             "$set": {
@@ -70,9 +70,9 @@ async def reset_node_status(task_id: str, node_id: int) -> bool:
     if not plan_id:
         return False
 
-    db = get_db()
+    db = await get_db()
     now = datetime.now(UTC)
-    result = db["plans"].update_one(
+    result = await db["plans"].update_one(
         {"plan_id": plan_id, "nodes.id": node_id},
         {
             "$set": {
@@ -111,9 +111,10 @@ async def get_node_status(task_id: str, node_id: int) -> int | None:
     if not plan_id:
         return None
 
-    db = get_db()
+    db = await get_db()
     # 用 $ 投影，只返回匹配的那个节点（大 DAG 省 99% 带宽）
-    plan = db["plans"].find_one(
+    plan = await db["plans"].find_one(
+        {"_id": 0, "nodes.$": 1},
         {"plan_id": plan_id, "nodes.id": node_id},
         {"nodes.$": 1},
     )

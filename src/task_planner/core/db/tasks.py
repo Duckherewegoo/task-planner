@@ -1,4 +1,4 @@
-"""tasks.py — Task CRUD + 状态更新"""
+"""tasks.py — Task CRUD + 状态更新（Motor 异步版）"""
 
 import uuid
 from datetime import UTC, datetime
@@ -30,12 +30,12 @@ async def create_task_with_plan(
     创建任务和关联的计划，返回 (task_doc, plan_doc)。
     失败时尽力回滚已创建的 plan。
     """
-    db = get_db()
+    db = await get_db()
     rid = req_id or get_req_id() or ""
     task_id = f"task_{uuid.uuid7().hex}"
     plan_id = f"plan_{task_id}"
 
-    plan_data = validate_plan(plan_data)
+    plan_data = validate_plan(plan_data)  # 同步，纯 CPU
     now = datetime.now(UTC)
 
     task_doc = {
@@ -55,7 +55,9 @@ async def create_task_with_plan(
 
     try:
         plan_doc = await create_plan(plan_id, plan_data, valid, now)
-        db["tasks"].insert_one(task_doc)
+        await db["tasks"].insert_one(task_doc)
+        # insert_one 把 _id 写回 task_doc，与 get_task 的"去 _id"语义对齐
+        task_doc.pop("_id", None)
         logger.info(
             "[DB] 创建 Task=%s / Plan=%s (nodes=%d, edges=%d, req=%s)",
             task_id,
@@ -82,7 +84,7 @@ async def create_direct_answer_task(
     req_id: str = "",
 ) -> dict[str, Any]:
     """为直接回答创建 Task 记录（无 Plan）"""
-    db = get_db()
+    db = await get_db()
     rid = req_id or get_req_id() or ""
     task_id = f"task_{uuid.uuid7().hex}"
     now = datetime.now(UTC)
@@ -101,7 +103,8 @@ async def create_direct_answer_task(
         "created_at": now,
         "updated_at": now,
     }
-    db["tasks"].insert_one(task_doc)
+    await db["tasks"].insert_one(task_doc)
+    task_doc.pop("_id", None)
     logger.info("[DB] 创建直接回答 Task=%s (req=%s)", task_id, rid)
     return task_doc
 
@@ -111,8 +114,8 @@ async def create_direct_answer_task(
 # ══════════════════════════════════════════════════
 async def get_task(task_id: str) -> dict[str, Any] | None:
     """返回 task 字段字典（补全 schema 默认值，防下游 KeyError）"""
-    db = get_db()
-    doc = db["tasks"].find_one({"task_id": task_id})
+    db = await get_db()
+    doc = await db["tasks"].find_one({"task_id": task_id})
     if not doc:
         return None
     doc.pop("_id", None)
@@ -156,10 +159,10 @@ async def load_task_with_plan(task_id: str) -> dict[str, Any] | None:
 
 async def list_tasks(limit: int = 50) -> list[dict[str, Any]]:
     """返回最近任务列表（含直接回答）"""
-    db = get_db()
+    db = await get_db()
     cursor = db["tasks"].find({}, sort=[("created_at", -1)]).limit(limit)
     results = []
-    for t in cursor:
+    async for t in cursor:
         t.pop("_id", None)
         intent_info = t.get("intent_info", {}) or {}
         summary = intent_info.get("summary", "")
@@ -191,10 +194,10 @@ async def list_tasks(limit: int = 50) -> list[dict[str, Any]]:
 
 async def get_recent_tasks(limit: int = 50, rid_tag: str = "query") -> list[str]:
     """返回最近任务摘要字符串列表"""
-    db = get_db()
+    db = await get_db()
     cursor = db["tasks"].find({}, sort=[("created_at", -1)]).limit(limit)
     results = []
-    for t in cursor:
+    async for t in cursor:
         intent_info = t.get("intent_info", {}) or {}
         summary = intent_info.get("summary", "")
         title = summary or (t.get("raw_query", "") or "")[:30]
@@ -211,8 +214,8 @@ async def get_recent_tasks(limit: int = 50, rid_tag: str = "query") -> list[str]
 # ══════════════════════════════════════════════════
 async def mark_task_success(task_id: str) -> None:
     """终态判断补全 TIMEOUT / SKIPPED"""
-    db = get_db()
-    result = db["tasks"].update_one(
+    db = await get_db()
+    result = await db["tasks"].update_one(
         {"task_id": task_id, "status": {"$nin": list(TERMINAL_STATUSES)}},
         {
             "$set": {
@@ -221,13 +224,13 @@ async def mark_task_success(task_id: str) -> None:
             }
         },
     )
-    if result.modified_count == 0:
+    if result.modified_count == 0:  # 属性，不 await
         logger.warning("[DB] mark_task_success: 任务 %s 已是终态或不存在", task_id)
 
 
 async def mark_task_failed(task_id: str, error: str = "") -> None:
-    db = get_db()
-    db["tasks"].update_one(
+    db = await get_db()
+    await db["tasks"].update_one(
         {"task_id": task_id},
         {
             "$set": {
@@ -240,8 +243,8 @@ async def mark_task_failed(task_id: str, error: str = "") -> None:
 
 
 async def mark_task_timeout(task_id: str) -> None:
-    db = get_db()
-    db["tasks"].update_one(
+    db = await get_db()
+    await db["tasks"].update_one(
         {"task_id": task_id},
         {
             "$set": {
@@ -254,8 +257,8 @@ async def mark_task_timeout(task_id: str) -> None:
 
 
 async def mark_task_running(task_id: str) -> None:
-    db = get_db()
-    db["tasks"].update_one(
+    db = await get_db()
+    await db["tasks"].update_one(
         {"task_id": task_id},
         {
             "$set": {
@@ -271,15 +274,15 @@ async def mark_task_running(task_id: str) -> None:
 # ══════════════════════════════════════════════════
 async def delete_task(task_id: str) -> bool:
     """删除任务并级联删除 Plan"""
-    db = get_db()
-    task = db["tasks"].find_one({"task_id": task_id})
+    db = await get_db()
+    task = await db["tasks"].find_one({"task_id": task_id})
     if not task:
         logger.warning("[DB] 删除失败，任务不存在: %s", task_id)
         return False
     if task.get("plan_id"):
         await delete_plan(task["plan_id"])
         logger.info("[DB] 级联删除 Plan=%s", task["plan_id"])
-    db["tasks"].delete_one({"task_id": task_id})
+    await db["tasks"].delete_one({"task_id": task_id})
     logger.info("[DB] 删除任务 %s", task_id)
     return True
 
@@ -288,16 +291,16 @@ async def batch_delete_tasks(task_ids: list[str]) -> int:
     """批量删除任务，返回删除数量"""
     if not task_ids:
         return 0
-    db = get_db()
+    db = await get_db()
     cursor = db["tasks"].find({"task_id": {"$in": task_ids}}, {"plan_id": 1})
     plan_ids = []
-    for t in cursor:
+    async for t in cursor:
         if t.get("plan_id"):
             plan_ids.append(t["plan_id"])
     if plan_ids:
         deleted = await delete_plans(plan_ids)
         logger.info("[DB] 级联删除 %d 个 Plan", deleted)
-    result = db["tasks"].delete_many({"task_id": {"$in": task_ids}})
+    result = await db["tasks"].delete_many({"task_id": {"$in": task_ids}})
     logger.info("[DB] 批量删除 %d 个任务", result.deleted_count)
     return result.deleted_count
 

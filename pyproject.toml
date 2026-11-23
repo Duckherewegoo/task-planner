@@ -104,7 +104,6 @@ dev = [
     # 可选工具：用于外部脚本比对字符串相似度（本库自身不再依赖）
     "python-Levenshtein>=0.25.0",
     "pyahocorasick>=2.1.0",         # 违禁词匹配性能测试需要
-    "fakeredis>=2.26.2",
 ]
 
 [project.urls]
@@ -203,12 +202,6 @@ asyncio_default_fixture_loop_scope = "function"
 asyncio_default_test_loop_scope = "function"
 pythonpath = [".", "src"]
 testpaths = ["tests"]
-#  v3.2.3：废弃代码目录不参与 pytest collection。
-#    原因：abandon 下的模块级副作用（如 dataset_manager.py 的
-#    get_logger("eval.xxx")）会在 collection 阶段直接执行，一旦失败
-#    就拖垮整个 pytest 进程（不是某个 test case 失败，而是 collection ERROR）。
-#    注意：配置 norecursedirs 会覆盖 pytest 默认值，所以下方显式
-#    补齐了常用忽略目录（.git / venv / build 等），避免副作用。
 norecursedirs = [
     "tests/abandon",
     ".git",
@@ -221,26 +214,21 @@ norecursedirs = [
     "__pycache__",
 ]
 filterwarnings = [
-    # 本项目代码的 warning 升级为 error——逼我们清理自家问题
     "error::DeprecationWarning:task_planner.*",
     "error::ResourceWarning:task_planner.*",
-    # 第三方库的 warning 放行——不受我们控制
     "ignore::DeprecationWarning:httpx.*",
     "ignore::DeprecationWarning:pymongo.*",
+    "ignore::DeprecationWarning:motor.*",
     "ignore::DeprecationWarning:dash.*",
     "ignore::DeprecationWarning:pydantic.*",
+    "ignore::DeprecationWarning:langsmith.*",
     "ignore::ResourceWarning:httpx.*",
-    "ignore::DeprecationWarning:pymongo.*",
-    "ignore::DeprecationWarning:motor.*",
 ]
-# 默认排除 eval + integration：日常 pytest 只跑单元测试（快、免费）
-#    跑 eval:        pytest -m eval_live
-#    跑 integration: pytest -m integration
-#    跑所有:         pytest -m "eval or integration or not (eval or integration)"
+# 排除逻辑在 CI test job 命令行里做
 addopts = ""
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
-    "integration: marks integration tests requiring external services",
+    "integration: marks integration tests requiring external services (Redis, MongoDB, etc.)",
     "eval: marks evaluation suite tests (REAL LLM by default, use USE_MOCK_LLM=true to skip)",
     "unit: marks pure unit tests (no I/O, no Agent, no DB)",
     "eval_live: 真实 LLM 评估（默认跳过，需 --eval-live）",

@@ -4,7 +4,6 @@ import asyncio
 from unittest.mock import AsyncMock
 
 from task_planner.core.graph.nodes.refine import (
-    _parse_concurrency,
     refine_node,
 )
 
@@ -47,40 +46,66 @@ def test_semaphore_does_not_bind_across_event_loops(monkeypatch):
 
 
 # ── 配置解析健壮化 ──
-def test_parse_concurrency_returns_valid_int():
-    """_parse_concurrency 保证返回 >= 1 的整数（不依赖具体配置值）。"""
-    from task_planner.core.graph.nodes.refine import _parse_concurrency
+def test_get_dev_int_returns_valid_int():
+    """get_dev_int 保证返回 >= 1 的整数（不依赖具体配置值）。"""
+    from task_planner.infrastructure.config_helpers import get_dev_int
 
-    result = _parse_concurrency()
+    # 正常路径：hub.dev 里有合法值
+    result = get_dev_int("REFINE_CONCURRENCY", 10)
     assert isinstance(result, int)
     assert result >= 1
 
 
-def test_parse_concurrency_fallback_on_invalid(monkeypatch):
-    """cog 返回非法值时，降级到安全值 10，不崩启动。"""
-    from task_planner.core.graph.nodes import refine
+def test_get_dev_int_fallback_on_invalid(monkeypatch):
+    """cog 返回非法值时，降级到 fallback，不崩。"""
+    from task_planner.infrastructure import config_helpers
 
-    # 改前：monkeypatch.setattr(refine, "_REFINE_CONCURRENCY_DEFAULT", "abc")
-    # 改后：直接 monkeypatch cog 的返回值
+    # 改前：monkeypatch refine._REFINE_CONCURRENCY
+    # 改后：直接 monkeypatch _hub
     class _FakeDev:
         REFINE_CONCURRENCY = "abc"
 
     class _FakeHub:
         dev = _FakeDev()
 
-    monkeypatch.setattr(refine, "_hub", _FakeHub())
-    result = refine._parse_concurrency()
+    monkeypatch.setattr(config_helpers, "_hub", _FakeHub())
+
+    result = config_helpers.get_dev_int("REFINE_CONCURRENCY", 10)
     assert result == 10
 
     # -1 场景
     _FakeDev.REFINE_CONCURRENCY = -1
-    result = refine._parse_concurrency()
+    result = config_helpers.get_dev_int("REFINE_CONCURRENCY", 10)
     assert result == 10
 
     # None 场景（触发 TypeError 分支）
     _FakeDev.REFINE_CONCURRENCY = None
-    result = refine._parse_concurrency()
+    result = config_helpers.get_dev_int("REFINE_CONCURRENCY", 10)
     assert result == 10
+
+    # 合法字符串 "5"
+    _FakeDev.REFINE_CONCURRENCY = "5"
+    result = config_helpers.get_dev_int("REFINE_CONCURRENCY", 10)
+    assert result == 5
+
+
+def test_refine_node_uses_get_dev_int(monkeypatch):
+    """验证 refine_node 在并发配置非法时仍能正常执行（不崩）。"""
+    from task_planner.core.graph.nodes import refine
+
+    class _FakeDev:
+        REFINE_CONCURRENCY = "not-a-number"
+
+    class _FakeHub:
+        dev = _FakeDev()
+
+    monkeypatch.setattr(refine, "_hub", _FakeHub())
+
+    # 验证 _get_dev_int 被调用时返回 fallback，不抛异常
+    from task_planner.infrastructure.config_helpers import get_dev_int
+
+    concurrency = get_dev_int("REFINE_CONCURRENCY", 10)
+    assert concurrency == 10
 
 
 # ── 基本行为 ──

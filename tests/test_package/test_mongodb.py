@@ -20,14 +20,23 @@ test_mongodb.py — MongoDB 数据层集成测试
        mongomock 对 $ 位置操作符、$inc、$nin 支持有限，
        测 "nodes.$.status" 这类更新会失真。
        走真实 MongoDB 才能验证"行为正确"而非"mock 形状正确"。
+
+⚠️ loop 生命周期：
+   Motor 的 AsyncIOMotorClient 首次 await 时绑定当前 loop。
+   pytest-asyncio 默认 function-scope loop，会导致第二个测试
+   复用第一个测试的 client 时抛 "attached to a different loop"。
+   因此本文件所有测试与 fixture 统一用 module-scope loop：
+     - _mongodb_env: loop_scope="module"
+     - 每个测试: @pytest.mark.asyncio(loop_scope="module")
+   要求 pytest-asyncio >= 0.23。
 """
 
 from __future__ import annotations
 
 import asyncio
-import time
 
 import pytest
+import pytest_asyncio
 
 # ── 依赖缺失时整个文件 skip（不是 error，也不影响 CI）──
 pymongo = pytest.importorskip("pymongo", reason="需要 pymongo 包")
@@ -40,14 +49,15 @@ pytestmark = pytest.mark.integration
 # ═══════════════════════════════════════════════════════════════════
 # 环境探测 + 安全护栏（模块级，只跑一次）
 # ═══════════════════════════════════════════════════════════════════
-@pytest.fixture(scope="module", autouse=True)
-def _mongodb_env():
+@pytest_asyncio.fixture(scope="module", loop_scope="module", autouse=True)
+async def _mongodb_env():
     """
     模块级前置检查（任一失败则整模块 skip）：
       1. MONGO_DB 必须以 _test 结尾——防止误清空生产库
       2. MongoDB 必须可达——不可达则 skip
 
-    teardown：关闭连接，避免影响其他测试文件。
+    teardown：await close_db() 关闭 Motor client。
+    ⚠️ 必须与测试共用同一个 module-scope loop，否则 close 会跨 loop 炸。
     """
     from task_planner.core.db import client as db_client
     from task_planner.infrastructure.cog import hub as _hub
@@ -59,7 +69,7 @@ def _mongodb_env():
             f"集成测试仅对 *_test 库运行（防止污染生产数据）"
         )
 
-    # ── 探测 MongoDB 可达性 ──
+    # ── 探测 MongoDB 可达性（同步 pymongo，只探测服务器，不涉及 Motor loop）──
     try:
         from pymongo import MongoClient
 
@@ -75,27 +85,30 @@ def _mongodb_env():
 
     yield
 
-    # ── teardown ──
-    db_client.close_db()
+    # ── teardown：close_db 现在是 async ──
+    await db_client.close_db()
 
 
 # ═══════════════════════════════════════════════════════════════════
 # 测试隔离：每个测试前后清空 collections
 # ═══════════════════════════════════════════════════════════════════
-@pytest.fixture
+@pytest_asyncio.fixture(loop_scope="module")
 async def clean_db():
     """
     每个测试前清空 tasks / plans——保证互不污染。
     测试后也清空（防残留影响下个测试）。
+
+    ⚠️ get_db / delete_many 全部 async。
+    ⚠️ loop_scope="module" 与 _mongodb_env 对齐。
     """
     from task_planner.core.db.client import get_db
 
-    db = get_db()
-    db["tasks"].delete_many({})
-    db["plans"].delete_many({})
+    db = await get_db()
+    await db["tasks"].delete_many({})
+    await db["plans"].delete_many({})
     yield db
-    db["tasks"].delete_many({})
-    db["plans"].delete_many({})
+    await db["tasks"].delete_many({})
+    await db["plans"].delete_many({})
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -138,44 +151,44 @@ def make_plan_data(
 # ═══════════════════════════════════════════════════════════════════
 # client.py — 连接生命周期
 # ═══════════════════════════════════════════════════════════════════
+@pytest.mark.asyncio(loop_scope="module")
 async def test_init_db_idempotent():
-    """init_db 重复调用不重复建连——第二次是 no-op"""
     from task_planner.core.db.client import close_db, get_db, init_db
 
-    close_db()
-    init_db()
-    db1 = get_db()
-    init_db()
-    db2 = get_db()
+    await close_db()
+    await init_db()
+    db1 = await get_db()
+    await init_db()
+    db2 = await get_db()
     assert db1 is db2
 
 
+@pytest.mark.asyncio(loop_scope="module")
 async def test_get_db_auto_init():
-    """未显式 init 时 get_db 会自动 init"""
     from task_planner.core.db.client import close_db, get_db
 
-    close_db()
-    db = get_db()
+    await close_db()
+    db = await get_db()
     assert db is not None
 
 
+@pytest.mark.asyncio(loop_scope="module")
 async def test_close_db_idempotent():
-    """close_db 多次调用不报错——幂等"""
     from task_planner.core.db.client import close_db, init_db
 
-    init_db()
-    close_db()
-    close_db()  # 第二次静默返回，不抛
+    await init_db()
+    await close_db()
+    await close_db()
 
 
+@pytest.mark.asyncio(loop_scope="module")
 async def test_close_then_get_reinit():
-    """close 后再次 get_db 能重建连接"""
     from task_planner.core.db.client import close_db, get_db, init_db
 
-    init_db()
-    get_db()
-    close_db()
-    db2 = get_db()
+    await init_db()
+    await get_db()
+    await close_db()
+    db2 = await get_db()
     assert db2 is not None
 
 
@@ -263,9 +276,9 @@ async def test_get_task_fills_defaults(clean_db):
     from task_planner.core.db.client import get_db
 
     # 直接插入一个只有最小字段的 task（不走 create_task_with_plan）
-    db = get_db()
+    db = await get_db()
     now = datetime.now(UTC)
-    db["tasks"].insert_one({"task_id": "task_min", "created_at": now})
+    await db["tasks"].insert_one({"task_id": "task_min", "created_at": now})
 
     fetched = await get_task("task_min")
     assert fetched["raw_query"] == ""
@@ -679,8 +692,8 @@ async def test_update_node_status_increments_modified_count(clean_db):
     now = datetime.now(UTC)
     await create_plan("plan_mc", make_plan_data(), True, now)
     # 手动构造 task 关联（走最小路径）
-    db = get_db()
-    db["tasks"].insert_one(
+    db = await get_db()
+    await db["tasks"].insert_one(
         {
             "task_id": "task_mc",
             "plan_id": "plan_mc",

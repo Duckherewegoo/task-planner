@@ -22,6 +22,7 @@ from task_planner.config_ui.callbacks import register_config_callbacks
 from task_planner.infrastructure.cog import hub as _hub
 from task_planner.infrastructure.constants import VALID_PORT_RANGE
 from task_planner.infrastructure.logger_setup import get_logger
+from task_planner.utils.good_addons.good import boost
 
 logger = get_logger("task_planner.ui")
 
@@ -36,11 +37,21 @@ app = dash.Dash(
     suppress_callback_exceptions=True,
 )
 
+# 增强：必须在 register_config_callbacks 之前
+_boost_report = boost(
+    app,
+    backend="fastapi",
+    app_kind="dash",
+    log_level="DEBUG" if _hub.dev.DEBUG else "INFO",
+    memory_watchdog=True,
+    memory_limit_mb=2048,
+)
+
 os.environ["DASH_DISABLE_VERSION_CHECK"] = str(_hub.dev.DASH_DISABLE_VERSION_CHECK)
 
 register_config_callbacks(app, with_drawer=True)
 
-_cleanup_task: asyncio.Task | None = None
+_cleanup_task: asyncio.Task[None] | None = None
 # 清理间隔（秒），可以挪到 hub.dev 里配置，这里先硬编码兜底
 _SESSION_CLEANUP_INTERVAL = 300
 
@@ -49,7 +60,7 @@ def _register_lifespan_handlers() -> None:
     @app.server.on_event("startup")
     async def _on_startup() -> None:
         global _cleanup_task
-        from task_planner.core.session import cleanup_stale_sessions
+        from task_planner.services.agent.session import cleanup_stale_sessions
 
         async def _cleanup_loop() -> None:
             while True:
@@ -74,13 +85,18 @@ def _register_lifespan_handlers() -> None:
         from task_planner.core.db import close_db
         from task_planner.services.stream.cleaner import state_cleaner
 
+        global _cleanup_task
+
         # 1. 停清理循环
         if _cleanup_task is not None:
             _cleanup_task.cancel()
             try:
-                await asyncio.wait_for(_cleanup_task, timeout=5.0)
-            except TimeoutError, asyncio.CancelledError:
-                pass
+                await asyncio.wait_for(asyncio.shield(_cleanup_task), timeout=5.0)
+            except TimeoutError:
+                logger.warning("[Lifespan] Cleanup loop did not stop within 5s")
+            except asyncio.CancelledError:
+                pass  # 预期内：cancel() 的结果，不算错误
+            _cleanup_task = None
 
         # 2. 先停 state_cleaner，再关 DB
         await state_cleaner.stop()

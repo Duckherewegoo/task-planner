@@ -15,6 +15,7 @@ tags: []
   - 设计文档：`docs/ARCH_FUTURE.md` §一「触发条件：什么时候切方案 C」
   - 落地代码：`src/task_planner/main/app.py`、`src/task_planner/core/db/client.py`、`src/task_planner/infrastructure/abandon/async_runtime.py`
   - 依赖变更：`pyproject.toml`（motor 提升为主依赖、新增 uvicorn、dash[fastapi]）
+  - commit：9d1d4fc
 
 ## Context
 

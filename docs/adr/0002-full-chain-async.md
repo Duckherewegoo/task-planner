@@ -7,8 +7,8 @@ tags: []
 # ADR-0002: 转向全链路异步（已被 ADR-0001 取代）
 
 - Status: Superseded by ADR-0001
-- Date: 决策 2026-09-28（口述时刻 ~15:42）/ 被推翻 2026-10-13
-- Superseded by: ADR-0001（异步边界分层）
+- Date: 决策 2026-09-28（口述时刻 ~15:42）/ 被推翻 2026-10-13 / 重新实现 2026-11-23 
+- Superseded by: ADR-0001（异步边界分层）, ADR 0009（实现fastapi全链路异步）
 - Related:
   - 推翻依据：`docs/ARCH_FUTURE.md` §一
   - 关键 commit：`7a2c736`（2026-10-13 20:14，DB 迁移同步 pymongo，推翻落地）

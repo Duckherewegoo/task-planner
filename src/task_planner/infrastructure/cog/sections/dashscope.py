@@ -1,6 +1,13 @@
-"""dashscope — 代码内置项（YAML 里已声明的会被跳过）"""
+"""唯一真相源改为 YAML，代码内不再写字面量。
 
-from ..entry import ConfigEntry, Scope
+本 section 仅作为"兜底声明"存在：若 schema.yaml 未声明同名条目，
+这里的值会被注入 store；若 YAML 已声明（正常情况），register_into
+会跳过并打 WARNING。改动运行时值请改 config/schema.yaml，不要改这里。
+"""
+
+from __future__ import annotations
+
+from ..entry import ConfigEntry
 from ..registry import register_section
 from ..section import ConfigSection
 
@@ -9,13 +16,6 @@ from ..section import ConfigSection
 class DashScopeSection(ConfigSection):
     section = "dashscope_code"
 
-    def define(self):
-        return (
-            ConfigEntry(
-                name="DASHSCOPE_TIMEOUT",
-                value=30,
-                purpose="DashScope HTTP 连接超时(秒)，与 LLM_TIMEOUT 独立",
-                scope=Scope.DEVELOPER,
-                type=int,
-            ),
-        )
+    def define(self) -> tuple[ConfigEntry, ...]:
+        """本组字段全部在 schema.yaml 声明，代码侧不再重复。"""
+        return ()

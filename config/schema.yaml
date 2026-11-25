@@ -1,9 +1,15 @@
 # ═══════════════════════════════════════════════════════
-# schema.yaml — 开发者声明
+# schema.yaml — 开发者声明（配置的**唯一真相源**）
 # ═══════════════════════════════════════════════════════
 # type:   int / str / float / bool
 # scope:  user=用户可改 | developer=仅开发者 | system=只读
-# secret: true → 日志/UI 自动脱敏
+# secret: true → 日志/UI 自动脱敏（必须同时 from_env: true）
+#
+# ⚠️ 与 sections/*_code.py 的分工：
+#    - 运维可调项一律写在这里，sections 里**不要**同名声明
+#    - 只有"编译期常量 / 代码协议常量"才放 sections（如 VERSION）
+#    - 同名时 YAML 赢，代码那份被静默跳过并打 WARNING
+# ⚠️ name 全局唯一：跨段也不许重名（store 以 name 为键，不带 section）
 
 base:
   DEBUG:
@@ -42,12 +48,6 @@ base:
     scope: developer
     purpose: 关闭 Dash 版本检查，避免联网
 
-  MOCK_RESPONSE_PREFIX:
-    type: str
-    default: "[MOCK_LLM_RESPONSE]"
-    scope: developer
-    purpose: MOCK前缀，如果输出此前缀说明是mock模式
-
 dashscope:
   DASHSCOPE_API_KEY:
     type: str
@@ -55,7 +55,8 @@ dashscope:
     scope: developer
     purpose: DashScope 密钥
     secret: true
-    from_env: true          # ← 新增：值从环境变量读，不从 YAML 读
+    from_env: true          # 值从环境变量读，不从 YAML 读
+
   DASHSCOPE_BASE_URL:
     type: str
     default: ""
@@ -73,6 +74,12 @@ dashscope:
     default: false
     scope: developer
     purpose: 强制走 Mock LLM，用于离线测试
+
+  DASHSCOPE_TIMEOUT:
+    type: int
+    default: 30
+    scope: developer
+    purpose: DashScope HTTP 连接超时(秒)，与 LLM_TIMEOUT 独立
 
 llm:
   LLM_INTENT_MODEL:
@@ -147,6 +154,24 @@ llm:
     scope: developer
     purpose: 整个任务总超时(秒)
 
+  LLM_MAX_CONCURRENT:
+    type: int
+    default: 10
+    scope: developer
+    purpose: 同时最多进行的 LLM 调用数
+
+  LLM_CONNECTION_POOL_SIZE:
+    type: int
+    default: 20
+    scope: developer
+    purpose: httpx 连接池大小
+
+  LLM_STREAM:
+    type: bool
+    default: false
+    scope: developer
+    purpose: 是否启用流式返回（暂未实现，预留）
+
   MAX_TASK_RETRIES:
     type: int
     default: 3
@@ -178,7 +203,13 @@ mongo:
     scope: developer
     purpose: MongoDB 数据库名
 
-web: 
+  MONGO_TIMEOUT_MS:
+    type: int
+    default: 5000
+    scope: developer
+    purpose: MongoDB 操作超时(毫秒)（改动需重启进程生效）
+
+web:
   ENABLE_MCP:
     type: bool
     default: false
@@ -246,6 +277,12 @@ render:
     scope: user
     purpose: 是否显示边标签
 
+  RENDER_BACKGROUND:
+    type: str
+    default: "#ffffff"
+    scope: user
+    purpose: 导出图片背景色（原为代码内置，现归 YAML 以便用户改主题）
+
   FLOWCHART_CYCLE_DETECTION:
     type: bool
     default: true
@@ -259,23 +296,31 @@ render:
     purpose: 默认导出格式 svg/png/pdf/dot/html/json
 
 runtime:
-  LLM_MAX_CONCURRENT:
-    type: int
-    default: 10
-    scope: developer
-    purpose: 同时最多进行的 LLM 调用数
-
-  LLM_CONNECTION_POOL_SIZE:
-    type: int
-    default: 20
-    scope: developer
-    purpose: httpx 连接池大小
-
   REFINE_CONCURRENCY:
     type: int
     default: 10
     scope: developer
     purpose: 默认并发上限
+
+  ASYNC_TASK_QUEUE_SIZE:
+    type: int
+    default: 100
+    scope: developer
+    purpose: 异步任务队列最大长度
+
+  SESSION_TTL:
+    type: int
+    default: 3600
+    scope: developer
+    purpose: 会话过期时间(秒)
+
+  SESSION_CLEANUP_INTERVAL:
+    type: int
+    default: 300
+    scope: system
+    purpose: >
+      过期会话清理轮询间隔(秒)。这是「多久扫一次」，与 SESSION_TTL
+      （「一条状态活多久」）是两个维度，不要对齐。改动最长一个旧周期后生效。
 
 security:
   MAX_INPUT_LENGTH:
@@ -290,11 +335,11 @@ security:
     scope: developer
     purpose: 输入缓存上限(字节)，超过跳过缓存
 
-  SESSION_TTL:
-    type: int
-    default: 3600
-    scope: developer
-    purpose: 会话过期时间(秒)
+  SENSITIVE_MASK_CHAR:
+    type: str
+    default: "*"
+    scope: system
+    purpose: 敏感信息脱敏时使用的替换字符
 
 ui:
   THEME:

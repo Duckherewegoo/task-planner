@@ -2,12 +2,17 @@
 子类只负责实现 define()，不管存储/权限/IO。
 """
 
+from __future__ import annotations
+
+import logging
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING
+from dataclasses import replace
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from .entry import ConfigEntry
-from dataclasses import replace
+
+logger = logging.getLogger("task_planner.cog.section")
 
 
 class ConfigSection(ABC):
@@ -18,9 +23,9 @@ class ConfigSection(ABC):
     字段（见 ``register_into``），因此 ``define()`` 里不必手动传
     ``section=self.section``。
 
-    基类不感知存储实现——``register_into`` 的 ``registry`` 参数只要求有
-    ``has(name)`` 和 ``create(entry)`` 两个方法，``ConfigStore`` 和
-    ``ConfigRegistry`` 都满足。
+    装配优先级（由 ConfigHub._populate 保证）：
+        schema.yaml  >  代码内置（本类）
+    同名条目以 YAML 为准，本类的声明被跳过并记 warning。
     """
 
     section: str = "base"  # 子类覆盖，作为分组名
@@ -34,15 +39,25 @@ class ConfigSection(ABC):
         """
         raise NotImplementedError
 
-    def register_into(self, registry) -> None:
+    def register_into(self, registry: Any) -> None:
         """把本组条目写入 ``registry``，跳过已存在的同名项。
 
         - 已存在的条目（典型来源：schema.yaml 已有定义）保持原样，
-          包括其 ``section``——即 YAML 的分组优先于代码内置分组。
+          包括其 ``section`` 与 ``scope``——YAML 的分组/作用域优先于代码内置。
         - 写入前用 ``dataclasses.replace`` 把 ``section`` 统一设为本类的
           ``section`` 类属性，保证代码内置项归到正确分组。
         - ``ConfigEntry`` 是 frozen 的，``replace`` 返回新实例，不修改原值。
+        - 同名冲突**不再静默**：记 warning。这是"代码里改了值却不生效"
+          这类问题的唯一可观测出口（CI 侧另有 name 全局唯一断言兜底）。
         """
         for entry in self.define():
-            if not registry.has(entry.name):
-                registry.create(replace(entry, section=self.section))
+            if registry.has(entry.name):
+                logger.warning(
+                    "[Cog] 代码内置项 %s.%s 被同名条目覆盖，已跳过。"
+                    "请确认 schema.yaml 是否重复声明；若要仅代码内置，"
+                    "请从 YAML 删除该条。",
+                    self.section,
+                    entry.name,
+                )
+                continue
+            registry.create(replace(entry, section=self.section))

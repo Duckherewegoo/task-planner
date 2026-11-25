@@ -43,6 +43,10 @@ class ConfigEntry:
             raise ValueError(f"{self.name}: purpose 必填，别用注释糊弄")
         if not isinstance(self.scope, Scope):
             raise TypeError(f"{self.name}: scope 必须是 Scope 枚举")
+        if not isinstance(self.type, type):
+            raise TypeError(
+                f"{self.name}: type 必须是 type 类型（如 int、str），收到 {self.type!r}"
+            )
 
         # secret 字段必须走环境变量（防止明文泄漏）
         if self.secret and not self.from_env:

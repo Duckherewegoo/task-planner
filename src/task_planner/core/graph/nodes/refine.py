@@ -27,7 +27,7 @@
    上游写入 state 的字段（state["intent"] 等）由写入方负责保证类型。
    这不是"信任上游"，而是"每个节点守好自己的边界"。
    state["intent"] 的 dict 保证在 intent_node 里做
-   (TODO: 目前依赖上游 intent_node 的 Pydantic 校验，已保障)。
+   (目前依赖上游 intent_node 的 Pydantic 校验，已保障)。
 """
 
 import asyncio

@@ -89,7 +89,7 @@ class TaskState(MessagesState):
     retrieved_examples: NotRequired[list[dict[str, Any]]]
 
     # ── 数据库关联 ──
-    task_id: str
+    task_id: str | None = None
 
     # ── 执行进度 ──
     current_node_index: int

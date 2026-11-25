@@ -130,18 +130,16 @@ async def get_db() -> DatabaseT:
 
 
 async def close_db() -> None:
-    """显式关闭连接（供 FastAPI shutdown 事件 await）。幂等。"""
     global _client, _db
-    async with _init_lock:
-        if _client is None:
-            return
-        try:
-            _client.close()  # 同步方法，不 await
-            logger.info("[DB] MongoDB 连接已关闭")
-        except Exception as e:
-            logger.warning("[DB] 关闭连接失败: %s", e)
-        _client = None
-        _db = None
+    client, _client = _client, None
+    _db = None
+    if client is None:
+        return
+    try:
+        client.close()
+        logger.info("[DB] MongoDB 连接已关闭")
+    except Exception as e:
+        logger.warning("[DB] 关闭连接失败: %s", e)
 
 
 def _atexit_close() -> None:

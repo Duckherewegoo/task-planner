@@ -13,23 +13,15 @@
    本文件用"按 loop 缓存"策略——检测到当前 loop 与缓存的 loop
    不同时，重新创建（旧对象让 GC 回收，无法显式关闭因为 loop 已死）。
 
-⚠️ 关于 aclose：
-   AsyncOpenAI 包装了 httpx.AsyncClient（自建 http_client）。
-   连接池需要显式 aclose，否则进程退出时可能留 ResourceWarning。
+✅ 关于 aclose（已迁移 FastAPI/ASGI）：
+   项目已迁 Dash(backend="fastapi")，app.py 的 shutdown 事件里
+   await aclose_llm_client() 已挂上，进程退出时连接池会被正确关闭。
+   atexit 兜底保留但不再是主要路径。
 
-   但**当前项目是 Dash（WSGI/Flask 底层）——没有 ASGI lifespan
-   shutdown 钩子可以挂**。所以：
-     - 本文件导出 aclose_llm_client() 供未来迁 ASGI 时使用
-     - 当前用 atexit 尽力关闭（同步上下文，多半失败）
-     - 迁移到 FastAPI/Starlette 后，在 lifespan.shutdown 里 await
-       aclose_llm_client()
-
-⚠️ 关于 app.py 的上游炸弹：
-   app.py 的 _bootstrap_db() 在模块 import 时 asyncio.run(init_db())，
-   创建 loop A 跑完即销毁。如果 init_db 内部创建了任何绑定 loop 的
-   asyncio 对象，后续真实请求在新 loop 使用时会崩。
-   本文件的"按 loop 缓存"策略能缓解 LLM 客户端这一侧——
-   但 init_db 内部的 asyncio 对象仍需 app.py 侧修复（见跨文件待办）。
+⚠️ 关于 app.py 的 loop 炸弹：
+   app.py 已移除模块级 asyncio.run(init_db())，改为 FastAPI startup
+   事件里初始化，不再有"模块 import 创建 loop A 跑完即销毁"的问题。
+   按 loop 缓存策略仍然保留作为防御层。
 """
 
 import asyncio
@@ -160,14 +152,8 @@ async def aclose_llm_client() -> None:
     """
     显式关闭 LLM 客户端及其连接池。
 
-    适用场景：
-      - ASGI 应用（FastAPI/Starlette）的 lifespan.shutdown 里 await
-      - 测试的 autouse fixture 里 await（避免跨 loop 泄漏）
-
-    ⚠️ 当前项目是 Dash（WSGI/Flask 底层），没有 lifespan 钩子——
-       本函数只能靠 atexit 兜底（且 atexit 无法 await，
-       只能用"当前 loop 还活着就 asyncio.run"的尽力策略）。
-       TODO: 迁 ASGI 后，在 lifespan.shutdown 挂本函数。
+    ✅ 已在 app.py 的 FastAPI shutdown 事件中 await 调用。
+    也用于测试的 autouse fixture 避免跨 loop 泄漏。
     """
     global _client, _client_loop, _dashscope_available
     if _client is None:

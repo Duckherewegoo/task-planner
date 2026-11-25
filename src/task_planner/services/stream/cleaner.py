@@ -52,11 +52,14 @@ class StreamStateCleaner:
     # ── 后台清理 ──
     async def _ensure_started(self) -> None:
         """惰性启动（双重检查锁）"""
-        if self._running:
+        if self._running and self._task and not self._task.done():
             return
         async with self._lock:
-            if self._running:
+            if self._running and self._task and not self._task.done():
                 return
+            if self._task and self._task.done():
+                logger.warning("[Cleaner] 清理协程已死亡，准备重启")
+                self._running = False
             self._running = True
             # ⚠️ 本方法必须在 uvicorn 的持久 loop 上首次调用——create_task
             # 绑到当前 loop，回调返回后清理协程仍要继续跑。
@@ -84,7 +87,9 @@ class StreamStateCleaner:
         to_remove: list[str] = []
 
         async with self._lock:
+            # 锁内只做纯计算判断 + dict 操作，不 await
             for tid, state in self._states.items():
+                # is_expired / age_since_finished 必须是无 I/O 的纯方法
                 should_remove = False
 
                 if state.finished:

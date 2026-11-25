@@ -48,6 +48,19 @@ from .session import TaskSession, get_session
 
 logger = get_logger(__name__)
 
+_aborts: dict[str, callable] = {}  # thread_id -> abort_worker callable
+
+
+def register_abort(thread_id: str, abort_fn: callable) -> None:
+    """由组合层（launcher）注册硬取消能力"""
+    _aborts[thread_id] = abort_fn
+
+
+def unregister_abort(thread_id: str) -> None:
+    """清理"""
+    _aborts.pop(thread_id, None)
+
+
 # ═══════════════════════════════════════════════════════════════════
 # 内部：thread 级串行锁
 # ═══════════════════════════════════════════════════════════════════
@@ -119,11 +132,17 @@ async def cancel_task(thread_id: str) -> bool:
     """
     取消任务（异步）。
 
-    ⚠️ 当前只做协作式取消（设 cancel_event）——不强制打断正在 await 的 IO。
-       TaskSession 不持有 runner task（那是 TaskStreamState 的事），
-       强制取消需要通过 state_cleaner 拿 stream 层状态——见
-       ARCHITECTURE_FUTURE.md 的 TODO。
+    先尝试硬取消（abort_worker），再设 cancel_event 做协作式取消。
     """
+    # 1. 硬取消（如果组合层注册了）
+    abort = _aborts.pop(thread_id, None)
+    if abort:
+        try:
+            abort()
+        except Exception as exc:
+            logger.warning("[Agent] 硬取消失败 | thread=%s: %s", thread_id, exc)
+
+    # 2. 协作式取消（设 cancel_event）
     session = await get_session(thread_id)
     if session:
         session.cancel_event.set()

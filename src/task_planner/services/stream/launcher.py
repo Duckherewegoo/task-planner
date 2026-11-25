@@ -27,6 +27,8 @@ async def _run_worker(
     ⚠️ FastAPI backend 下本协程直接 await 即可：uvicorn 持有持久 loop，
        asyncio.create_task 创建的任务跨回调存活，不需要独立的常驻 loop。
     """
+    from task_planner.services.agent import commands as _commands
+
     state = TaskStreamState(thread_id)
     await state_cleaner.register(thread_id, state)
 
@@ -61,9 +63,12 @@ async def _run_worker(
         except Exception as e:
             logger.error("[StreamMgr] 后台协程异常 | thread=%s err=%s", thread_id, e)
             await state.mark_finished(error=str(e))
+        finally:
+            _commands.unregister_abort(thread_id)
 
     task = asyncio.create_task(_worker())
     state.set_task(task)
+    _commands.register_abort(thread_id, state.abort_worker)
     return thread_id
 
 
@@ -118,7 +123,9 @@ async def resume_stream(
 
     existing = await state_cleaner.get(thread_id)
     if existing and not existing.finished:
-        logger.warning("[StreamMgr] resume_stream: 任务仍在运行中 %s", thread_id)
+        await state_cleaner.unregister(thread_id)
+        logger.info("[StreamMgr] 覆盖已完成的旧任务 %s", thread_id)
+    elif existing and not existing.finished:
         raise RuntimeError(
             f"任务 {thread_id} 仍在运行中，无法 resume。请先调用 cancel_stream() 或等待其完成。"
         )

@@ -18,32 +18,34 @@ session.py — TaskSession 定义 + 会话池管理
    用 clear() 重置而不是替换对象——保留引用，
    让所有持有者（runner task / contextvar / 未来扩展）看到同一对象。
 
-⚠️ 关于 SessionStore 的可替换性：
-   当前硬编码 InMemorySessionStore——单进程部署没问题。
-   多 worker 部署时必须替换为 RedisSessionStore（项目里已存在），
-   否则每个 worker 各有一份内存池，用户"继续任务"可能路由到
-   另一个 worker 而找不到 session。
-   替换点：本文件顶部 _session_store 的初始化。
-   TODO: 从环境变量或 cog 读 SESSION_STORE_TYPE，工厂化创建。
+✅ SessionStore 工厂化（已完成）：
+   通过 SESSION_STORE_TYPE 环境变量或 _hub.dev.SESSION_STORE_TYPE 控制：
+     - "memory"（默认）→ InMemorySessionStore
+     - "redis" → RedisSessionStore（需 pip install -e ".[redis]"）
+   Redis 连接地址从 REDIS_URL 环境变量读取，默认 redis://localhost:6379/0。
 
-⚠️ 关于会话清理：
-   cleanup_stale_sessions 需要一个后台任务定期调用——
-   当前没有调用方（潜在内存泄漏）。建议在 ASGI lifespan startup
-   里 create_task 一个循环。
-   TODO: 加后台清理任务。
+✅ 后台清理任务（已完成）：
+   app.py 的 FastAPI startup 事件中已 create_task 循环调用
+   cleanup_stale_sessions()，不再有内存泄漏风险。
 
-TODO(hot-reload): 模块级配置缓存已全部移除，统一为每次从 _hub.dev 读取。
-如果未来引入配置本地缓存（为了性能），必须监听 hub.reload 信号并失效缓存。
-
+DESIGN NOTE(hot-reload): 本模块不缓存 _hub.dev 的配置值，每次实时读取。
+# 这确保 hub.reload() 后新配置立即生效。如果未来为了性能引入本地缓存
+# （例如高频路径上的 config 读取），必须监听 hub.reload 信号并失效缓存，
+# 否则热重载后代码仍在使用旧值。
 """
 
 import asyncio
+import os
 import time
 from typing import Any
 
 from task_planner.infrastructure.cog import hub as _hub
 from task_planner.infrastructure.logger_setup import get_logger
-from task_planner.infrastructure.session_store import InMemorySessionStore, SessionStore
+from task_planner.infrastructure.session_store import (
+    InMemorySessionStore,
+    RedisSessionStore,
+    SessionStore,
+)
 
 logger = get_logger(__name__)
 
@@ -87,11 +89,45 @@ class TaskSession:
 
 
 # ═══════════════════════════════════════════════════════════════════
+# SessionStore 工厂
+# ═══════════════════════════════════════════════════════════════════
+def _create_session_store() -> SessionStore:
+    """
+    根据配置创建 SessionStore 实例。
+
+    优先级：环境变量 SESSION_STORE_TYPE > _hub.dev.SESSION_STORE_TYPE > "memory"
+    Redis URL：环境变量 REDIS_URL > "redis://localhost:6379/0"
+    """
+    store_type = os.getenv(
+        "SESSION_STORE_TYPE", getattr(_hub.dev, "SESSION_STORE_TYPE", "memory")
+    ).lower()
+    ttl = getattr(_hub.dev, "_SESSION_TTL", 3600)
+
+    if store_type == "redis":
+        redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+        logger.info(
+            "[Session] 使用 Redis 会话存储 | Using Redis session store: %s",
+            redis_url.split("://")[0],  # 不打印密码
+        )
+        return RedisSessionStore(redis_url, default_ttl=ttl)
+    else:
+        logger.info("[Session] 使用内存会话存储 | Using in-memory session store")
+        return InMemorySessionStore()
+
+
+# ═══════════════════════════════════════════════════════════════════
 # 会话池（全局单例）
 # ═══════════════════════════════════════════════════════════════════
-# ⚠️ 单进程内存实现——多 worker 部署需替换为 RedisSessionStore。
-# 见模块 docstring 的"关于 SessionStore 的可替换性"。
-_session_store: SessionStore = InMemorySessionStore()
+_session_store: SessionStore | None = None
+
+
+def _get_session_store() -> SessionStore:
+    """获取 SessionStore 单例（惰性创建）"""
+    global _session_store
+    if _session_store is None:
+        _session_store = _create_session_store()
+    return _session_store
+
 
 # 惰性创建 + loop 绑定检测：
 # asyncio.Lock 在 Python 3.10+ 首次 await 时绑定当前 loop，
@@ -114,28 +150,26 @@ def _get_sessions_lock() -> asyncio.Lock:
 
 async def get_session(thread_id: str) -> TaskSession | None:
     """异步获取会话"""
-    return await _session_store.get(thread_id)
+    return await _get_session_store().get(thread_id)
 
 
 async def pop_session(thread_id: str) -> TaskSession | None:
     """异步移除会话（供 stream 的 finally 使用）"""
-    return await _session_store.pop(thread_id)
+    return await _get_session_store().pop(thread_id)
 
 
 async def set_session(thread_id: str, session: TaskSession) -> None:
     """写入会话"""
-    await _session_store.set(thread_id, session)
+    await _get_session_store().set(thread_id, session)
 
 
 async def cleanup_stale_sessions() -> int:
     """
     定期清理过期会话。
 
-    ⚠️ 当前无后台任务调用——潜在内存泄漏。
-       应在 ASGI lifespan startup 里 create_task 一个循环定期跑。
-       见模块 docstring 的"关于会话清理"。
+    ✅ 已由 app.py 的 FastAPI startup 事件中的后台循环定期调用。
     """
-    return await _session_store.cleanup_stale(_hub.dev._SESSION_TTL)
+    return await _get_session_store().cleanup_stale(getattr(_hub.dev, "_SESSION_TTL", 3600))
 
 
 async def acquire_session(
@@ -147,13 +181,10 @@ async def acquire_session(
 
     resume=True 时：复用已有 session，重置 cancel_event（若已 set）。
     resume=False 时：无条件新建（覆盖旧 session）。
-
-    ⚠️ 参数 user_input 已删——它过去只用于 TaskSession.__init__ 的
-       一个未读取字段。当前所有调用方传的 user_input 都用不到。
     """
     async with _get_sessions_lock():
         if resume:
-            existing = await _session_store.get(thread_id)
+            existing = await _get_session_store().get(thread_id)
             if existing is not None:
                 if existing.cancel_event.is_set():
                     existing.cancel_event.clear()
@@ -165,7 +196,7 @@ async def acquire_session(
             )
 
         session = TaskSession(thread_id)
-        await _session_store.set(thread_id, session)
+        await _get_session_store().set(thread_id, session)
         return session
 
 

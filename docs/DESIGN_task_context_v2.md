@@ -1,7 +1,13 @@
 ---
 id: DESIGN_task_context_v2
-aliases: [TaskContext 设计 v2]
-tags: [architecture, async, session, stream, design]
+aliases:
+- TaskContext 设计 v2
+tags:
+- architecture
+- async
+- session
+- stream
+- design
 ---
 
 # TaskContext 设计 v2 —— 双轨状态边界（FastAPI backend 时代）
@@ -62,12 +68,16 @@ tags: [architecture, async, session, stream, design]
 
 **⚠️ 不持有 runner task 句柄**。这是 §3 与 §4.1 的关键：硬取消的能力不在这一侧。
 
-### §2.2 TaskStreamState（UI 侧）
+### §2.2 方法名对齐实物
 
-**文件**：`src/task_planner/services/stream/state.py`
-**职责**：UI 展示所需流式状态 + 后台 task 句柄
-**生命周期**：`launcher` 创建并 `state_cleaner.register` → `state_cleaner` 清理
-**存储**：`state_cleaner`（内存 + 清理循环）
+| 操作 | 实际方法 | 位置 |
+|---|---|---|
+| 启动（新建） | `launcher.start_stream()` | `launcher.py` — 含重复启动防护 |
+| 暂停 | `TaskStreamState.mark_paused()` | `state.py` |
+| 恢复（流式） | `launcher.resume_stream()` | `launcher.py` |
+| 恢复（API 直接命令） | `commands.resume_task()` | `commands.py` |
+
+注意：没有 `pause()` / `resume()` 这两个方法名。
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
@@ -260,11 +270,38 @@ if session:
 
 **当前单进程部署无实害**。这条与 ADR-0009 Revocation §3 是同一件事，不另立触发条件。
 
-### §4.4 【新增】`_resume_locks` 只增不减
+### §4.4 `_resume_locks` 泄漏（已修复）
 
-`commands._resume_locks` 按 `thread_id` 缓存 `(Lock, loop)`，`release_thread_lock()` 目前**无人调用**。`pop_session` 已删 session，锁却留着——长跑会缓慢累积。
+**原问题**：`_resume_locks` 在 `_get_resume_lock` 时写入，但 `release_thread_lock`
+从未被调用，字典只增不减，长时间运行后泄漏。
 
-**修法**：在 stream 层 `finally` 里 `pop_session` 之后顺手调一次 `release_thread_lock(thread_id)`。
+**修法（已实现）**：
+- `commands.py` 的 `cancel_task` 用 `try/finally` 保证
+  `release_thread_lock(thread_id)` 在任何取消路径下执行
+- `launcher.py` 的 `_run_worker` 的 `finally` 块中同时调用
+  `unregister_abort(thread_id)` + `release_thread_lock(thread_id)`
+- `resume_stream` 覆盖旧任务前：已完成的直接 `release_thread_lock`；
+  运行中的先 `cancel_task`（内部清 lock）再覆盖
+
+**结论**：任何退出路径（正常/异常/取消/覆盖）都清理 `_resume_locks`，不再泄漏。
+
+### §4.5 启动与恢复的并发防护
+
+**`start_stream`（新建入口）**：
+- 新增边界防御：检查 `state_cleaner.get(thread_id)`，若任务存在且未
+  `finished`，直接 `raise RuntimeError` 拒绝重复启动
+- 保证每个 `thread_id` 同时只有一个 worker 在跑，避免双 worker 并行
+  推同一个 `TaskStreamState` 导致 snapshot 互相覆盖
+
+**`resume_stream`（恢复/覆盖入口）**：
+- 旧任务已完成（`finished=True`）→ 清理 lock + unregister，直接覆盖
+- 旧任务运行中（`finished=False`）→ 先 `cancel_task` 干净退出
+  （硬取消 + 协作取消 + 清理 lock/abort），再启动新任务
+- 不存在 → 直接启动
+
+**分工**：`start_stream` 只负责全新启动，必须保证全新；
+`resume_stream` 负责恢复和覆盖，允许覆盖但必须干净清理旧资源。
+两者不会留下孤儿 worker 或锁泄漏。
 
 ---
 

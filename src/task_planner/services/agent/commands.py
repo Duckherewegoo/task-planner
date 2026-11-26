@@ -79,7 +79,7 @@ def _get_resume_lock(thread_id: str) -> asyncio.Lock:
 
 
 def release_thread_lock(thread_id: str) -> None:
-    """可选：thread 彻底结束后回收锁。当前无人调用，留作扩展点。"""
+    """清理 resume lock，避免字典只增不减。"""
     _resume_locks.pop(thread_id, None)
 
 
@@ -133,22 +133,27 @@ async def cancel_task(thread_id: str) -> bool:
     取消任务（异步）。
 
     先尝试硬取消（abort_worker），再设 cancel_event 做协作式取消。
+    同时清理 resume lock，避免 _resume_locks 只增不减。
     """
-    # 1. 硬取消（如果组合层注册了）
-    abort = _aborts.pop(thread_id, None)
-    if abort:
-        try:
-            abort()
-        except Exception as exc:
-            logger.warning("[Agent] 硬取消失败 | thread=%s: %s", thread_id, exc)
+    try:
+        # 1. 硬取消（如果组合层注册了）
+        abort = _aborts.pop(thread_id, None)
+        if abort:
+            try:
+                abort()
+            except Exception as exc:
+                logger.warning("[Agent] 硬取消失败 | thread=%s: %s", thread_id, exc)
 
-    # 2. 协作式取消（设 cancel_event）
-    session = await get_session(thread_id)
-    if session:
-        session.cancel_event.set()
-        logger.info("[Agent] 取消信号已发送 | thread=%s", thread_id)
-        return True
-    return False
+        # 2. 协作式取消（设 cancel_event）
+        session = await get_session(thread_id)
+        if session:
+            session.cancel_event.set()
+            logger.info("[Agent] 取消信号已发送 | thread=%s", thread_id)
+            return True
+        return False
+    finally:
+        # 3. 清理 resume lock（无论取消成功与否都清）
+        release_thread_lock(thread_id)
 
 
 async def modify_task(thread_id: str, new_input: str) -> bool:
@@ -274,4 +279,7 @@ __all__ = [
     "modify_task",
     "resume_task",
     "retry_node_cmd",
+    "register_abort",
+    "unregister_abort",
+    "release_thread_lock",
 ]

@@ -1,7 +1,10 @@
 ---
 id: 0009-fastapi-async-boundary
 aliases: []
-tags: [architecture, async, adr]
+tags:
+- architecture
+- async
+- adr
 ---
 
 # ADR 0009: 使用 FastAPI Backend 统一异步边界
@@ -52,7 +55,7 @@ ADR-0001 同时保留 DB 业务函数的 `async def` 签名（内部同步调用
 使调用方 `await` 零改动，为未来切回异步留口子。其**方案 C**（立即切 ASGI backend）
 被标记为「暂缓，非否决」，切换路径写入 `ARCH_FUTURE.md` §一。
 
-### 触发原因（2026-11-11）
+### 触发原因（2026-11-23）
 
 0001 生效约一个月后，以下条件逐渐明确：
 

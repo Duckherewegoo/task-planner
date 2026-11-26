@@ -7,7 +7,10 @@
 [![Async](https://img.shields.io/badge/async-ready-green.svg)](#-%E5%85%B3%E4%BA%8E%E5%BC%82%E6%AD%A5%E8%BE%B9%E7%95%8C)
 
 > 基于 **LangGraph** 与 **大语言模型** 的自主任务规划引擎，支持动态 DAG 编排、多模态意图识别与全流程可观测性评估。
-> **全链路异步**——FastAPI backend + Motor 异步驱动，UI / 任务 / DB 全异步，无一次性 loop 陷阱。
+> **UI / 任务 / DB 异步**（FastAPI backend + Motor），LLM 调用走同步客户端并由 `run_in_executor` 隔离；**非"全链路异步"**，边界见「关于异步边界」。
+
+**项目定位**：这是**个人学习研究项目**, 目标是"无限逼近生产可用、但不保证生产环境不崩"——重试 / 熔断 / 限流 / 健康检查等增强已具备雏形，但缺少多 worker 验证、鉴权、SLA 与容量规划。
+**请勿直接用于生产**，上线前需自行补齐认证、持久化任务队列与监控告警。
 
 **工程特性**
 
@@ -30,9 +33,9 @@ ______________________________________________________________________
 - 📜 **完整历史追溯** — 任务持久化，支持断点续传、重新规划
 - 🎨 **交互式可视化** — Dash + Cytoscape 流程图交互，节点状态清晰
 - 📤 **多格式导出** — SVG / PNG / PDF / DOT / HTML / JSON
-- 🔌 **全链路异步** — FastAPI backend + Motor 异步驱动，UI / 任务 / DB 全异步，无一次性 loop 陷阱
+- 🔌 **异步边界清晰** — UI 回调 / 后台任务 / DB 全异步（FastAPI backend + Motor）；LLM 为同步 SDK，经 `run_in_executor` 隔离，不阻塞 event loop
 - 🧪 **评估套件** — 内置 Crucible 评估引擎，支持 HITL 人工审查
-- 🛡 **生产级增强** — 重试、熔断、限流、健康检查、结构化日志
+- 🛡 **类生产级增强**（非生产承诺）— 重试、熔断、限流、健康检查、结构化日志；缺多 worker 验证与鉴权，详见「项目定位」
 - ⚙️ **配置工具** — 主应用内嵌 URL 驱动，可独立进程运行（端口 8051），自动从 `cog.snapshot()` 生成表单，支持热重载
 
 > 📖 **架构决策详见** [`docs/ARCH_FUTURE.md`](docs/ARCH_FUTURE.md)（UI / 任务层边界演进）与 [`docs/DESIGN_task_context.md`](docs/DESIGN_task_context.md)（TaskSession / TaskStreamState 双轨）。
@@ -60,9 +63,22 @@ ______________________________________________________________________
        │                               │
 ┌──────▼─────────────┐       ┌─────────▼──────────────────┐
 │  LLM Client        │       │  Database                   │
-│  AsyncOpenAI+httpx │       │  MongoDB (Motor 异步)        │
-│  （asyncio 持久）  │       │  （异步——见下"关于异步边界"）│
-└────────────────────┘       └─────────────────────────────┘
+│  同步 openai SDK   │       │  MongoDB (Motor 异步)        │
+│  （run_in_executor │       │  （异步——见下"关于异步边界"）│
+│   隔离，不阻塞 loop）│     └─────────────────────────────┘
+└────────────────────┘
+       │
+┌──────▼───────────────────────────────────────────────────┐
+│  取消机制（双通道）                                        │
+│  ① cancel_event（asyncio.Event，协作式）                  │
+│  ② register_abort（同步 SDK 的 httpx 层 abort）           │
+│  → 同步 LLM 调用亦可被打断，见「关键机制」                │
+└───────────────────────────────────────────────────────────┘
+
+┌───────────────────────────────────────────────────────────┐
+│  会话存储层（可插拔，SessionStore Protocol）               │
+│  InMemorySessionStore（默认） / RedisSessionStore（可选） │
+└───────────────────────────────────────────────────────────┘
 
 （⚠️ 上图为当前架构示意；历史架构见「关于异步边界」）
 
@@ -76,16 +92,16 @@ ______________________________________________________________________
 └───────────────────────────────────────────────┘
 ```
 
-### 关于异步边界（2026-11-11 更新：FastAPI backend）
+### 关于异步边界（2026-11-23 ~ 11-25 迁移：FastAPI backend）
 
 - **旧问题（已解决）**：Dash WSGI backend 每次回调创建一次性 loop，导致 `asyncio.create_task` 任务被取消，同步 pymongo 是当时的妥协方案。
 - **新方案**：迁移至 Dash 4.2 + FastAPI backend（`dash[async,fastapi]`），由 uvicorn 提供持久 event loop。回调本身为 async，直接 `await` 或 `asyncio.create_task` 即可跨回调存活。
 - **数据库驱动**：从同步 pymongo 切换为异步 `motor>=3.6.0`。Motor 的 `AsyncIOMotorClient` 在首次 await 时绑定到 uvicorn 的 loop，之后跨回调复用，连接池正常。
-- **LLM 客户端**：保持 `AsyncOpenAI`，现在运行在 uvicorn 的 loop 上（之前是 `async_runtime` 的独立线程 loop）。
-- **移除组件**：`infrastructure/async_runtime.py` 已移至 `abandon/`，不再需要。
+- **LLM 客户端：同步 `openai` SDK（不是 `AsyncOpenAI`）**。长耗时调用（单节点最长 60s）若直接在 async 回调里同步执行会卡死 uvicorn 单 loop，因此统一经 `loop.run_in_executor` 丢到线程池执行，**loop 本身不被阻塞**。代价：同步调用无法靠 `cancel_event` 协作式中断，取消需依赖 `register_abort` 在 httpx 层 abort（见「关键机制」）；这一限制与 `ARCH_FUTURE.md` §2.2 的记录一致。
+- **`async_runtime` 状态**：`infrastructure/async_runtime.py` **代码仍保留在 `infrastructure/` 下但已不再被任何运行路径引用**（`services/` 中无 import），属"可删除的死代码"。`abandon/` 目录中并没有 `async_runtime.py`（该目录归档的是 `agent_legacy.py` / `config_old.py` / `stream_manager_legacy.py` 等旧实现）。未来清理时再移入 `abandon/` 或直接删除。
 - **依赖变更**：`pyproject.toml` 中 motor 提升为主依赖，`db_extra` 组清空；新增 `uvicorn[standard]>=0.30.0`；dash 依赖改为 `dash[async,fastapi]>=4.4.0`。
 
-**LLM 调用是真正的长耗时 IO，异步有价值**，因此无论新旧架构都保持 `AsyncOpenAI`。
+> 为什么不用 `AsyncOpenAI`：ADR-0002 曾选全链路异步（`AsyncOpenAI` + Motor），但在 WSGI 一次性 loop 下 `httpx.AsyncClient` 同样绑 loop 失效。迁移 FastAPI backend 后异步 SDK 技术上可行，但当前代码库 LLM 层仍是同步实现，且同步 SDK 配合 `run_in_executor` 在单 loop 下已能满足吞吐，故未做二次迁移。**"全链路异步"不是本项目的事实**，准确说法是"UI / 任务 / DB 异步 + LLM 同步隔离"。
 
 ### 多角色协作的黑板通信模型
 
@@ -101,243 +117,288 @@ TaskState:
 
 每个节点函数有清晰的输入 / 输出契约，由 `core/graph/schemas.py` 中的 Pydantic 模型约束。
 
+### 关键机制（2026-11-25、26 加固）
+
+**① 双通道取消**
+
+同步 LLM SDK 无法靠 `asyncio.Event` 协作式打断，因此取消走两条通道并行：
+
+| 通道 | 作用对象 | 机制 |
+|---|---|---|
+| `cancel_event`（`utils/context.py`） | async 节点、LangGraph 流式循环 | 节点在 await 点轮询 `cancel_event.is_set()`，主动退出 |
+| `register_abort`（`infrastructure/llm/client.py`） | 同步 `openai` SDK 的 HTTP 层 | 向 httpx transport 注册 abort 回调，取消时直接断连 |
+
+任一通道触发即终止本次执行；两条都保留是为了覆盖"等待 LLM 响应中"与"节点间流转中"两种不同窗口。
+
+**② `start_stream` 重复启动防护**
+
+同一 `task_id` 重复点击"开始执行"曾会拉起第二个 runner，两个 loop 并发写同一 `TaskStreamState`，导致前端流程图跳变。现在启动前先查 `_runner_tasks`，已存在且未完成则直接复用，不再新建。
+
+**③ `resume_stream` 的覆盖清理**
+
+从历史记录"继续执行"时，若该任务已有残留 runner（上次中断未清理），先 cancel + 等待其退出，再启动新 runner；不做清理会出现旧 runner 复活并覆盖新状态。
+
+**④ `_resume_locks` 只增不减的修复**
+
+`services/stream/cleaner.py` 的 `_resume_locks` 是 `dict[task_id, asyncio.Lock]`，原实现只写入不删除，长会话下无界增长（内存泄漏）。现在在 stream 状态清理时同步 `pop` 对应锁，字典规模随活跃任务数收敛。
+
 ______________________________________________________________________
 
 ## 📁 项目结构
 
 ```text
-task-planner/
-├── CHANGELOG.md
-├── .github/workflows/ci.yml
-├── config/
-│   ├── schema.yaml
-│   ├── schema.yaml.example
-│   ├── user.yaml
-│   └── user.yaml.example
-├── data/
-│   ├── blocked_words/          # 17 个词库 txt（COVID-19 / GFW / 政治 / 色情 / 暴恐 / 广告 ...）
-│   └── whitelist.txt
-├── docker-compose.yml
-├── docker-compose.prod.yml
-├── Dockerfile
+task_planner/
+├── CHANGELOG.md                       # per-module 变更历史（源文件顶部只留最近一条 + 指针）
+├── config/                            # 🔴 配置数据（外部，可挂载）
+│   ├── schema.yaml                    # 开发者声明：value / purpose / scope / secret / from_env
+│   └── user.yaml                      # 用户覆盖（仅 scope=user 生效，不入库）
+├── data/                              # 🔴 数据（外部，可挂载）
+│   ├── blocked_words/                 # 违禁词库，17 个 txt，扁平存放
+│   │   ├── xx词库.txt               # → tier=block
+│   │   ├── xx词库.txt               # → tier=block
+│   │   ├── 涉枪涉爆.txt               # → tier=block
+│   │   ├── xx词库.txt               # → tier=block
+│   │   ├── COxx词库.txt           # → tier=review
+│   │   ├── Gxx补充词库.txt            # → tier=review
+│   │   ├── …（其余 11 个：广告类型等）
+│   └── whitelist.txt                  # 白名单：子串豁免，命中则不拦
+├── docker-compose.yml                 # 仅 mongodb（开发模式）
+├── docker-compose.prod.yml            # 全容器（生产模式，含 config profile）
+├── Dockerfile                         # 应用镜像
 ├── docs/
-│   ├── ARCH_FUTURE.md          # 架构演进（旧名 ARCHITECTURE_FUTURE.md）
-│   ├── DESIGN_task_context.md
-│   └── adr/
-│       ├── 0000-index.md
-│       ├── 0001-async-boundary.md
-│       ├── 0002-full-chain-async.md
-│       ├── 0003-gradio-to-dash.md
-│       ├── 0004-langgraph.md
-│       ├── 0005-mongodb.md
-│       ├── 0006-cog-config.md
-│       ├── 0007-python-314.md
-│       └── 0008-small-decisions-log.md
+│   ├── adr/                           # 架构决策记录（0000 为索引）
+│   │   ├── 0000-index.md
+│   │   ├── 0001-async-boundary.md     # ⚠️ Superseded by 0009
+│   │   ├── 0002-full-chain-async.md   # ⚠️ Superseded by 0001
+│   │   ├── 0003-gradio-to-dash.md
+│   │   ├── 0004-langgraph.md
+│   │   ├── 0005-mongodb.md
+│   │   ├── 0006-cog-config.md
+│   │   ├── 0007-python-314.md
+│   │   ├── 0008-small-decisions-log.md
+│   │   └── 0009-fastapi-async-boundary.md   # ✅ 当前异步边界决策
+│   ├── ARCH_FUTURE.md                 # 未来探索方向（非生产承诺）
+│   ├── DESIGN_task_context_v1.md      # 设计演进留痕
+│   └── DESIGN_task_context_v2.md      # 当前：TaskSession / TaskStreamState 双轨
 ├── examples/
-│   └── config_hub_usage_example.py
-├── LICENSE
-├── logs/                        # 运行时日志
-│   ├── task_planner.log
-│   └── task_planner.log.{2026-10-25, 10-28, 11-04, 11-09, 11-10}
-├── pyproject.toml
-├── README.md
-├── scripts/
-│   ├── audit_private_imports.py
+│   └── config_hub_usage_example.py    # cog 用法示例
+├── scripts/                           # 运维与一次性迁移脚本
+│   ├── audit_private_imports.py       # 私用导入审计
 │   ├── bye_bye_cancle_config.sh
-│   ├── changelog_migrate.py
-│   ├── check_bad_words_len.py
-│   ├── check_config_drift.py
+│   ├── changelog_migrate.py           # Changelog 集中迁移（一次性）
+│   ├── check_bad_words_len.py         # 违禁词长度分布诊断
+│   ├── check_config_drift.py          # 配置漂移检测（全量）
+│   ├── simple_check_config_drift.py   # 配置漂移检测（简化版）
 │   ├── dev_up.sh
-│   ├── find_cyto_configs.py
+│   ├── find_cyto_configs.py           # Cytoscape 配置搜索
 │   ├── make_future_be_now.py
-│   ├── migrate_config_imports.py
+│   ├── migrate_config_imports.py      # 旧 config 引用迁移
 │   ├── remove_compat_shells.py
-│   └── test_block_words.py
+│   └── test_block_words.py            # 词库加载 + 匹配验证
 ├── src/
-│   ├── logs/task_planner.log   # src 侧日志
-│   ├── task_planner/
-│   │   ├── abandon/            # 归档代码（不参与运行）
-│   │   │   ├── agent_legacy.py
-│   │   │   ├── agent_nah.py
-│   │   │   ├── config_old.py
-│   │   │   ├── dash_app_legacy.py
-│   │   │   ├── database_legacy.py
-│   │   │   ├── good_addons_old.py
-│   │   │   ├── llm_client_legacy.py
-│   │   │   ├── _nodes_legacy.py
-│   │   │   └── stream_manager_legacy.py
-│   │   ├── config_ui/
-│   │   │   ├── app.py
-│   │   │   ├── callbacks.py
-│   │   │   ├── form_builder.py
-│   │   │   ├── layout.py
-│   │   │   ├── standalone_app.py
-│   │   │   └── writer.py
-│   │   ├── core/
-│   │   │   ├── db/
-│   │   │   │   ├── client.py
-│   │   │   │   ├── _helpers.py
-│   │   │   │   ├── nodes.py
-│   │   │   │   ├── plans.py
-│   │   │   │   ├── schema.py
-│   │   │   │   └── tasks.py
-│   │   │   └── graph/
-│   │   │       ├── nodes/
-│   │   │       │   ├── cancel.py
-│   │   │       │   ├── direct.py
-│   │   │       │   ├── execute.py
-│   │   │       │   ├── _executor.py
-│   │   │       │   ├── _helpers.py
-│   │   │       │   ├── intent.py
-│   │   │       │   ├── plan.py
-│   │   │       │   ├── refine.py
-│   │   │       │   ├── render.py
-│   │   │       │   ├── retrieve.py     # 三层降级
-│   │   │       │   ├── routes.py
-│   │   │       │   ├── sanitize.py
-│   │   │       │   └── save.py
-│   │   │       ├── schemas.py
-│   │   │       ├── state.py
-│   │   │       └── workflow.py
-│   │   ├── infrastructure/
-│   │   │   ├── assets/
-│   │   │   │   ├── cytoscape_js.py
-│   │   │   │   └── cytoscape_styles.py
-│   │   │   ├── async_runtime.py  # ⚠️ 已废弃，移至 abandon/
-│   │   │   ├── blocked_words.py
-│   │   │   ├── cog/
-│   │   │   │   ├── entry.py
-│   │   │   │   ├── guard.py
-│   │   │   │   ├── hub.py
-│   │   │   │   ├── loader.py
-│   │   │   │   ├── registry.py
-│   │   │   │   ├── section.py
-│   │   │   │   ├── sections/
-│   │   │   │   │   ├── base.py
-│   │   │   │   │   ├── dashscope.py
-│   │   │   │   │   ├── llm.py
-│   │   │   │   │   ├── mongo.py
-│   │   │   │   │   ├── render.py
-│   │   │   │   │   ├── runtime.py
-│   │   │   │   │   └── security.py
-│   │   │   │   ├── session.py
-│   │   │   │   └── store.py
-│   │   │   ├── config_helpers.py
-│   │   │   ├── constants.py
-│   │   │   ├── llm/
-│   │   │   │   ├── api.py
-│   │   │   │   ├── client.py
-│   │   │   │   ├── core.py
-│   │   │   │   ├── errors.py
-│   │   │   │   ├── json_utils.py
-│   │   │   │   ├── mocks.py
-│   │   │   │   └── validator.py
-│   │   │   ├── logger_setup.py
-│   │   │   ├── prompts/
-│   │   │   │   ├── execute_node.txt
-│   │   │   │   ├── intent.txt
-│   │   │   │   ├── loader.py
-│   │   │   │   ├── node_refine.txt
-│   │   │   │   └── planner.txt
-│   │   │   ├── regexes.py
-│   │   │   ├── session_store/
-│   │   │   │   ├── in_memory_session_store.py
-│   │   │   │   ├── protocol.py
-│   │   │   │   └── redis_session_store.py
-│   │   │   └── ui_styles.py
-│   │   ├── main/
-│   │   │   ├── app.py
-│   │   │   ├── assets/
-│   │   │   │   └── custom.css
-│   │   │   └── ui/
-│   │   │       ├── callbacks/
-│   │   │       │   ├── export_cb.py
-│   │   │       │   ├── graph_js.py
-│   │   │       │   ├── history.py
-│   │   │       │   └── new_task.py
-│   │   │       ├── constants.py
-│   │   │       ├── data_ops.py
-│   │   │       ├── export.py
-│   │   │       └── layout.py
-│   │   ├── py.typed
-│   │   ├── services/
-│   │   │   ├── agent/
-│   │   │   │   ├── commands.py
-│   │   │   │   ├── session.py
-│   │   │   │   ├── state.py
-│   │   │   │   ├── stream.py
-│   │   │   │   └── view.py
-│   │   │   ├── stream/
-│   │   │   │   ├── cleaner.py
-│   │   │   │   ├── control.py
-│   │   │   │   ├── launcher.py
-│   │   │   │   ├── state.py
-│   │   │   │   └── view.py
-│   │   │   └── view_model.py
-│   │   └── utils/
-│   │       ├── context.py
-│   │       ├── cytoscape_adapter.py
-│   │       ├── cairoviz_export.py
-│   │       ├── flowchart_pro.py
-│   │       ├── good_addons.py # 已移除，里面是同步dash
-│   │       ├── presentation_utils.py
-│   │       └── pyvis_export.py
-│   └── task_planner.egg-info/
+│   └── task_planner/
+│       ├── abandon/                   # 🗄️ 归档：不参与运行，不进 wheel
+│       │   ├── agent_legacy.py
+│       │   ├── agent_nah.py
+│       │   ├── async_runtime.py       # ⚠️ 旧常驻 loop 方案，已被 ADR 0009 取代
+│       │   ├── config_old.py          # 旧的大宗 config.py
+│       │   ├── dash_app_legacy.py
+│       │   ├── database_legacy.py     # 原拼写保留
+│       │   ├── good_addons_old.py     # 旧单文件版；现版本见 utils/good_addons/
+│       │   ├── if_quart/
+│       │   │   └── quart_app.py       # 早期 Quart 方案尝试
+│       │   ├── llm_client_legacy.py
+│       │   ├── _nodes_legacy.py
+│       │   └── stream_manager_legacy.py
+│       ├── config_ui/                 # ⚙️ 独立配置工具（端口 8051，不连 DB/LLM）
+│       │   ├── app.py                 # Dash 实例 + 内嵌入口
+│       │   ├── standalone_app.py      # 独立进程入口（task-planner-config）
+│       │   ├── callbacks.py           # 保存 / 重置 / 重载
+│       │   ├── form_builder.py        # 从 cog.hub.snapshot() 生成表单
+│       │   ├── layout.py
+│       │   └── writer.py              # 原子写 user.yaml / .env
+│       ├── core/
+│       │   ├── db/                    # MongoDB 数据层（Motor 异步）
+│       │   │   ├── client.py          # AsyncIOMotorClient 生命周期 + 索引 + 懒初始化
+│       │   │   ├── _helpers.py
+│       │   │   ├── nodes.py           # nodes 数组操作
+│       │   │   ├── plans.py           # Plan CRUD
+│       │   │   ├── schema.py          # 清洗 / status 辅助 / validate_plan
+│       │   │   └── tasks.py           # Task CRUD + 4 状态更新
+│       │   └── graph/
+│       │       ├── nodes/             # 图节点：一文件一职责
+│       │       │   ├── intent.py      # 意图识别
+│       │       │   ├── plan.py        # DAG 生成
+│       │       │   ├── refine.py      # 节点细节细化（Semaphore 并发）
+│       │       │   ├── save.py        # 持久化（DB 不可用可降级）
+│       │       │   ├── render.py      # 流程图渲染
+│       │       │   ├── execute.py     # 执行调度（interrupt 点）
+│       │       │   ├── _executor.py   # 单节点执行 + 输出归一化
+│       │       │   ├── cancel.py      # 取消节点
+│       │       │   ├── direct.py      # 直通节点（无需规划时）
+│       │       │   ├── retrieve.py    # 检索节点
+│       │       │   ├── routes.py      # 条件路由（纯计算，无副作用）
+│       │       │   ├── sanitize.py    # 横切：脱敏 / 视图过滤
+│       │       │   └── _helpers.py
+│       │       ├── schemas.py         # 🆕 Pydantic 值对象：IntentModel / NodeExecResult
+│       │       ├── state.py           # TaskState 状态契约
+│       │       └── workflow.py        # 图拓扑 + Checkpointer + 单例
+│       ├── infrastructure/
+│       │   ├── assets/                # Cytoscape 前端资源（Python 侧常量）
+│       │   │   ├── cytoscape_js.py    # JS 模板 + GRAPH_CONFIGS
+│       │   │   └── cytoscape_styles.py# 30+ 条样式规则
+│       │   ├── cog/                   # 🧠 配置中枢（拆分包）
+│       │   │   ├── entry.py           # ConfigEntry + Scope + Role
+│       │   │   ├── guard.py           # 权限规则（scope / secret 校验）
+│       │   │   ├── hub.py             # 门面 + reload()
+│       │   │   ├── loader.py          # YAML → ConfigEntry（支持 from_env）
+│       │   │   ├── registry.py        # @register_section 装饰器
+│       │   │   ├── section.py         # ConfigSection 抽象基类
+│       │   │   ├── sections/          # 7 个内置 section
+│       │   │   │   ├── base.py
+│       │   │   │   ├── dashscope.py
+│       │   │   │   ├── llm.py
+│       │   │   │   ├── mongo.py
+│       │   │   │   ├── render.py
+│       │   │   │   ├── runtime.py
+│       │   │   │   └── security.py
+│       │   │   ├── session.py         # 按角色代理的 CRUD 视图
+│       │   │   └── store.py           # 底层增删改查 + clear
+│       │   ├── llm/                   # LLM 调用封装（同步 SDK + 线程池隔离）
+│       │   │   ├── api.py             # 5 个业务接口（意图/规划/细化/执行/摘要）
+│       │   │   ├── client.py          # 同步 openai 客户端单例
+│       │   │   ├── core.py            # 单次调用：重试 / 超时 / run_in_executor
+│       │   │   ├── json_utils.py      # 宽松 JSON 提取
+│       │   │   ├── validator.py       # 响应结构校验
+│       │   │   ├── errors.py          # 错误分类（可重试 / 永久失败）
+│       │   │   └── mocks.py           # Mock 模式实现（USE_MOCK_LLM）
+│       │   ├── prompts/               # Prompt 资源（.txt，由 loader 渲染）
+│       │   │   ├── loader.py          # 加载 .txt → Template + render_template
+│       │   │   ├── intent.txt
+│       │   │   ├── planner.txt
+│       │   │   ├── node_refine.txt
+│       │   │   └── execute_node.txt
+│       │   ├── session_store/         # 会话存储（可插拔，protocol 约束）
+│       │   │   ├── protocol.py        # SessionStore Protocol
+│       │   │   ├── in_memory_session_store.py
+│       │   │   └── redis_session_store.py
+│       │   ├── blocked_words.py       # 违禁词库：AC 自动机 + 白名单子串豁免
+│       │   ├── config_helpers.py      # 配置读取辅助
+│       │   ├── constants.py           # 枚举 / 状态码 / 颜色
+│       │   ├── regexes.py             # 预编译正则
+│       │   ├── logger_setup.py        # 日志：队列 + 线程，LOG_CONSOLE_LEVEL 可配
+│       │   └── ui_styles.py           # Dash 内联样式
+│       ├── main/
+│       │   ├── app.py                 # 🎯 uvicorn 入口：Dash(backend="fastapi") + lifespan
+│       │   ├── assets/
+│       │   │   └── custom.css         # 全局样式（Dash 4.x 已移除 html.Style）
+│       │   └── ui/                    # Dash UI（拆分包）
+│       │       ├── layout.py          # 页面布局：新建任务 / 历史 / 配置抽屉入口
+│       │       ├── callbacks/         # 回调分组
+│       │       │   ├── new_task.py    # 提交规划、节点操作、执行控制
+│       │       │   ├── history.py     # 历史列表与恢复
+│       │       │   ├── export_cb.py   # 导出触发
+│       │       │   ├── graph_js.py    # 前端 JS 片段（Cytoscape 交互）
+│       │       │   ├── _helpers.py
+│       │       │   └── __init__.py
+│       │       ├── data_ops.py        # 数据解析 / 节点状态操作
+│       │       ├── export.py          # JSON / DOT / HTML / SVG / PNG
+│       │       └── constants.py       # HistorySelectResult 等视图常量
+│       ├── services/
+│       │   ├── agent/                 # Agent 主入口
+│       │   │   ├── stream.py         # run_task_stream：图执行 + 双通道取消
+│       │   │   ├── session.py        # TaskSession + 会话池
+│       │   │   ├── commands.py       # 5 个用户命令（完成/跳过/失败/重试/取消）
+│       │   │   ├── state.py          # make_initial_state
+│       │   │   └── view.py           # 快照提取（is_graph_finished）
+│       │   ├── stream/                # 流式任务生命周期
+│       │   │   ├── launcher.py       # start_stream：重复启动防护
+│       │   │   ├── cleaner.py        # StreamStateCleaner（_resume_locks 不泄漏）
+│       │   │   ├── control.py        # resume_stream：覆盖清理 + 恢复
+│       │   │   ├── state.py          # TaskStreamState
+│       │   │   └── view.py           # 前端投影
+│       │   └── view_model.py          # 领域对象 → 前端字段
+│       ├── utils/                     # 独立工具（不依赖 LangGraph 类型）
+│       │   ├── good_addons/           # 🧩 独立安全增强模块（可复制到任何项目）
+│       │   │   ├── core.py            # 核心逻辑
+│       │   │   ├── good.py            # 门面
+│       │   │   ├── registry.py        # 增强项注册
+│       │   │   ├── support/           # 框架适配层
+│       │   │   │   ├── fastapi_support.py
+│       │   │   │   └── uvicorn_support.py
+│       │   │   └── README.md          # 该模块自带文档
+│       │   ├── context.py             # OperationCancelled + cancel_event_var + register_abort
+│       │   ├── cytoscape_adapter.py   # DAG → Cytoscape 元素
+│       │   ├── flowchart_pro.py       # 交互式 HTML 渲染
+│       │   ├── cairoviz_export.py     # cairosvg 路径的静态导出
+│       │   ├── pyvis_export.py        # pyvis 路径的静态导出（SVG/PNG/PDF/DOT）
+│       │   └── presentation_utils.py  # 展示辅助（耗时/字数统计）
+│       └── py.typed                   # PEP 561 类型标记
 ├── tests/
-│   ├── conftest.py
-│   ├── eval_suite/
-│   │   ├── conftest.py
+│   ├── conftest.py                    # 共享 fixture（LLM / DB / 网络统一 mock）
+│   ├── test_package/                  # 单元 + 集成（19 个文件）
+│   │   ├── test_state_defaults.py     # state.py 默认值契约
+│   │   ├── test_commands_contract.py  # commands feedback 键名契约
+│   │   ├── test_config_contract.py    # cog 配置契约
+│   │   ├── test_initial_state.py
+│   │   ├── test_graph_finished.py     # 终态判定
+│   │   ├── test_routes.py             # 路由函数（纯计算）
+│   │   ├── test_json_extraction.py
+│   │   ├── test_normalize_output.py
+│   │   ├── test_executor_coerce.py    # _executor 输出归一化
+│   │   ├── test_execute.py            # 执行冒烟：DB 降级 / RETRY / 三指针
+│   │   ├── test_refine.py             # 细化：Semaphore / 取消
+│   │   ├── test_save.py               # 持久化降级路径
+│   │   ├── test_plan.py               # DAG 生成
+│   │   ├── test_generate_plan.py
+│   │   ├── test_resolve_target_index.py
+│   │   ├── test_session_store.py
+│   │   ├── test_redis_session_store.py
+│   │   ├── test_evaluators.py
+│   │   └── test_mongodb.py            # 43 个 MongoDB 集成测试（默认排除）
+│   ├── eval_suite/                    # 评估套件测试（与 tools/ 实现对应）
 │   │   ├── test_deterministic.py
 │   │   ├── test_deterministic_scoring.py
 │   │   ├── test_golden_generator_sanity.py
 │   │   ├── test_jury.py
 │   │   ├── test_runner_resilience.py
 │   │   └── test_validator_edge_cases.py
-│   ├── evaluation/evaluators.py
-│   └── test_package/
-│       ├── test_commands_contract.py
-│       ├── test_config_contract.py
-│       ├── test_evaluators.py
-│       ├── test_execute.py
-│       ├── test_executor_coerce.py
-│       ├── test_generate_plan.py
-│       ├── test_graph_finished.py
-│       ├── test_initial_state.py
-│       ├── test_json_extraction.py
-│       ├── test_mongodb.py
-│       ├── test_normalize_output.py
-│       ├── test_plan.py
-│       ├── test_redis_session_store.py
-│       ├── test_refine.py
-│       ├── test_resolve_target_index.py
-│       ├── test_routes.py
-│       ├── test_save.py
-│       ├── test_session_store.py
-│       └── test_state_defaults.py
-└── tools/                              # 顶层目录
-    ├── __init__.py
-    └── eval_suite/
-        ├── cli.py
+│   ├── evaluation/                    # 评估器实现（被上面引用）
+│   │   └── evaluators.py
+│   └── abandon/                       # 🗄️ 归档：旧 Crucible 套件，不参与运行
+│       └── old_eval_suite/
+│           ├── crucible_eval.py
+│           ├── dataset_manager.py
+│           ├── hitl_reviewer.py
+│           ├── run_evaluation.py
+│           ├── test_eval_suite_wrapper.py
+│           └── harness/
+│               ├── agent_harness.py
+│               ├── evaluators.py
+│               └── reporters.py
+└── tools/                             # 🔧 工具链（独立顶层包，非安装目标）
+    └── eval_suite/                    # Crucible 评估引擎
+        ├── __main__.py                # python -m tools.eval_suite 入口
+        ├── cli.py                     # 命令行参数
         ├── errors.py
-        ├── __main__.py                 # 支持 `python -m tools.eval_suite`
-        ├── types.py
+        ├── types.py                   # 评估数据类型
         ├── golden/
-        │   ├── generator.py
-        │   └── validator.py
-        ├── hil/
-        │   ├── dash_app.py
-        │   └── sheet.py
+        │   ├── generator.py           # LLM 合成黄金标准
+        │   └── validator.py           # 程序化校验 DAG 结构
+        ├── runners/
+        │   ├── agent_runner.py        # 跑 Agent 并收集轨迹
+        │   └── trace.py               # 轨迹数据结构
+        ├── scorers/
+        │   ├── deterministic.py       # 确定性评分（结构/节点数/边数）
+        │   └── llm_judge.py           # LLM 评委评分
         ├── jury/
-        │   └── calibrated_judge.py
+        │   └── calibrated_judge.py    # 评委团聚合与校准
         ├── report/
         │   ├── html_report.py
         │   └── json_report.py
-        ├── runners/
-        │   └── agent_runner.py
-        └── scorers/
-            ├── deterministic.py
-            └── llm_judge.py
-```
+        └── hil/                       # Human-in-the-Loop 人工审查
+            ├── dash_app.py            # 独立审查前端
+            └── sheet.py               # 生成待审清单```
 
 ______________________________________________________________________
 
@@ -444,8 +505,10 @@ CHECKPOINTER_TYPE=memory        # memory / sqlite / postgres
 task-planner
 
 # 方式 B：模块运行
-python -m task_planner.main.dash_app
+python -m task_planner.main.app
 ```
+
+> 启动入口是 `src/task_planner/main/app.py`（FastAPI backend + uvicorn），**不是**旧的 `dash_app` 模块——迁移到 FastAPI backend 后启动方式从 `app.run()` / Werkzeug 改为 `uvicorn task_planner.main.app:server`。
 
 浏览器访问 <http://localhost:8050>。
 
@@ -671,7 +734,7 @@ grep -rn "async_runtime" src/task_planner/services/ --include="*.py" | grep -v "
 pip show task-planner
 
 # 或用模块方式运行
-python -m task_planner.main.dash_app
+python -m task_planner.main.app
 ```
 
 ### 端口占用 / 启动失败
@@ -797,7 +860,7 @@ ______________________________________________________________________
 - [LangGraph](https://langchain-ai.github.io/langgraph/) — 有向图状态机编排
 - [Dash](https://dash.plotly.com/) / [Cytoscape](https://js.cytoscape.org/) — 交互式可视化
 - [Motor](https://motor.readthedocs.io/) — 异步 MongoDB 驱动
-- [AsyncOpenAI](https://github.com/openai/openai-python) / [httpx](https://www.python-httpx.org/) — 高性能异步 LLM 调用
+- [openai-python](https://github.com/openai/openai-python) / [httpx](https://www.python-httpx.org/) — 同步 LLM SDK（经 `run_in_executor` 隔离，不阻塞 event loop）
 - [uvicorn](https://www.uvicorn.org/) — ASGI 服务器，提供持久 event loop
 - [pyvis](https://pyvis.readthedocs.io/) / [pydot](https://pypi.org/project/pydot/) / [cairosvg](https://cairosvg.org/) — 图渲染与导出
 - [ruamel.yaml](https://pypi.org/project/ruamel.yaml/)（可选）— 配置工具保留 YAML 注释
@@ -813,22 +876,36 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
-## ℹ️ 已知问题（旧架构遗留，新架构已解决）
+## ℹ️ 已知问题
 
-### 关于"全链路异步"
+### 关于异步边界（2026-11-25 迁移后的现状）
 
-（以下为历史记录，2026-11-11 迁移 FastAPI backend 后已解决）
+**已解决**：Dash WSGI 一次性 loop 问题——UI 回调 / 后台任务 / DB 三层已统一到 uvicorn 持久 loop。
 
-**当前策略（新架构）：**
+**仍未解决（诚实标注）**：LLM 客户端是**同步 `openai` SDK**，不是 `AsyncOpenAI`。当前靠 `run_in_executor` 把阻塞调用丢进线程池，event loop 本身不被卡住，但这意味着：
+
+- 取消不能直接靠 `cancel_event` 打断同步 HTTP 调用，必须配 `register_abort` 在 httpx 层 abort；
+- 线程池大小成为 LLM 并发的实际上限，不是 asyncio 信号量；
+- 严格说这不是"全链路异步"，准确表述是 **UI / 任务 / DB 异步 + LLM 同步隔离**。
+
+是否把 LLM 层迁移到 `AsyncOpenAI` 属开放问题，记录于 `docs/ARCH_FUTURE.md` §2.2。
 
 | 层 | 选型 | 理由 |
 |---|---|---|
 | UI 回调 | async（FastAPI backend） | uvicorn 持久 loop |
 | 后台任务 | 直接 `asyncio.create_task` | 同一 loop 内跨回调存活 |
 | DB 客户端 | Motor 异步 | 绑定 uvicorn loop，连接池复用 |
-| LLM 客户端 | AsyncOpenAI | 真异步调用，跑在 uvicorn loop 上 |
+| LLM 客户端 | 同步 `openai` SDK + `run_in_executor` | 线程池隔离，loop 不阻塞；取消依赖 `register_abort` |
 
-详见 `docs/ARCH_FUTURE.md`。
+### 关于 `good_addons.py`
+
+它**没有被移除**，而是被重构为**独立的 Web App 通用安全增强模块**（commit `f922862`：`feat(good_addons): 将 good_addons 变成一个事实性的 web app 通用安全增强独立模块`）。设计目标是可复制到其他 Dash / Flask 项目直接使用，因此 Changelog 保留在文件内，不参与 `scripts/changelog_migrate.py` 的集中迁移。
+
+> `abandon/good_addons_old.py` 是它的**旧版实现**，两者不要混淆：现在生效的是 `utils/good_addons.py`。
+
+### 关于 `async_runtime.py`
+
+**代码仍在 `infrastructure/async_runtime.py`，没有被移进 `abandon/`**——只是运行路径（`services/`）已无任何 import，属死代码。保留是为了万一 FastAPI backend 出问题可快速回退（对应 ADR-0009 撤销条件第 4 条）。清理动作留待后续单独 PR。
 
 ### 关于 `CHANGELOG.md`
 
@@ -865,8 +942,15 @@ ______________________________________________________________________
 
 | 日期 | 主题 | 影响 |
 |---|---|---|
-| 2026-11-11 | 迁移至 Dash 4.2 + FastAPI backend，移除 `async_runtime`，DB 驱动换 Motor | 全栈异步，架构简化 |
-| 2026-11-11 | `pyproject.toml` 依赖调整：motor 提升为主依赖，新增 uvicorn，dash 加 fastapi | 部署方式不变，内部全异步 |
+| 2026-11-26 | 完善双通道取消清理与 start_stream 边界防御：`cancel_task` try/finally 保证 `release_thread_lock`；`_run_worker` finally 双清理；`start_stream` 重复启动直接 raise RuntimeError | `services/agent/commands.py` / `services/stream/launcher.py` |
+| 2026-11-26 | 同步取消机制修复说明，重写 ARCH_FUTURE 为架构演进文档 | `docs/DESIGN_task_context_v2.md` / `docs/ARCH_FUTURE.md` |
+| 2026-11-25 | 双通道取消、会话清理闭环与节点状态机修正：`_aborts` 注册表 + `register_abort`/`unregister_abort`；`cancel_task` 先硬取消再设 `cancel_event`；终态保护扩到 done/failed/skipped；防御性拷贝 | `services/agent/commands.py` / `services/stream/launcher.py` / `services/agent/session.py` / `services/stream/state.py` |
+| 2026-11-25 | FastAPI backend 迁移收尾，统一异步边界：Dash 切 FastAPI，Motor 异步，shutdown 分步兜底，cleaner 改 lifespan | `main/app.py` / `core/db/client.py` / `infrastructure/llm/client.py` / `services/stream/cleaner.py` |
+| 2026-11-25 | ADR-0009 按落地结果修订，TaskContext 设计拆 v1/v2 | `docs/adr/` / `docs/DESIGN_task_context*.md` |
+| 2026-11-25 | TaskState 补充 task_id 可选字段，refine 节点清理 TODO | `core/graph/state.py` / `core/graph/nodes/refine.py` |
+| 2026-11-25 | 修复配置项重复声明被静默丢弃与 section 未注册 | `infrastructure/cog/` |
+| 2026-11-24 | good_addons 重构为独立模块（web app 通用安全增强） | `utils/good_addons.py` 等 |
+| 2026-11-23 | FastAPI backend 迁移系列：主应用迁移、DB 异步驱动、全链路适配、CI/test 调整等（首轮试迁移，后于 11-25 定型） | 见 ADR-0009 |
 | 2026-10-14 | DB 客户端从 Motor 迁移到同步 pymongo（旧 WSGI 架构下的妥协） | `core/db/*` |
 | 2026-10-14 | Changelog 集中至 `CHANGELOG.md` | 11 个源文件 |
 | 2026-10-14 | `set_req_id` 有值复用——修复同任务多 req_id | `logger_setup.py` |
